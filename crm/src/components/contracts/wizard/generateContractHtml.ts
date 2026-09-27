@@ -1,0 +1,1250 @@
+import { ContractStudioData } from '@/types/contractStudioTypes';
+
+// Official Rise Up Roofing & Construction Vector Logo (Inline SVG)
+const RISEUP_LOGO_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 471.04 113.27" style="height:38px;width:auto;display:block;" aria-label="Rise Up Roofing and Construction">
+  <defs>
+    <radialGradient id="h_rg1" cx="98.51" cy="89.52" r="0.05" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f6df78"/><stop offset="0.54" stop-color="#e6712d"/></radialGradient>
+    <radialGradient id="h_rg2" cx="60.65" cy="27.89" r="44.13" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f1b91b"/><stop offset="1" stop-color="#f47920"/></radialGradient>
+    <linearGradient id="h_lg1" x1="17.33" y1="93.1" x2="113.01" y2="93.1" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8ad5f4"/><stop offset="0.37" stop-color="#87d0f1"/><stop offset="1" stop-color="#3f8fcd"/></linearGradient>
+    <radialGradient id="h_rg3" cx="88.69" cy="56.5" r="20.85" gradientUnits="userSpaceOnUse"><stop offset="0.41" stop-color="#8ad5f4"/><stop offset="1" stop-color="#3f8fcd"/></radialGradient>
+    <linearGradient id="h_lg2" x1="47.28" y1="82.84" x2="47.28" y2="33.49" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ed1c24"/><stop offset="1" stop-color="#ed1c24"/></linearGradient>
+    <radialGradient id="h_rg4" cx="51.35" cy="70.48" r="10.29" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8ad5f4"/><stop offset="1" stop-color="#3f8fcd"/></radialGradient>
+  </defs>
+  <path fill="url(#h_rg1)" d="M98.53,89.51h0s0,0,0,0l-.11.09Z"/>
+  <path fill="url(#h_rg2)" d="M17.91,44.47,34,43.73l-9.83,9.38-4.55.72-8,1.28-5.21.83a57.3,57.3,0,0,1-1.5-10.88L7.33,45Zm6-19-10-4.12A57.19,57.19,0,0,0,8,30.59l7.81,2.25,2.53.72.52.14,19.75,5.65,5.7-5.44L24.61,25.8ZM39.65,14.72l-.74-.81h0l-2.81-3.06-4.2-4.57a57.11,57.11,0,0,0-6.52,4.1q-1,.73-2,1.53l3.9,3.39,3.89,3.38.71.61L46.39,31.91l.43.37A19.77,19.77,0,0,1,49,29.4a18.24,18.24,0,0,1,2.2-2.1Zm7-3.75.46,1,6.17,13.84A20.08,20.08,0,0,1,57,23.94a19.82,19.82,0,0,1,2.34-.74l-4-12.64L55,9.41l-.48-1.52-2.56-8C50.44,0,49,.27,47.55.57h0q-2.53.53-5,1.26l2.92,6.56ZM80.74,38.09c-.07-.22-.16-.45-.24-.67a16.78,16.78,0,0,0-2.77-4.74,12,12,0,0,0-.81-.93,16.92,16.92,0,0,0-5-3.63c-.35-.18-.74-.34-1.12-.5a17.23,17.23,0,0,0-6.1-1.18,16.53,16.53,0,0,0-4.16.49,15.18,15.18,0,0,0-2.12.65,17.13,17.13,0,0,0-3.55,1.87c-.29.2-.59.42-.87.64l9.41,9.45,18.24,3.71a16.57,16.57,0,0,0-.54-4C81,38.88,80.87,38.49,80.74,38.09ZM75.15,13.68l.14-.44.34-1.1L79,2.85l-.51-.18-1.43-.48L76.62,2l-.34-.1A62.84,62.84,0,0,0,69.76.28v0L67.88,10l-.08.42-.14.73v0L65.44,22.56a21,21,0,0,1,6.5,1.34Zm4.41,15.19,6.36-7,2.55-2.48,8-7.73a35.76,35.76,0,0,0-5.86-4.31L88.14,5.89s0,0,0,0l-.17-.1h0l-6.4,9.05-1.42,2-5.86,8.08A21.08,21.08,0,0,1,79.56,28.87Zm36.81,17.94c-.06-.4-.13-.79-.2-1.17s-.11-.58-.16-.87v0a1.59,1.59,0,0,0-.06-.3c-.59-2.67-1.48-5.62-2.18-7.86l-11.43,1-6,.56L85.05,39a20.68,20.68,0,0,1,.48,5l9.78,2,3.22.13,6.57.3,11.3.52ZM98.78,30.9l10.61-3.76a31,31,0,0,0-2.48-3.91c-.13-.2-.27-.39-.42-.58-1.11-1.53-2.29-3-3.24-4.19l-.06-.06L93.38,24l-3.8,2.15L81.2,30.76a21.18,21.18,0,0,1,3,5.25l.21.58,9.46-3.93Z"/>
+  <path fill="url(#h_lg1)" d="M112.87,75.65q-1.22,2.55-2.39,5.13a.78.78,0,0,1-1,.51A38.89,38.89,0,0,0,98.76,81a51.46,51.46,0,0,0-13.57,3.57c-6.38,2.57-12.4,5.86-18.5,9a85.62,85.62,0,0,1-15.11,6.35l-.11,0c-1.45.42-2.92.8-4.42,1.09-.77.16-1.55.3-2.33.42C37,102.6,29.54,101.8,22.58,98a22.34,22.34,0,0,1-5.25-4.4,41.56,41.56,0,0,0,7.51,2.77,33.17,33.17,0,0,0,12.24.72l.16,0c7.66-1,14.42-4.35,21.1-7.92C64.72,85.77,70.94,82,77.57,79.1a63.41,63.41,0,0,1,21.32-5.43q1.88-.14,3.72-.09a51.77,51.77,0,0,1,9.76,1.12C113.07,74.85,113.14,75.09,112.87,75.65ZM96,84.93c-.78.13-1.56.29-2.35.45-5.88,1.28-11.14,4-16.32,6.91a161.82,161.82,0,0,1-15.77,8.25l-1.15.47-.24.09c-1.36.55-2.74,1-4.12,1.45a45.49,45.49,0,0,1-14.48,2.08,49.49,49.49,0,0,1-12.54-2c-1.13-.32-2.25-.7-3.61-1.13,25.31,20,64.55,12.4,82.7-16.75A36.21,36.21,0,0,0,96,84.93Z"/>
+  <path fill="url(#h_rg3)" d="M86.27,54.37,74.21,52.83,63.39,41.35l12.49,2.82Zm6.89-6.15L77.5,44.57,87.8,54.64l15,2.48ZM87.8,55.78,76,54.14,92.52,71.65l9.29-1.08Zm18.08,4.31-1.68-1.64L90,56.18l13.65,14.67.21.23,9.43.35c.27-1.14.52-2.3.72-3.46Z"/>
+  <path fill="url(#h_lg2)" d="M89.91,72a63.84,63.84,0,0,0-7.71,2.14l-30.9-31L16.5,74.6l-.42.38,0,0L9.59,80.83l-2,2-1-2C5.88,79.24,5.24,77.62,4.66,76l46.9-42.47Z"/>
+  <path fill="#00b0ed" d="M80.35,3.36l-3.92,9.08-.45,1c-.22-.09-.46-.17-.69-.24a44.49,44.49,0,0,0-7.63-2.11l-.21,0-.19,0-.17,0L67,11l-.14,0h-.16a44.87,44.87,0,0,0-5.46-.55c-.64,0-1.29,0-1.93,0-1.33,0-2.63.06-3.93.17-1.06.09-2.11.21-3.16.37A45,45,0,0,0,47.08,12c-1.46.4-2.89.86-4.29,1.39-1.07.4-2.11.84-3.14,1.33A45.26,45.26,0,0,0,34,17.84c-.72.47-1.42.95-2.11,1.45a47.05,47.05,0,0,0-7.1,6.35l-.15.16a46.84,46.84,0,0,0-5.78,7.9l-.31.54a47,47,0,0,0-4.3,10.39c-.26.95-.49,1.91-.7,2.88a45.53,45.53,0,0,0-.85,6,.49.49,0,0,0,0,.12c0,.44-.06.88-.08,1.31s0,.63,0,.95h0c0,.4,0,.81,0,1.21a47,47,0,0,0,1.07,10h0v0s0,.14.05.27a.65.65,0,0,0,0,.13v0s0,.08,0,.13h0s0,0,0,0L4.66,76a.09.09,0,0,1,0,0A57.3,57.3,0,0,1,1.5,57.12c0-1.44.06-2.87.16-4.29,0-.06,0-.11,0-.17A57.13,57.13,0,0,1,8,30.6H8a56.57,56.57,0,0,1,6-9.2,57.92,57.92,0,0,1,9.43-9.48c.67-.53,1.33-1,2-1.53a57,57,0,0,1,6.51-4.1c1-.53,2-1,3-1.5a56.64,56.64,0,0,1,7.66-2.95Q45,1.1,47.55.57h0C49,.27,50.45,0,51.93-.16h0a54.56,54.56,0,0,1,5.76-.45c.52,0,1,0,1.57,0a57.62,57.62,0,0,1,6.6.38H66c1.27.11,2.56.3,3.8.53a62.84,62.84,0,0,1,6.52,1.65Z"/>
+  <path fill="url(#h_rg4)" d="M50.64,69.62H41.13v-9.5h9.51Zm10.93-9.5h-9.5v9.5h9.5ZM50.64,71.33H41.13v9.51h9.51Zm10.93,0h-9.5v9.51h9.5Z"/>
+  <path fill="#ffffff" d="M175.34,25.22q7.53,0,10.77,2.92t3.23,10.34a31.82,31.82,0,0,1-.31,4.83,9,9,0,0,1-1.26,3.49,6.48,6.48,0,0,1-2.19,2.2,34.65,34.65,0,0,1-5.28,2,13,13,0,0,1,6.47,2.23c1.38,1.11,2.07,3,2.07,5.81v8H175.9v-4a18.29,18.29,0,0,0-.53-4.9c-.36-1.22-2-1.82-5-1.82h-21.3V67.12H136.33V25.22ZM170,46.2c2.89,0,4.69-.35,5.4-1.07s1.07-2.3,1.07-4.77a8.75,8.75,0,0,0-.41-3.08,2.41,2.41,0,0,0-1.7-1.38,10.82,10.82,0,0,0-2.1-.44c-.55,0-1.19-.06-1.95-.06H149.08V46.2H170Zm29.83,20.92V25.22h12.75v41.9Zm35.74-12.69c0,1.72.58,2.79,1.73,3.23a13.89,13.89,0,0,0,4.8.66l6,.07,8.54-.26q3.52,0,4.59-.87a3.39,3.39,0,0,0,1.06-2.77,3.3,3.3,0,0,0-1.22-2.7c-.82-.67-2.38-1-4.68-1h-2.07l-21-.44q-5.91,0-8.32-3t-2.42-9.14a17.44,17.44,0,0,1,1.54-8.1,8.23,8.23,0,0,1,5.59-3.92A50.31,50.31,0,0,1,240.37,25c4.38-.12,7.32-.19,8.83-.19l8.92.13a35,35,0,0,1,8.6.85,7.13,7.13,0,0,1,4.62,3.11A13.33,13.33,0,0,1,273.06,33a25.31,25.31,0,0,1,.38,5h-12.5a3.46,3.46,0,0,0-1.28-3.07,6.34,6.34,0,0,0-3.61-.88L249.89,34l-9.74.32a6.92,6.92,0,0,0-3.29.72,2.53,2.53,0,0,0-1.35,2.42c0,1.55.53,2.56,1.6,3a10.65,10.65,0,0,0,4.36.73h1.32l8.54.12,8.42.06q8.1,0,11.78,2.55c2.45,1.69,3.67,5.1,3.67,10.2s-1.1,8.34-3.3,10.18-5.83,2.76-10.89,2.76l-16.33.44-8.54-.19q-6.79,0-10-2.19t-3.21-8.86V53.74h12.57ZM332,25.22v9.55H298v7.16h31.72v8.29H298v7.41h34v9.49H285.25V25.22Z"/>
+  <path fill="#00b0ed" d="M410.86,49.15V51.6q0,9.8-5.11,12.91T390,67.62l-10.43-.06a69.6,69.6,0,0,1-12.68-.88,11.47,11.47,0,0,1-7.1-4.46Q357,58.64,357,51V25.29h12.75V47.21q0,6.27,1.51,8.16t7.6,1.89l5.71.06,5.28-.06q5.21,0,6.69-1.64c1-1.09,1.47-3.28,1.47-6.59V25.29h12.81Zm44.85-23.93q9.48,0,13.16,3.08t3.67,12.37q0,8.8-2.85,12.41t-12,3.61H434.54V67.12H421.79V25.22Zm4,15.89c0-2.34-.51-3.88-1.51-4.61s-2.76-1.1-5.28-1.1H434.54V46.52h18.53q3.65,0,5.12-1C459.17,44.79,459.67,43.33,459.67,41.11Z"/>
+</svg>
+`;
+
+const RISEUP_EMBLEM_SVG = `
+<svg viewBox="0 0 120 114" style="height:24px;width:auto;display:inline-block;vertical-align:middle;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="m_rg2" cx="60.65" cy="27.89" r="44.13" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f1b91b"/><stop offset="1" stop-color="#f47920"/></radialGradient>
+    <linearGradient id="m_lg1" x1="17.33" y1="93.1" x2="113.01" y2="93.1" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#8ad5f4"/><stop offset="1" stop-color="#3f8fcd"/></linearGradient>
+    <linearGradient id="m_lg2" x1="47.28" y1="82.84" x2="47.28" y2="33.49" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ed1c24"/><stop offset="1" stop-color="#ed1c24"/></linearGradient>
+  </defs>
+  <path fill="url(#m_rg2)" d="M17.91,44.47,34,43.73l-9.83,9.38-4.55.72-8,1.28-5.21.83a57.3,57.3,0,0,1-1.5-10.88L7.33,45Zm6-19-10-4.12A57.19,57.19,0,0,0,8,30.59l7.81,2.25,2.53.72.52.14,19.75,5.65,5.7-5.44L24.61,25.8ZM39.65,14.72l-.74-.81h0l-2.81-3.06-4.2-4.57a57.11,57.11,0,0,0-6.52,4.1q-1,.73-2,1.53l3.9,3.39,3.89,3.38.71.61L46.39,31.91l.43.37A19.77,19.77,0,0,1,49,29.4a18.24,18.24,0,0,1,2.2-2.1Zm7-3.75.46,1,6.17,13.84A20.08,20.08,0,0,1,57,23.94a19.82,19.82,0,0,1,2.34-.74l-4-12.64L55,9.41l-.48-1.52-2.56-8C50.44,0,49,.27,47.55.57h0q-2.53.53-5,1.26l2.92,6.56Z"/>
+  <path fill="url(#m_lg1)" d="M112.87,75.65q-1.22,2.55-2.39,5.13a.78.78,0,0,1-1,.51A38.89,38.89,0,0,0,98.76,81a51.46,51.46,0,0,0-13.57,3.57c-6.38,2.57-12.4,5.86-18.5,9a85.62,85.62,0,0,1-15.11,6.35l-.11,0c-1.45.42-2.92.8-4.42,1.09-.77.16-1.55.3-2.33.42C37,102.6,29.54,101.8,22.58,98a22.34,22.34,0,0,1-5.25-4.4,41.56,41.56,0,0,0,7.51,2.77,33.17,33.17,0,0,0,12.24.72l.16,0c7.66-1,14.42-4.35,21.1-7.92C64.72,85.77,70.94,82,77.57,79.1a63.41,63.41,0,0,1,21.32-5.43q1.88-.14,3.72-.09a51.77,51.77,0,0,1,9.76,1.12C113.07,74.85,113.14,75.09,112.87,75.65ZM96,84.93c-.78.13-1.56.29-2.35.45-5.88,1.28-11.14,4-16.32,6.91a161.82,161.82,0,0,1-15.77,8.25l-1.15.47-.24.09c-1.36.55-2.74,1-4.12,1.45a45.49,45.49,0,0,1-14.48,2.08,49.49,49.49,0,0,1-12.54-2c-1.13-.32-2.25-.7-3.61-1.13,25.31,20,64.55,12.4,82.7-16.75A36.21,36.21,0,0,0,96,84.93Z"/>
+  <path fill="url(#m_lg2)" d="M89.91,72a63.84,63.84,0,0,0-7.71,2.14l-30.9-31L16.5,74.6l-.42.38,0,0L9.59,80.83l-2,2-1-2C5.88,79.24,5.24,77.62,4.66,76l46.9-42.47Z"/>
+  <path fill="#00b0ed" d="M80.35,3.36l-3.92,9.08-.45,1c-.22-.09-.46-.17-.69-.24a44.49,44.49,0,0,0-7.63-2.11l-.21,0-.19,0-.17,0L67,11l-.14,0h-.16a44.87,44.87,0,0,0-5.46-.55c-.64,0-1.29,0-1.93,0-1.33,0-2.63.06-3.93.17-1.06.09-2.11.21-3.16.37A45,45,0,0,0,47.08,12c-1.46.4-2.89.86-4.29,1.39-1.07.4-2.11.84-3.14,1.33A45.26,45.26,0,0,0,34,17.84c-.72.47-1.42.95-2.11,1.45a47.05,47.05,0,0,0-7.1,6.35l-.15.16a46.84,46.84,0,0,0-5.78,7.9l-.31.54a47,47,0,0,0-4.3,10.39c-.26.95-.49,1.91-.7,2.88a45.53,45.53,0,0,0-.85,6,.49.49,0,0,0,0,.12c0,.44-.06.88-.08,1.31s0,.63,0,.95h0c0,.4,0,.81,0,1.21a47,47,0,0,0,1.07,10h0v0s0,.14.05.27a.65.65,0,0,0,0,.13v0s0,.08,0,.13h0s0,0,0,0L4.66,76a.09.09,0,0,1,0,0A57.3,57.3,0,0,1,1.5,57.12c0-1.44.06-2.87.16-4.29,0-.06,0-.11,0-.17A57.13,57.13,0,0,1,8,30.6H8a56.57,56.57,0,0,1,6-9.2,57.92,57.92,0,0,1,9.43-9.48c.67-.53,1.33-1,2-1.53a57,57,0,0,1,6.51-4.1c1-.53,2-1,3-1.5a56.64,56.64,0,0,1,7.66-2.95Q45,1.1,47.55.57h0C49,.27,50.45,0,51.93-.16h0a54.56,54.56,0,0,1,5.76-.45c.52,0,1,0,1.57,0a57.62,57.62,0,0,1,6.6.38H66c1.27.11,2.56.3,3.8.53a62.84,62.84,0,0,1,6.52,1.65Z"/>
+</svg>
+`;
+
+export function generateContractHtml(data: ContractStudioData, page: number | 'all' = 1): string {
+  const TOTAL_PAGES = 6;
+
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n || 0);
+
+  const clientName = escapeHtml(data.clientName || '[Client Name Pending]');
+  const clientInitials = data.clientInitials ? escapeHtml(data.clientInitials) : '';
+  const isSigned = Boolean(data.isSigned);
+  const clientSignatureName = data.clientSignatureName ? escapeHtml(data.clientSignatureName) : '';
+  const rawSig = (data as any).clientSignatureData || '';
+  const clientSignatureData =
+    typeof rawSig === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(rawSig)
+      ? rawSig
+      : '';
+
+  const isClientSigned = Boolean(
+    data.isSigned ||
+    data.signedAt ||
+    data.clientSignatureName ||
+    (data as any).clientSignatureData ||
+    (data as any).client_signed_at ||
+    (data as any).status === 'client_signed' ||
+    (data as any).status === 'signed'
+  );
+
+  const isCounterSigned = Boolean(
+    (data as any).isCounterSigned ||
+    (data as any).is_counter_signed ||
+    (data as any).counterSignedAt ||
+    (data as any).counter_signed_at ||
+    ((data as any).status === 'signed' && ((data as any).counterSignedAt || (data as any).counter_signed_at))
+  );
+
+  let executionStatusLabel = 'DRAFT';
+  let executionStatusSlug = 'draft';
+  if (isClientSigned && isCounterSigned) {
+    executionStatusLabel = 'FULLY EXECUTED';
+    executionStatusSlug = 'fully-executed';
+  } else if (isClientSigned) {
+    executionStatusLabel = 'PARTIALLY EXECUTED';
+    executionStatusSlug = 'partially-executed';
+  }
+
+  const contractorSignatureName = escapeHtml(data.contractorSignatureName || '');
+  const rawContractorSig = (data as any).contractorSignatureData || (data as any).contractor_signature_data || '';
+  const contractorSignatureData =
+    typeof rawContractorSig === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(rawContractorSig)
+      ? rawContractorSig
+      : '';
+
+  let rawAddr = (data.projectAddress || '').trim();
+  const rawCity = (data.city || '').trim();
+  const rawState = (data.state || 'CA').trim();
+  const rawZip = (data.zip || '').trim();
+
+  let formattedAddr = '';
+  if (rawAddr) {
+    formattedAddr = rawAddr;
+    if (rawCity && !formattedAddr.toLowerCase().includes(rawCity.toLowerCase())) {
+      formattedAddr += `, ${rawCity}`;
+    }
+    if (rawState && !formattedAddr.includes(rawState)) {
+      formattedAddr += `, ${rawState}`;
+    }
+    if (rawZip && !formattedAddr.includes(rawZip)) {
+      formattedAddr += ` ${rawZip}`;
+    }
+  } else if (rawCity || rawZip) {
+    formattedAddr = [rawCity, rawState, rawZip].filter(Boolean).join(' ');
+  } else {
+    formattedAddr = '[Project Address Pending]';
+  }
+  const projectAddress = escapeHtml(formattedAddr);
+  const contractDate = escapeHtml(data.contractDate || 'September 22, 2026');
+  const salespersonName = escapeHtml(data.salespersonName || 'Marc Sarellano');
+  const contractorName = escapeHtml(data.contractorName || 'Edith Guerrero');
+  const contractorLicense = escapeHtml(data.contractorLicense || '#1096492');
+  const scopeTitle = escapeHtml(data.scopeTitle || 'Complete 31-Square Concrete Tile Roof Installation');
+  const scopeIntro = escapeHtml(
+    data.scopeIntro ||
+      'Rise Up Roofing & Construction, Inc. will complete the following roofing, preventative maintenance, exterior waterproofing, and interior repair work at the property:'
+  );
+  const contractPrice = fmt(data.contractPrice || 31000);
+  const downpayment = fmt(data.downpayment || 1000);
+  const financeCharge = escapeHtml(data.financeCharge || 'N/A');
+  const approxStartDate = escapeHtml(data.approxStartDate || 'October 16th, 2026');
+  const substantialCommencementDate = escapeHtml(data.substantialCommencementDate || 'October 19th, 2026');
+  const approxCompletionDate = escapeHtml(data.approxCompletionDate || 'October 22th, 2026');
+  const cancellationEmail = escapeHtml(data.cancellationEmail || 'accountant@riseuprac.com');
+  const insuranceCarrier = escapeHtml(data.insuranceCarrier || 'PACIFIC UNITED INSURANCE SERVICES');
+  const insurancePhone = escapeHtml(data.insurancePhone || '(619) 274-8144');
+  const workersCompCarrier = escapeHtml(data.workersCompCarrier || 'PACIFIC UNITED INSURANCE SERVICES');
+  const workersCompPhone = escapeHtml(data.workersCompPhone || '(619) 274-8144');
+
+  const scopeSections =
+    data.scopeSections && data.scopeSections.length > 0
+      ? data.scopeSections
+      : [
+          {
+            heading: 'Scope of Work — Complete Tile Roof Installation',
+            text: 'Rise Up Roofing & Construction Inc. will provide all labor, roofing materials, standard equipment, supervision, and project coordination required to complete the installation of the 31-square concrete tile roofing system.',
+          },
+          {
+            heading: 'Roofing Materials & Components',
+            text: 'Furnish Eagle Roofing Products – Bel Air 303 Sierra Madre concrete roof tile, along with standard roofing materials required for a complete professional installation.',
+          },
+          {
+            heading: 'Underlayment & Waterproofing',
+            text: 'Furnish and install new heavy-duty synthetic/modified bitumen roofing underlayment throughout the complete roof deck, including proper laps, transitions, penetrations, and valley waterproofing.',
+          },
+          {
+            heading: 'Flashings, Metals & Penetrations',
+            text: 'Furnish and install required standard galvanized/pre-painted roofing flashings, drip edge metal, pipe jacks, and counterflashings.',
+          },
+          {
+            heading: 'Tile Installation & Fastening',
+            text: 'Install field tiles with proper alignment, overlap, and manufacturer-specified mechanical fasteners meeting California building and seismic code requirements.',
+          },
+          {
+            heading: 'Labor, Equipment & Project Coordination',
+            text: 'Provide professional roofing labor, safety staging, standard jobsite equipment, supervision, and project coordination necessary to complete the roofing scope described above.',
+          },
+          {
+            heading: 'Dump, Disposal & Jobsite Cleanup',
+            text: 'Remove roofing debris generated by our work. Dump and disposal fees are included, followed by final daily jobsite cleanup and a magnetic sweep of all accessible ground areas.',
+          },
+          {
+            heading: 'Important Conditions & Decking Allowance',
+            text: 'Pricing is based on the existing roof structure being in serviceable condition. Concealed structural damage, deteriorated wood, or framing repairs will be reviewed before proceeding and documented via written change order.',
+          },
+        ];
+
+  const paymentRows =
+    data.paymentSchedule && data.paymentSchedule.length > 0
+      ? data.paymentSchedule
+      : [
+          { id: '1', number: '1.', description: 'Initial Payment (Contract execution, material allocation & job scheduling)', amount: 1000 },
+          { id: '2', number: '2.', description: 'Progress Payment 1 (Start of roofing project & delivery of primary materials)', amount: 9300 },
+          { id: '3', number: '3.', description: 'Progress Payment 2 (Tear-off complete, underlayment & waterproofing installed)', amount: 9300 },
+          { id: '4', number: '4.', description: 'Final Payment (Complete tile installation, cleanup & final walkthrough)', amount: 11400 },
+        ];
+
+  const css = `
+    :root {
+      --navy: #091b36;
+      --navy-light: #132b4f;
+      --brass: #e3c26e;
+      --brass-dark: #b8923a;
+      --ink: #0f172a;
+      --mute: #475569;
+      --line: #cbd5e1;
+      --line-subtle: #e2e8f0;
+      --paper: #ffffff;
+      --tint: #f8fafc;
+      --alert-bg: #fffbeb;
+      --alert-border: #fde68a;
+      --alert-text: #92400e;
+      --red: #b91c1c;
+      --red-bg: #fef2f2;
+      --red-border: #fecaca;
+    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #e2e8f0;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", Times, serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .sheet {
+      width: 816px;
+      height: 1056px;
+      min-height: 1056px;
+      max-height: 1056px;
+      margin: 0 auto;
+      background: var(--paper);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow: hidden;
+      page-break-after: always;
+      page-break-inside: avoid;
+      position: relative;
+    }
+
+    /* Masthead — Page 1 */
+    .mast {
+      background: var(--navy);
+      color: #fff;
+      padding: 12px 32px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 3.5px solid var(--brass);
+      flex-shrink: 0;
+    }
+    .mast-brand { display: flex; align-items: center; gap: 14px; }
+    .mast-brand svg { height: 38px; width: auto; display: block; }
+    .mast-info p { margin: 0; font: 9.5px/1.4 system-ui, -apple-system, sans-serif; color: #cbd5e1; }
+    .mast .lic { text-align: right; font: 700 11px/1.3 system-ui, sans-serif; color: #fff; white-space: nowrap; }
+    .mast .lic span { display: block; color: var(--brass); font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+
+    /* Mini Masthead — Continuation Pages 2 to 6 */
+    .mini-mast {
+      background: var(--navy);
+      color: #fff;
+      padding: 9px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid var(--brass);
+      flex-shrink: 0;
+      font: 600 11px system-ui, sans-serif;
+    }
+    .mini-mast span { color: var(--brass); font-weight: 700; }
+
+    /* Notice banner on Page 1 */
+    .notice-bar {
+      background: #f8fafc;
+      border-bottom: 1px solid var(--line);
+      padding: 4px 32px;
+      font: italic 10px/1.35 system-ui, sans-serif;
+      color: var(--mute);
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    /* Page Content Body */
+    .page-content {
+      padding: 12px 32px 10px;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+
+    /* Page 1 Specific Content Body */
+    .p1-content {
+      padding: 10px 32px 8px;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow: hidden;
+    }
+
+    /* Footer — standard across all pages */
+    .page-footer {
+      width: 100%;
+      padding: 0 32px 14px 32px;
+      margin-top: auto;
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .footer-line {
+      width: 100%;
+      height: 1.5px;
+      background: var(--line);
+      margin-bottom: 5px;
+    }
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-left {
+      display: flex;
+      align-items: center;
+    }
+    .footer-status-label {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 8.5px;
+      font-weight: 800;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 3px;
+      display: inline-block;
+      line-height: 1.25;
+    }
+    .status-draft {
+      color: #475569;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+    }
+    .status-partially-executed {
+      color: #b45309;
+      background: #fef3c7;
+      border: 1px solid #fde68a;
+    }
+    .status-fully-executed {
+      color: #15803d;
+      background: #dcfce7;
+      border: 1px solid #86efac;
+    }
+    .footer-text {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--mute);
+      text-align: right;
+      letter-spacing: 0.04em;
+    }
+
+    /* Typography & Section Styles */
+    .title {
+      margin: 2px 0 2px;
+      text-align: center;
+      font-size: 18px;
+      letter-spacing: 0.09em;
+      color: var(--navy);
+      font-weight: 700;
+    }
+    .rule {
+      width: 44px;
+      height: 2.5px;
+      background: var(--brass);
+      margin: 0 auto 6px;
+      border-radius: 2px;
+    }
+    .parties {
+      font-size: 11.5px;
+      line-height: 1.45;
+      text-align: center;
+      margin: 0 0 6px;
+      color: #1e293b;
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 125px 1fr;
+      margin: 0 0 7px;
+      border: 1px solid var(--line);
+      border-top: 2.5px solid var(--navy);
+      font-size: 11px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .card b, .card span { padding: 4.5px 10px; border-bottom: 1px solid var(--line-subtle); }
+    .card b { background: var(--tint); font: 700 10.5px system-ui, sans-serif; color: var(--mute); }
+    .card b:nth-last-child(2), .card span:last-child { border-bottom: 0; }
+
+    .entitle {
+      margin: 0 0 7px;
+      padding: 5px 12px;
+      background: #fefce8;
+      border-left: 3.5px solid var(--brass);
+      font: 700 11px/1.35 system-ui, sans-serif;
+      text-align: center;
+      color: #78350f;
+      border-radius: 0 4px 4px 0;
+    }
+
+    h2.section-hdr {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 12.5px;
+      font-weight: 800;
+      color: var(--navy);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 6px 0 4px;
+      border-bottom: 1.5px solid var(--line);
+      padding-bottom: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    h3.sub-hdr {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--navy);
+      margin: 6px 0 3px;
+    }
+    p.legal-p {
+      font-size: 11px;
+      line-height: 1.45;
+      margin: 0 0 6px;
+      color: #1e293b;
+    }
+
+    /* Scope Grid on Page 1 */
+    .scope-box {
+      border: 1.5px solid var(--line);
+      border-left: 4px solid var(--navy);
+      background: #fafaf9;
+      padding: 12px 14px;
+      border-radius: 0 5px 5px 0;
+      margin: 4px 0 0;
+    }
+    .scope-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+      margin-top: 8px;
+    }
+    .scope-item {
+      background: #ffffff;
+      border: 1px solid var(--line-subtle);
+      border-radius: 4px;
+      padding: 10px 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .scope-item h4 {
+      margin: 0 0 4px 0;
+      font: 700 11px system-ui, sans-serif;
+      color: var(--navy);
+      border-bottom: 1px dashed var(--line-subtle);
+      padding-bottom: 2px;
+    }
+    .scope-item p {
+      margin: 0;
+      font-size: 10px;
+      line-height: 1.45;
+      color: #334155;
+    }
+
+    /* Dates & Price Cards */
+    .dates-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 6px 0 8px;
+    }
+    .date-card {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--brass);
+      background: #fff;
+      border-radius: 4px;
+    }
+    .date-card b {
+      display: block;
+      font: 700 10px system-ui, sans-serif;
+      color: var(--mute);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 2px;
+    }
+    .date-card span { font-size: 12px; font-weight: 700; color: var(--navy); }
+
+    .price-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 12px;
+      margin: 8px 0 10px;
+    }
+    .price-box {
+      padding: 10px 14px;
+      background: var(--navy);
+      color: #fff;
+      border-radius: 5px;
+      text-align: center;
+    }
+    .price-box.alt {
+      background: #f8fafc;
+      border: 1.5px solid var(--line);
+      color: var(--ink);
+    }
+    .price-box b {
+      display: block;
+      font: 700 10px system-ui, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      opacity: 0.85;
+      margin-bottom: 2px;
+    }
+    .price-box span { font-size: 22px; font-weight: 800; }
+
+    /* Alert Banner */
+    .alert-banner {
+      margin: 8px 0;
+      padding: 8px 12px;
+      background: var(--alert-bg);
+      border: 1.5px solid var(--alert-border);
+      border-radius: 4px;
+      color: var(--alert-text);
+      font: 700 11px/1.35 system-ui, sans-serif;
+      text-align: center;
+    }
+
+    /* Payment Schedule Table */
+    table.sched-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 10px;
+      font-size: 11px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    table.sched-table th {
+      background: var(--navy);
+      color: #fff;
+      font: 700 10.5px system-ui, sans-serif;
+      padding: 8px 12px;
+      text-align: left;
+      letter-spacing: 0.04em;
+    }
+    table.sched-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line-subtle);
+      font-size: 11px;
+      line-height: 1.4;
+      vertical-align: middle;
+    }
+    table.sched-table tbody tr:nth-child(even) { background: #f8fafc; }
+    table.sched-table tfoot td {
+      background: #f1f5f9;
+      font-weight: 800;
+      font-size: 12px;
+      border-top: 2px solid var(--navy);
+    }
+    td.amt { text-align: right; font-weight: 700; white-space: nowrap; }
+
+    /* Initial Boxes */
+    .initial-box {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 8px 0;
+      padding: 7px 14px;
+      background: #f8fafc;
+      border: 1.5px solid #0284c7;
+      border-radius: 4px;
+    }
+    .initial-box .lbl {
+      font: 700 10.5px system-ui, sans-serif;
+      color: #0369a1;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .initial-slot {
+      min-width: 90px;
+      height: 24px;
+      border-bottom: 1.5px solid #0369a1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    /* Ink Signature styles */
+    .ink {
+      font-family: 'Caveat', cursive, "Brush Script MT", cursive;
+      color: #0284c7;
+      line-height: 1;
+    }
+    .ink.big { font-size: 28px; }
+    .ink.med { font-size: 21px; }
+
+    /* Terms Grid */
+    .terms-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+      margin-bottom: 10px;
+    }
+    .term-card {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 10px 14px;
+    }
+    .term-card h4 {
+      margin: 0 0 3px 0;
+      font: 700 11px system-ui, sans-serif;
+      color: var(--navy);
+      border-bottom: 1px dashed var(--line-subtle);
+      padding-bottom: 2px;
+    }
+    .term-card p {
+      margin: 0;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: #334155;
+    }
+
+    /* Signatures Cards on Page 4 */
+    .sigs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 12px 0 16px;
+    }
+    .sig-card {
+      border: 1.5px solid var(--line);
+      border-top: 3.5px solid var(--navy);
+      background: #fff;
+      padding: 16px 18px;
+      border-radius: 4px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .sig-line-area {
+      min-height: 60px;
+      border-bottom: 1.5px solid #0f172a;
+      display: flex;
+      align-items: flex-end;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+    .sig-meta {
+      font: 11px/1.45 system-ui, sans-serif;
+      color: #334155;
+    }
+
+    /* Right to Cancel Addendum Box on Page 4 */
+    .cancel-addendum-box {
+      border: 1.5px solid #fed7aa;
+      border-left: 4.5px solid #f97316;
+      background: #fffaf5;
+      padding: 14px 18px;
+      margin: 8px 0;
+      border-radius: 0 4px 4px 0;
+    }
+    .cancel-addendum-box h3 { margin: 0 0 4px 0; font: 700 12px system-ui, sans-serif; color: #9a3412; }
+    .cancel-addendum-box p { margin: 0 0 8px 0; font-size: 11px; line-height: 1.45; color: #431407; }
+
+    /* Perforated divider for detachable cancellation forms on Pages 5 and 6 */
+    .cut-line {
+      width: 100%;
+      margin: 18px 0;
+      border-top: 1.5px dashed #94a3b8;
+      position: relative;
+      text-align: center;
+    }
+    .cut-line span {
+      position: relative;
+      top: -10px;
+      background: #fff;
+      padding: 0 16px;
+      font: 700 10.5px system-ui, sans-serif;
+      color: #64748b;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* Detachable Form Box on Pages 5 and 6 */
+    .detachable-form {
+      border: 1.5px solid var(--line);
+      background: #fdfefe;
+      padding: 16px 20px;
+      border-radius: 5px;
+    }
+    .detachable-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--navy);
+      text-align: center;
+      margin-bottom: 6px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+  `;
+
+  const renderFooter = (p: number) => `
+    <div class="page-footer">
+      <div class="footer-line"></div>
+      <div class="footer-row">
+        <div class="footer-left">
+          <span class="footer-status-label status-${executionStatusSlug}">${executionStatusLabel}</span>
+        </div>
+        <div class="footer-text">Page ${p} of ${TOTAL_PAGES} &bull; Home Improvement Contract</div>
+      </div>
+    </div>
+  `;
+
+  // ═════════════════════════════════════════════════════════════════
+  // PAGE 1: Masthead, Parties, Project Details, Licensing & Full Scope
+  // ═════════════════════════════════════════════════════════════════
+  const renderPage1 = () => `
+    <main class="sheet">
+      <div class="mast">
+        <div class="mast-brand">
+          ${RISEUP_LOGO_SVG}
+          <div class="mast-info">
+            <p>2182 S El Camino Real, Suite 202 &bull; Oceanside, CA 92054<br>Tel. (442) 266-2443 ext. 2 &nbsp;|&nbsp; Fax. (442) 266-2422 &nbsp;|&nbsp; www.riseuprac.com</p>
+          </div>
+        </div>
+        <div class="lic"><span>Contractor License</span>${contractorLicense} B/C39/C46</div>
+      </div>
+
+      <div class="notice-bar">
+        A Notice of Cancellation may be sent to Rise Up Roofing and Construction, Inc. at the business address listed above or by email at ${cancellationEmail}
+      </div>
+
+      <div class="p1-content">
+        <h1 class="title">HOME IMPROVEMENT CONTRACT</h1>
+        <div class="rule"></div>
+
+        <p class="parties">This contract <b>(“Contract”)</b> is between <b>${clientName}</b> <b>(the “Client”)</b> and <b>Rise Up Roofing and Construction, Inc.</b> <b>${contractorName}</b> <b>(the “Contractor”)</b>.</p>
+
+        <div class="card">
+          <b>Project Address:</b><span>${projectAddress}</span>
+          <b>Contract Date:</b><span>The contract is signed and dated ${contractDate}.</span>
+          <b>Salesperson:</b><span>${salespersonName}</span>
+        </div>
+
+        <p class="entitle">You are entitled to a completely filled in copy of this agreement, signed by both you and the Contractor, before any work may be started.</p>
+
+        <h2 class="section-hdr">AGREEMENT</h2>
+
+        <h3 class="sub-hdr">A. Licensing:</h3>
+        <p class="legal-p">The Contractor warrants that the Contractor currently holds a valid license, <b>${contractorLicense}</b>, under the laws of the State of California to perform the work. The work performed will be done so in compliance with all applicable local, state, or federal statutes and regulations.</p>
+
+        <h3 class="sub-hdr">B. Scope of Work &amp; Project Specifications:</h3>
+        <p class="legal-p">The Client is hiring the Contractor to do the following: <b>${scopeTitle}</b></p>
+        <p class="legal-p" style="margin-bottom:6px;"><b>a. Description of the Project and description of the significant materials to be used and equipment to be installed:</b></p>
+
+        <div class="scope-box">
+          <p style="margin:0 0 8px 0;font:italic 11px Georgia,serif;color:#334155;">${scopeIntro}</p>
+          <div class="scope-grid">
+            ${scopeSections
+              .map(
+                (sec) => `
+              <div class="scope-item">
+                <h4>${escapeHtml(sec.heading)}</h4>
+                <p>${escapeHtml(sec.text)}</p>
+              </div>`
+              )
+              .join('')}
+          </div>
+        </div>
+
+        <div style="margin-top:10px;padding:8px 12px;background:#f8fafc;border:1px solid var(--line);border-radius:4px;font-size:10.5px;line-height:1.4;color:var(--navy);">
+          <b>Jobsite Protection &amp; Standards Note:</b> Contractor warrants that all jobsite safety protocols, property protection tarps, landscape barriers, and magnetic sweeps of driveways and walkways are conducted daily. All roofing work adheres strictly to manufacturer specifications and California Building Standards Code (Title 24).
+        </div>
+      </div>
+
+      ${renderFooter(1)}
+    </main>
+  `;
+
+  // ═════════════════════════════════════════════════════════════════
+  // PAGE 2: Timetable, Pricing, Progress Payment Schedule & Terms
+  // ═════════════════════════════════════════════════════════════════
+  const renderPage2 = () => `
+    <main class="sheet">
+      <div class="mini-mast">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${RISEUP_EMBLEM_SVG}
+          <span>Rise Up Roofing and Construction, Inc. &bull; License ${contractorLicense}</span>
+        </div>
+        <div>Project: <span>${projectAddress}</span></div>
+      </div>
+
+      <div class="page-content">
+        <h2 class="section-hdr" style="margin-top:0;">PROJECT TIMETABLE &bull; CHANGE ORDERS &bull; CONTRACT PRICING</h2>
+
+        <div class="dates-grid">
+          <div class="date-card"><b>b. Approximate Start Date</b><span>${approxStartDate}</span></div>
+          <div class="date-card"><b>c. Substantial Commencement</b><span>${substantialCommencementDate}</span></div>
+          <div class="date-card"><b>d. Approximate Completion</b><span>${approxCompletionDate}</span></div>
+        </div>
+
+        <p class="legal-p" style="font-size:10.5px;margin-bottom:3px;"><b>e. Documents Incorporated Into This Agreement:</b> (i) Exhibit A – Notice of Cancellation Form &nbsp;&bull;&nbsp; (ii) Exhibit B – Extra Work or Change Order Form (if applicable).</p>
+        <p class="legal-p" style="font-size:10.5px;margin-bottom:3px;"><b>f. Note About Extra Work and Change Orders:</b> Extra Work and Change Orders become part of the contract once prepared in writing and signed by the parties prior to commencement of work covered by the new change order.</p>
+        <p class="legal-p" style="font-size:10.5px;margin-bottom:8px;"><b>g. Form of Change Order:</b> The order must describe the scope of extra work, cost added or subtracted, and effect on progress payments or completion date prior to commencement.</p>
+
+        <div class="price-grid">
+          <div class="price-box"><b>h. Contract Price</b><span>${contractPrice}</span></div>
+          <div class="price-box alt"><b>j. Downpayment</b><span>${downpayment}</span></div>
+          <div class="price-box alt"><b>i. Finance Charge</b><span>${financeCharge}</span></div>
+        </div>
+
+        <div class="alert-banner">THE DOWNPAYMENT MAY NOT EXCEED $1,000 OR 10 PERCENT OF THE CONTRACT PRICE, WHICHEVER IS LESS.</div>
+
+        <div style="background:#f8fafc;border:1px solid var(--line);border-left:3.5px solid var(--navy);padding:8px 14px;border-radius:0 4px 4px 0;margin:6px 0 8px;font-size:11px;line-height:1.45;color:var(--navy);">
+          <b>STATUTORY PAYMENT LAW:</b> IT IS AGAINST THE LAW FOR A CONTRACTOR TO COLLECT PAYMENT FOR WORK NOT YET COMPLETED, OR FOR MATERIALS NOT YET DELIVERED. HOWEVER, A CONTRACTOR MAY REQUIRE A DOWNPAYMENT.
+        </div>
+
+        <h3 class="sub-hdr" style="margin-top:6px;">k. Schedule of Progress Payments:</h3>
+        <p class="legal-p" style="font-size:10.5px;line-height:1.4;margin-bottom:4px;">The schedule of progress payments must specifically describe each phase of work, including the type and amount of work or services scheduled to be supplied in each phase, along with the amount of each proposed progress payment. Client will pay Contractor upon completion of specified milestones:</p>
+
+        <table class="sched-table">
+          <thead>
+            <tr>
+              <th style="width:120px;">Payment Milestone</th>
+              <th>Phase of Work / Materials Supplied</th>
+              <th style="width:120px;text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${paymentRows
+              .map(
+                (r) => `
+              <tr>
+                <td><b>${escapeHtml(r.number)}</b></td>
+                <td>${escapeHtml(r.description)}</td>
+                <td class="amt">${fmt(r.amount)}</td>
+              </tr>`
+              )
+              .join('')}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="text-align:right;font-weight:700;">Total Contract Price:</td>
+              <td class="amt" style="color:var(--navy);font-size:13.5px;">${contractPrice}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="initial-box">
+          <span class="lbl">CLIENT INITIAL: I HAVE READ AND AGREE TO THE PAYMENT MILESTONES SCHEDULE</span>
+          <div class="initial-slot">${clientInitials ? `<span class="ink med">${clientInitials}</span>` : `<span style="color:#cbd5e1;font-family:sans-serif;letter-spacing:2px;font-size:11px;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</span>`}</div>
+        </div>
+
+        <h3 class="sub-hdr" style="margin-top:8px;">Payment Terms, Invoicing Provisions &amp; Refund Policy:</h3>
+        <p class="legal-p" style="font-size:10.5px;line-height:1.45;margin-bottom:4px;">Payment shall be made to the Contractor via cash, cashier’s check, or money order. Invoices are due <b>UPON COMPLETION</b> of each milestone phase. Accounts unpaid after 4 business days incur a $25.00 late fee or 1.5% monthly finance charge. Necessary extra materials expenses reimbursed within 2 days of receipt. Upon each payment, Contractor furnishes full and unconditional statutory lien releases pursuant to California Civil Code Sections 8400 &amp; 8404.</p>
+        <p class="legal-p" style="font-size:10.5px;line-height:1.45;margin-bottom:6px;"><b>Refund Policy: 1.6.2(a) No Refunds:</b> Services completed and materials procured as described in this contract are not subject to refunds. The Client will not be reimbursed for services cancelled once work has begun. All sales are final upon substantial commencement.</p>
+
+        <div class="initial-box">
+          <span class="lbl">CLIENT INITIAL: I HAVE READ AND UNDERSTOOD THE PAYMENT TERMS &amp; REFUND POLICY</span>
+          <div class="initial-slot">${clientInitials ? `<span class="ink med">${clientInitials}</span>` : `<span style="color:#cbd5e1;font-family:sans-serif;letter-spacing:2px;font-size:11px;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</span>`}</div>
+        </div>
+      </div>
+
+      ${renderFooter(2)}
+    </main>
+  `;
+
+  // ═════════════════════════════════════════════════════════════════
+  // PAGE 3: Insurance, Mechanics Lien Warning, CSLB & General Terms
+  // ═════════════════════════════════════════════════════════════════
+  const renderPage3 = () => `
+    <main class="sheet">
+      <div class="mini-mast">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${RISEUP_EMBLEM_SVG}
+          <span>Rise Up Roofing and Construction, Inc. &bull; License ${contractorLicense}</span>
+        </div>
+        <div>Project: <span>${projectAddress}</span></div>
+      </div>
+
+      <div class="page-content">
+        <h2 class="section-hdr" style="margin-top:0;">INSURANCE COVERAGE &bull; MECHANICS LIEN WARNING &bull; CSLB DISCLOSURE</h2>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 10px;">
+          <div style="background:#f8fafc;border:1px solid var(--line);border-left:3.5px solid var(--navy);padding:8px 12px;border-radius:0 4px 4px 0;">
+            <h3 class="sub-hdr" style="margin:0 0 3px 0;">C. Commercial General Liability Insurance:</h3>
+            <p class="legal-p" style="margin:0;font-size:10.5px;line-height:1.45;">Rise Up Roofing and Construction, Inc. carries commercial general liability, excess umbrella, and commercial vehicle insurance written by <b>${insuranceCarrier}</b>. You may contact them directly at <b>${insurancePhone}</b> to request an official certificate of insurance.</p>
+          </div>
+          <div style="background:#f8fafc;border:1px solid var(--line);border-left:3.5px solid var(--navy);padding:8px 12px;border-radius:0 4px 4px 0;">
+            <h3 class="sub-hdr" style="margin:0 0 3px 0;">D. Workers’ Compensation Insurance:</h3>
+            <p class="legal-p" style="margin:0;font-size:10.5px;line-height:1.45;">Rise Up Roofing and Construction, Inc. carries workers’ compensation insurance for all jobsite employees and roofing crew members written by <b>${workersCompCarrier}</b>. You may call <b>${workersCompPhone}</b> to verify active policy status.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-hdr">E. MECHANICS LIEN WARNING:</h3>
+        <p class="legal-p" style="font-size:11px;line-height:1.45;margin-bottom:6px;">Anyone who helps improve your property, but who is not paid, may record what is called a mechanics lien on your property. A mechanics lien is a claim, like a mortgage or home equity loan, made against your property and recorded with the county recorder. Even if you pay your contractor in full, unpaid subcontractors, suppliers, and laborers who helped to improve your property may record mechanics liens and sue you in court to foreclose the lien. If a court finds the lien is valid, you could be forced to pay twice or have a court officer sell your home to pay the lien. Liens can also affect your credit.</p>
+
+        <div style="border:1.5px solid #fed7aa;background:#fffaf0;padding:10px 14px;border-radius:4px;margin-bottom:8px;">
+          <p class="legal-p" style="font-size:10.5px;line-height:1.4;margin-bottom:5px;"><b>BE CAREFUL.</b> The Preliminary Notice can be sent up to 20 days after the subcontractor starts work or the supplier provides material. This can be a big problem if you pay your contractor before you have received the Preliminary Notices. You will not get Preliminary Notices from your prime contractor or from laborers who work on your project. The law assumes that you already know they are improving your property.</p>
+          <p class="legal-p" style="font-size:10.5px;line-height:1.4;margin-bottom:5px;"><b>PROTECT YOURSELF FROM LIENS.</b> You can protect yourself from liens by getting a list from your contractor of all the subcontractors and material suppliers that work on your project. Find out from your contractor when these subcontractors started work and when these suppliers delivered goods or materials. Then wait 20 days, paying attention to the Preliminary Notices you receive.</p>
+          <p class="legal-p" style="font-size:10.5px;line-height:1.4;margin-bottom:0;"><b>PAY WITH JOINT CHECKS.</b> One way to protect yourself is to pay with a joint check. When your contractor tells you it is time to pay for the work of a subcontractor or supplier who has provided you with a Preliminary Notice, write a joint check payable to both the contractor and the subcontractor or material supplier. Visit CSLB at <b>www.cslb.ca.gov</b> or call <b>800-321-CSLB (2752)</b>. <b>REMEMBER, IF YOU DO NOTHING, YOU RISK HAVING A LIEN PLACED ON YOUR HOME.</b></p>
+        </div>
+
+        <div class="initial-box" style="margin-bottom:10px;">
+          <span class="lbl">CLIENT INITIAL: I HAVE READ AND UNDERSTOOD THE MECHANICS LIEN WARNING</span>
+          <div class="initial-slot">${clientInitials ? `<span class="ink med">${clientInitials}</span>` : `<span style="color:#cbd5e1;font-family:sans-serif;letter-spacing:2px;font-size:11px;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</span>`}</div>
+        </div>
+
+        <h3 class="sub-hdr">F. Information about the Contractors’ State License Board (CSLB):</h3>
+        <p class="legal-p" style="font-size:11px;line-height:1.45;margin-bottom:5px;">CSLB is the state consumer protection agency that licenses and regulates construction contractors. Contact CSLB for information about the licensed contractor you are considering, including information about disclosable complaints, disciplinary actions, and civil judgments that are reported to CSLB.</p>
+        <p class="legal-p" style="font-size:11px;line-height:1.45;margin-bottom:6px;">Use only licensed contractors. If you file a complaint against a licensed contractor within the legal deadline (usually four years), CSLB has authority to investigate the complaint. If you use an unlicensed contractor, CSLB may not be able to help you resolve your complaint. Your only remedy may be in civil court, and you may be liable for damages arising out of any injuries to the unlicensed contractor or the unlicensed contractor’s employees.</p>
+
+        <div style="background:#f1f5f9;border:1px solid var(--line);border-radius:4px;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--navy);margin-bottom:12px;">
+          <span><b>Visit Online:</b> www.cslb.ca.gov</span>
+          <span><b>Call CSLB:</b> 800-321-CSLB (2752)</span>
+          <span><b>Write CSLB:</b> P.O. Box 26000, Sacramento, CA 95826</span>
+        </div>
+
+        <h2 class="section-hdr" style="margin-top:0;">REPRESENTATIONS &amp; GENERAL CONTRACT PROVISIONS</h2>
+        <div class="terms-grid" style="margin-bottom:0;">
+          <div class="term-card">
+            <h4>G. Representations &amp; Authority</h4>
+            <p><b>Authority to Sign:</b> Each party warrants and represents that it has full authority to enter into and perform this Contract. <b>Client Review:</b> Client agrees to review work, be reasonably available, provide timely decisions, and ensure uninterrupted access to worksite water and electrical utilities.</p>
+          </div>
+          <div class="term-card">
+            <h4>H. General Provisions &amp; Code Compliance</h4>
+            <p><b>Signatures:</b> Electronic and hardcopy signatures count as legal originals for all purposes. <b>Compliance with Laws:</b> Contractor warrants all work complies with California Building Standards Code (Title 24) and local ordinances. <b>Severability:</b> Unenforceability of any term shall not impair remainder.</p>
+          </div>
+        </div>
+      </div>
+
+      ${renderFooter(3)}
+    </main>
+  `;
+
+  // ═════════════════════════════════════════════════════════════════
+  // PAGE 4: Contract Provisions, Signatures & Right to Cancel Addendum
+  // ═════════════════════════════════════════════════════════════════
+  const renderPage4 = () => `
+    <main class="sheet">
+      <div class="mini-mast">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${RISEUP_EMBLEM_SVG}
+          <span>Rise Up Roofing and Construction, Inc. &bull; License ${contractorLicense}</span>
+        </div>
+        <div>Project: <span>${projectAddress}</span></div>
+      </div>
+
+      <div class="page-content">
+        <h2 class="section-hdr" style="margin-top:0;">CONTRACT PROVISIONS &bull; EXECUTION OF AGREEMENT</h2>
+
+        <div class="terms-grid">
+          <div class="term-card">
+            <h4>I. Term &amp; Termination</h4>
+            <p>This contract ends upon final completion and payment. If terminated earlier per contract terms, Client is responsible for paying for all work completed and material expenses incurred up to that date.</p>
+          </div>
+          <div class="term-card">
+            <h4>J. Performance &amp; Payment Bond</h4>
+            <p>The Client has the legal right to require the Contractor to have a performance and payment bond, the expense of which may be borne by the Client as provided by California law.</p>
+          </div>
+        </div>
+
+        <p class="legal-p" style="font-size:12px;font-weight:700;margin:6px 0 8px;">The Parties hereto agree to the foregoing terms, specifications, and conditions as evidenced by their signatures below.</p>
+
+        <div class="sigs-grid">
+          <div class="sig-card">
+            <span style="font:700 11px system-ui, sans-serif;color:var(--navy);display:block;margin-bottom:2px;text-transform:uppercase;">Contractor Authorized Signature:</span>
+            <div class="sig-line-area">
+              ${
+                isCounterSigned && (contractorSignatureName || contractorSignatureData)
+                  ? contractorSignatureData
+                    ? `<img src="${contractorSignatureData}" alt="Contractor Signature" style="max-height:42px;max-width:240px;display:inline-block;object-fit:contain;" />`
+                    : `<span class="ink big">${contractorSignatureName || contractorName}</span>`
+                  : `<div style="height:32px;border-bottom:1.5px solid #0f172a;width:80%;margin:0 auto 4px;"></div>`
+              }
+            </div>
+            <div class="sig-meta">
+              <strong>Rise Up Roofing and Construction, Inc.</strong><br>
+              By: ${contractorName} &bull; Title: Project Manager<br>
+              License: ${contractorLicense} B/C39/C46<br>
+              Date: ${isCounterSigned ? escapeHtml((data as any).counterSignedAt || (data as any).counter_signed_at || contractDate) : '____________________'}
+            </div>
+          </div>
+
+          <div class="sig-card">
+            <span style="font:700 11px system-ui, sans-serif;color:var(--navy);display:block;margin-bottom:2px;text-transform:uppercase;">Client Signature:</span>
+            <div class="sig-line-area">
+              ${
+                isSigned && (clientSignatureName || clientSignatureData)
+                  ? clientSignatureData && clientSignatureData.startsWith('data:image')
+                    ? `<img src="${clientSignatureData}" alt="Client Signature" style="max-height:42px;max-width:240px;display:inline-block;object-fit:contain;" />`
+                    : `<span class="ink big">${clientSignatureName || clientName}</span>`
+                  : `<div style="height:32px;border-bottom:1.5px solid #0f172a;width:80%;margin:0 auto 4px;"></div>`
+              }
+            </div>
+            <div class="sig-meta">
+              <strong>${clientName}</strong> (Signature of Client)<br>
+              Project: ${projectAddress}<br>
+              Date: ${isSigned ? escapeHtml(data.signedAt || contractDate) : '____________________'}
+            </div>
+          </div>
+        </div>
+
+        <h2 class="section-hdr" style="margin-top:6px;">RIGHT TO CANCEL ADDENDUM</h2>
+
+        <div class="cancel-addendum-box">
+          <h3>Three-Day Right to Cancel Notice Acknowledgement</h3>
+          <p>The law requires that the contractor give you a notice explaining your right to cancel. Initial the checkbox if the contractor has given you a “Notice of the Three-day Right to Cancel”.</p>
+          <div class="initial-box" style="background:#fff;padding:7px 16px;">
+            <span class="lbl">CLIENT INITIAL: I ACKNOWLEDGE RECEIPT OF THE THREE-DAY RIGHT TO CANCEL NOTICE</span>
+            <div class="initial-slot">${clientInitials ? `<span class="ink med">${clientInitials}</span>` : `<span style="color:#cbd5e1;font-family:sans-serif;letter-spacing:2px;font-size:11px;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</span>`}</div>
+          </div>
+        </div>
+
+        <div class="cancel-addendum-box">
+          <h3>Five-Day Right to Cancel (For Senior Citizens Aged 65 and Older)</h3>
+          <p>California Civil Code § 1689.6(a)(2) grants senior citizens aged 65 and older five business days to cancel this contract. Initial the checkbox if the contractor has given you a “Notice of the Five-day Right to Cancel”.</p>
+          <div class="initial-box" style="background:#fff;padding:7px 16px;">
+            <span class="lbl">CLIENT INITIAL: I ACKNOWLEDGE RECEIPT OF THE FIVE-DAY RIGHT TO CANCEL NOTICE (IF APPLICABLE)</span>
+            <div class="initial-slot">${clientInitials ? `<span class="ink med">${clientInitials}</span>` : `<span style="color:#cbd5e1;font-family:sans-serif;letter-spacing:2px;font-size:11px;">[ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; ]</span>`}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;padding:8px 14px;background:#f8fafc;border:1px solid var(--line);border-radius:4px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--mute);">
+          <span><b>Contractor Registration:</b> Licensed &amp; bonded pursuant to CA Contractors' State License Law.</span>
+          <span><b>Official Seal:</b> Rise Up Roofing &amp; Construction, Inc. (CA #1096492)</span>
+        </div>
+
+        <p class="entitle" style="margin-top:8px;font-size:10.5px;padding:6px 10px;">You are entitled to a completely filled in copy of this agreement, signed by both you and the Contractor, before any work may be started.</p>
+      </div>
+
+      ${renderFooter(4)}
+    </main>
+  `;
+
+  // ═════════════════════════════════════════════════════════════════
+  // PAGE 5: Notice of Three-day Right to Cancel & Detachable Exhibit A
+  // ═════════════════════════════════════════════════════════════════
+  const renderPage5 = () => `
+    <main class="sheet">
+      <div class="mini-mast">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${RISEUP_EMBLEM_SVG}
+          <span>Rise Up Roofing and Construction, Inc. &bull; License ${contractorLicense}</span>
+        </div>
+        <div>Project: <span>${projectAddress}</span></div>
+      </div>
+
+      <div class="page-content">
+        <h1 class="title" style="margin-top:2px;font-size:18px;">Notice of the Three-day Right to Cancel</h1>
+        <div style="text-align:center;font:700 11px system-ui, sans-serif;color:var(--navy);letter-spacing:0.04em;margin-bottom:2px;text-transform:uppercase;">California Civil Code § 1689.7 Statutory Notice</div>
+        <div class="rule" style="margin-bottom:10px;"></div>
+
+        <h3 class="sub-hdr">I. Statutory Three-Day Cancellation Rights:</h3>
+        <p class="legal-p" style="font-size:11.5px;line-height:1.55;margin-bottom:8px;">The Client has the right to cancel this contract within three business days. You may cancel by e-mailing, mailing, faxing, or delivering a written notice to the Contractor at the Contractor’s place of business by midnight of the third business day after you receive a signed and dated copy of the contract that includes this notice. Include your name, your address, and the date you received the signed copy of the contract and this notice.</p>
+        <p class="legal-p" style="font-size:11.5px;line-height:1.55;margin-bottom:8px;">If you cancel, the contractor must return to you anything you paid within 10 days of receiving the notice of cancellation. For your part, you must make available to the contractor at your residence, in substantially as good condition as you received them, goods delivered to you under this contract or sale. Or you may, if you wish, comply with the contractor’s instructions on how to return the goods at the contractor’s expense and risk.</p>
+        <p class="legal-p" style="font-size:11.5px;line-height:1.55;margin-bottom:12px;">If you do make the goods available to the contractor and the contractor does not pick them up within 20 days of the date of your notice of cancellation, you may keep them without any further obligation. If you fail to make the goods available to the contractor, or if you agree to return the goods to the contractor and fail to do so, then you remain liable for performance of all obligations under the contract.</p>
+
+        <div style="display:grid;grid-template-columns:130px 1fr 140px 1fr;gap:10px 16px;align-items:center;background:#f8fafc;border:1.5px solid var(--line);border-radius:4px;padding:12px 16px;margin:8px 0 16px;font-size:11.5px;">
+          <b>Date of Notice:</b><span>${contractDate}</span>
+          <b>Signature of Client:</b>
+          ${
+            isSigned
+              ? clientSignatureData && clientSignatureData.startsWith('data:image')
+                ? `<img src="${clientSignatureData}" alt="Client Signature" style="max-height:24px;max-width:140px;display:inline-block;object-fit:contain;" />`
+                : `<span class="ink med">${clientSignatureName || clientName}</span>`
+              : `<span style="display:inline-block;border-bottom:1px solid #334155;width:140px;height:14px;"></span>`
+          }
+          <b>Printed Name:</b><span>${clientName}</span>
+          <b>Project Address:</b><span>${projectAddress}</span>
+        </div>
+
+        <div class="cut-line">
+          <span>✂ &nbsp; DETACH HERE AND DELIVER TO CANCEL TRANSACTION &nbsp; ✂</span>
+        </div>
+
+        <div class="detachable-form">
+          <div class="detachable-title">Exhibit A &bull; Notice of Cancellation (Three Days)</div>
+          <p class="legal-p" style="font-size:11.5px;margin-bottom:6px;"><b>Date of original contract or transaction:</b> ${contractDate}</p>
+          <p class="legal-p" style="font-size:11px;line-height:1.5;margin-bottom:6px;">You may cancel this transaction, without any penalty or obligation, within three business days from the above date. If you cancel, any property traded in, any payments made by you under the contract or sale, and any negotiable instrument executed by you will be returned within 10 days following receipt by the seller of your cancellation notice, and any security interest arising out of the transaction will be canceled.</p>
+          <p class="legal-p" style="font-size:11px;line-height:1.5;margin-bottom:10px;">To cancel this transaction, mail or deliver a signed and dated copy of this cancellation notice, or send an email to <b>Rise Up Roofing and Construction, Inc.</b>, 2182 S El Camino Real #202, Oceanside, CA 92054, email <b>${cancellationEmail}</b>, not later than midnight of the third business day after signing.</p>
+
+          <div style="border:1.5px dashed var(--line);padding:14px 18px;background:#fff;border-radius:4px;margin:10px 0 12px;">
+            <p style="margin:0 0 10px 0;font:700 11.5px system-ui, sans-serif;color:var(--navy);text-transform:uppercase;">I HEREBY CANCEL THIS TRANSACTION.</p>
+            <div style="display:grid;grid-template-columns:180px 1fr;gap:12px 16px;font-size:11px;align-items:center;">
+              <span>(Enter Date of Cancellation):</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;"></span>
+              <span>Signature of Client:</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;"></span>
+              <span>Printed Name &amp; Phone:</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;"></span>
+              <span>Property Address:</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;font-weight:600;color:#334155;">${projectAddress}</span>
+              <span>Delivery Method:</span><span style="font-size:10.5px;color:#475569;">[&nbsp; ] Delivered In Person &nbsp;&nbsp;&nbsp;&nbsp; [&nbsp; ] Certified Mail &nbsp;&nbsp;&nbsp;&nbsp; [&nbsp; ] Email to ${cancellationEmail}</span>
+            </div>
+          </div>
+
+          <div style="border:1px solid var(--line-subtle);background:#f8fafc;padding:9px 14px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--navy);margin-bottom:10px;">
+            <span><b>Contractor Acknowledgment of Receipt:</b> Signature: ________________________________</span>
+            <span>Date Received: ____________________</span>
+          </div>
+
+          <div style="text-align:center;font-size:10px;color:var(--mute);">
+            Rise Up Roofing and Construction, Inc. &bull; CA License #1096492 &bull; 2182 S El Camino Real, Suite 202, Oceanside, CA 92054 &bull; Tel. (442) 266-2443 ext. 2
+          </div>
+        </div>
+      </div>
+
+      ${renderFooter(5)}
+    </main>
+  `;
+
+  // ═════════════════════════════════════════════════════════════════
+  // PAGE 6: Notice of Five-day Right to Cancel & Detachable Exhibit A(2)
+  // ═════════════════════════════════════════════════════════════════
+  const renderPage6 = () => `
+    <main class="sheet">
+      <div class="mini-mast">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${RISEUP_EMBLEM_SVG}
+          <span>Rise Up Roofing and Construction, Inc. &bull; License ${contractorLicense}</span>
+        </div>
+        <div>Project: <span>${projectAddress}</span></div>
+      </div>
+
+      <div class="page-content">
+        <h1 class="title" style="margin-top:2px;font-size:18px;">Notice of the Five-day Right to Cancel</h1>
+        <div style="text-align:center;font:700 11.5px system-ui, sans-serif;color:#9a3412;margin-bottom:2px;">(For Senior Citizens Aged 65 and Older &bull; California Civil Code § 1689.6(a)(2))</div>
+        <div class="rule" style="margin-bottom:10px;"></div>
+
+        <h3 class="sub-hdr">I. Five-Day Right to Cancel (for senior citizens aged 65+):</h3>
+        <p class="legal-p" style="font-size:11.5px;line-height:1.55;margin-bottom:8px;">The Client has the right to cancel this contract within five business days. You may cancel by e-mailing, mailing, faxing, or delivering a written notice to the Contractor at the Contractor’s place of business by midnight of the fifth business day after you received a signed and dated copy of the contract that includes this notice. Include your name, your address, and the date you received the signed copy of the contract and this notice.</p>
+        <p class="legal-p" style="font-size:11.5px;line-height:1.55;margin-bottom:8px;">If you cancel, the contractor must return to you anything you paid within 10 days of receiving the notice of cancellation. For your part, you must make available to the contractor at your residence, in substantially as good condition as you received them, goods delivered to you under this contract or sale. Or you may, if you wish, comply with the contractor’s instructions on how to return the goods at the contractor’s expense and risk.</p>
+        <p class="legal-p" style="font-size:11.5px;line-height:1.55;margin-bottom:12px;">If you do make the goods available to the contractor and the contractor does not pick them up within 20 days of the date of your notice of cancellation, you may keep them without any further obligation. If you fail to make the goods available to the contractor, or if you agree to return the goods to the contractor and fail to do so, then you remain liable for performance of all obligations under the contract.</p>
+
+        <div style="display:grid;grid-template-columns:130px 1fr 140px 1fr;gap:10px 16px;align-items:center;background:#f8fafc;border:1.5px solid var(--line);border-radius:4px;padding:12px 16px;margin:8px 0 16px;font-size:11.5px;">
+          <b>Date of Notice:</b><span>${contractDate}</span>
+          <b>Signature of Client:</b>
+          ${
+            isSigned
+              ? clientSignatureData && clientSignatureData.startsWith('data:image')
+                ? `<img src="${clientSignatureData}" alt="Client Signature" style="max-height:24px;max-width:140px;display:inline-block;object-fit:contain;" />`
+                : `<span class="ink med">${clientSignatureName || clientName}</span>`
+              : `<span style="display:inline-block;border-bottom:1px solid #334155;width:140px;height:14px;"></span>`
+          }
+          <b>Printed Name:</b><span>${clientName}</span>
+          <b>Project Address:</b><span>${projectAddress}</span>
+        </div>
+
+        <div class="cut-line">
+          <span>✂ &nbsp; DETACH HERE AND DELIVER TO CANCEL (SENIOR CITIZENS 65+) &nbsp; ✂</span>
+        </div>
+
+        <div class="detachable-form">
+          <div class="detachable-title">Exhibit A (2) &bull; Notice of Cancellation (Five Days)</div>
+          <p class="legal-p" style="font-size:11.5px;margin-bottom:6px;"><b>Date of original contract or transaction:</b> ${contractDate}</p>
+          <p class="legal-p" style="font-size:11px;line-height:1.5;margin-bottom:6px;">You may cancel this transaction, without any penalty or obligation, within five business days from the above date. If you cancel, any payments made by you under the contract or sale, and any negotiable instrument executed by you will be returned within 10 days following receipt by the seller of your cancellation notice, and any security interest arising out of the transaction will be canceled.</p>
+          <p class="legal-p" style="font-size:11px;line-height:1.5;margin-bottom:10px;">To cancel this transaction, mail or deliver a signed and dated copy of this cancellation notice, or send an email to <b>Rise Up Roofing and Construction, Inc.</b>, 2182 S El Camino Real #202, Oceanside, CA 92054, email <b>${cancellationEmail}</b>, not later than midnight of the fifth business day after signing.</p>
+
+          <div style="border:1.5px dashed var(--line);padding:14px 18px;background:#fff;border-radius:4px;margin:10px 0 12px;">
+            <p style="margin:0 0 10px 0;font:700 11.5px system-ui, sans-serif;color:var(--navy);text-transform:uppercase;">I HEREBY CANCEL THIS TRANSACTION.</p>
+            <div style="display:grid;grid-template-columns:180px 1fr;gap:12px 16px;font-size:11px;align-items:center;">
+              <span>(Enter Date of Cancellation):</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;"></span>
+              <span>Signature of Client:</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;"></span>
+              <span>Printed Name &amp; Phone:</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;"></span>
+              <span>Property Address:</span><span style="border-bottom:1.5px solid #94a3b8;min-height:24px;font-weight:600;color:#334155;">${projectAddress}</span>
+              <span>Delivery Method:</span><span style="font-size:10.5px;color:#475569;">[&nbsp; ] Delivered In Person &nbsp;&nbsp;&nbsp;&nbsp; [&nbsp; ] Certified Mail &nbsp;&nbsp;&nbsp;&nbsp; [&nbsp; ] Email to ${cancellationEmail}</span>
+            </div>
+          </div>
+
+          <div style="border:1px solid var(--line-subtle);background:#f8fafc;padding:9px 14px;border-radius:4px;display:flex;align-items:center;justify-content:space-between;font-size:10.5px;color:var(--navy);margin-bottom:10px;">
+            <span><b>Contractor Acknowledgment of Receipt:</b> Signature: ________________________________</span>
+            <span>Date Received: ____________________</span>
+          </div>
+
+          <div style="text-align:center;font-size:10px;color:var(--mute);">
+            Rise Up Roofing and Construction, Inc. &bull; CA License #1096492 &bull; 2182 S El Camino Real, Suite 202, Oceanside, CA 92054 &bull; Tel. (442) 266-2443 ext. 2
+          </div>
+        </div>
+      </div>
+
+      ${renderFooter(6)}
+    </main>
+  `;
+
+  let bodyContent = '';
+  if (page === 1) bodyContent = renderPage1();
+  else if (page === 2) bodyContent = renderPage2();
+  else if (page === 3) bodyContent = renderPage3();
+  else if (page === 4) bodyContent = renderPage4();
+  else if (page === 5) bodyContent = renderPage5();
+  else if (page === 6) bodyContent = renderPage6();
+  else {
+    // 'all' for full document PDF rendering
+    bodyContent =
+      renderPage1() +
+      renderPage2() +
+      renderPage3() +
+      renderPage4() +
+      renderPage5() +
+      renderPage6();
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Improvement Contract &bull; Rise Up Roofing and Construction, Inc.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+${css}
+@media print {
+  body { background: transparent !important; margin: 0 !important; }
+  .sheet {
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 8.5in !important;
+    height: 11in !important;
+    min-height: 11in !important;
+    max-height: 11in !important;
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+  }
+}
+@page {
+  size: Letter;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+${bodyContent}
+</body>
+</html>`;
+}
+
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

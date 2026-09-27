@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="#091b36" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Vent turbine top -->
+  <circle cx="24" cy="16" r="10"/>
+  <path d="M24 6C20 10 20 16 24 16C28 16 28 10 24 6Z" fill="#091b36" fill-opacity="0.1"/>
+  <path d="M34 16C30 12 24 12 24 16C24 20 30 20 34 16Z" fill="#091b36" fill-opacity="0.1"/>
+  <path d="M24 26C28 22 28 16 24 16C20 16 20 22 24 26Z" fill="#091b36" fill-opacity="0.1"/>
+  <path d="M14 16C18 20 24 20 24 16C24 12 18 12 14 16Z" fill="#091b36" fill-opacity="0.1"/>
+  <!-- Base -->
+  <path d="M16 26L14 38H34L32 26"/>
+  <line x1="14" y1="38" x2="10" y2="44"/>
+  <line x1="34" y1="38" x2="38" y2="44"/>
+  <!-- Airflow arrows -->
+  <path d="M6 34L10 30" stroke="#00b0ed" opacity="0.5"/>
+  <path d="M6 30L10 26" stroke="#00b0ed" opacity="0.5"/>
+</svg>

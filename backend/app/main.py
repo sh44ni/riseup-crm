@@ -1,0 +1,258 @@
+import os
+import time
+import asyncio
+from datetime import date, timedelta
+from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.staticfiles import StaticFiles
+
+from app.core.logger import setup_logging, get_logger
+from app.core.config import settings
+from app.core.database import engine
+from app.core.redis import init_redis, close_redis, get_redis
+from app.api.router import api_router
+from app.api.docs_notes import DOCS_DESCRIPTION
+from app.middlewares.telemetry import TelemetryMiddleware
+logger = get_logger(__name__)
+
+STATIC_DEV_DIR = os.path.join(os.path.dirname(__file__), "static", "developer")
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
+os.makedirs(STATIC_DIR, exist_ok=True)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup ──
+    logger.info(f"Starting Rise Up Roofing FastAPI backend & Developer Engine...")
+    setup_logging()
+    await init_redis()
+
+    # ── Database Health Check ──
+    try:
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.warning("Async PostgreSQL connection healthy.")
+    except Exception as e:
+        logger.warning(f"Startup connection notice: {e}")
+
+    # Seed system RBAC permissions and default Owner role
+    try:
+        async with engine.begin() as conn:
+            from app.core.permissions import seed_system_rbac
+            await seed_system_rbac(conn)
+    except Exception as e:
+        logger.warning(f"Startup RBAC seeding notice: {e}")
+
+    # Background task: take daily stats snapshot + backfill
+    async def _take_snapshot():
+        from app.core.database import async_session_factory
+        from sqlalchemy import text as _text
+        from datetime import date as _date, datetime as _datetime, time as _time, timedelta as _timedelta
+        try:
+            async with async_session_factory() as session:
+                # Backfill last 30 days if empty
+                existing = await session.execute(_text("SELECT COUNT(*) FROM daily_stats_snapshots"))
+                count = existing.scalar() or 0
+                if count == 0:
+                    today = _date.today()
+                    # Backfill: for each of last 30 days, count leads created on or before that date
+                    for days_ago in range(30, -1, -1):
+                        snap_date = today - _timedelta(days=days_ago)
+                        cutoff_dt = _datetime.combine(snap_date + _timedelta(days=1), _time.min)
+                        await session.execute(_text("""
+                            INSERT INTO daily_stats_snapshots (snapshot_date, new_leads, contacted, est_scheduled, est_sent, jobs_won, lost_closed, ytd_revenue, active_crew, total_pipeline_value)
+                            SELECT
+                                :snap_date,
+                                COUNT(*) FILTER (WHERE (pipeline_stage IN ('stage_1_lead_gen','cold_lead','new_leads') OR pipeline_stage IS NULL) AND status != 'lost' AND created_at <= :cutoff_dt),
+                                COUNT(*) FILTER (WHERE pipeline_stage IN ('stage_2_initial_contact','initial_call','contacted') AND status != 'lost' AND created_at <= :cutoff_dt),
+                                COUNT(*) FILTER (WHERE pipeline_stage IN ('est_scheduled','inspection_scheduled','inspection_completed','estimate_building') AND status != 'lost' AND created_at <= :cutoff_dt),
+                                COUNT(*) FILTER (WHERE pipeline_stage IN ('estimate_sent','est_sent','follow_up','followup_2day','followup_7day','decision_followup') AND status NOT IN ('lost','won') AND created_at <= :cutoff_dt),
+                                COUNT(*) FILTER (WHERE (pipeline_stage IN ('contract_signed','active_jobs','closed_won','job_completed','completed') OR status = 'won') AND created_at <= :cutoff_dt),
+                                COUNT(*) FILTER (WHERE (status = 'lost' OR pipeline_stage IN ('lost','closed_lost')) AND created_at <= :cutoff_dt),
+                                0, 0, 0
+                            FROM leads
+                            ON CONFLICT (snapshot_date) DO NOTHING
+                        """), {"snap_date": snap_date, "cutoff_dt": cutoff_dt})
+                    await session.commit()
+                    logger.info(f"Backfilled 31 days of dashboard history")
+                else:
+                    # Just take today's snapshot
+                    await session.execute(_text("""
+                        INSERT INTO daily_stats_snapshots (snapshot_date, new_leads, contacted, est_scheduled, est_sent, jobs_won, lost_closed, ytd_revenue, active_crew, total_pipeline_value)
+                        SELECT
+                            CURRENT_DATE,
+                            COUNT(*) FILTER (WHERE (pipeline_stage IN ('stage_1_lead_gen','cold_lead','new_leads') OR pipeline_stage IS NULL) AND status != 'lost'),
+                            COUNT(*) FILTER (WHERE pipeline_stage IN ('stage_2_initial_contact','initial_call','contacted') AND status != 'lost'),
+                            COUNT(*) FILTER (WHERE pipeline_stage IN ('est_scheduled','inspection_scheduled','inspection_completed','estimate_building') AND status != 'lost'),
+                            COUNT(*) FILTER (WHERE pipeline_stage IN ('estimate_sent','est_sent','follow_up','followup_2day','followup_7day','decision_followup') AND status NOT IN ('lost','won')),
+                            COUNT(*) FILTER (WHERE (pipeline_stage IN ('contract_signed','active_jobs','closed_won','job_completed','completed') OR status = 'won')),
+                            COUNT(*) FILTER (WHERE status = 'lost' OR pipeline_stage IN ('lost','closed_lost')),
+                            COALESCE((SELECT SUM(contract_value) FROM jobs WHERE EXTRACT(year FROM created_at) = EXTRACT(year FROM NOW()) AND status != 'cancelled'), 0),
+                            COALESCE((SELECT COUNT(*) FROM crew_members WHERE active = true), 0),
+                            COALESCE(SUM(estimated_value) FILTER (WHERE status NOT IN ('lost','completed')), 0)
+                        FROM leads
+                        ON CONFLICT (snapshot_date) DO UPDATE SET
+                            new_leads = EXCLUDED.new_leads,
+                            contacted = EXCLUDED.contacted,
+                            est_scheduled = EXCLUDED.est_scheduled,
+                            est_sent = EXCLUDED.est_sent,
+                            jobs_won = EXCLUDED.jobs_won,
+                            lost_closed = EXCLUDED.lost_closed,
+                            ytd_revenue = EXCLUDED.ytd_revenue,
+                            active_crew = EXCLUDED.active_crew,
+                            total_pipeline_value = EXCLUDED.total_pipeline_value
+                    """))
+                    await session.commit()
+                    logger.info(f"Today's dashboard snapshot recorded")
+        except Exception as e:
+            logger.error(f"Error: {e}")
+    
+    asyncio.create_task(_take_snapshot())
+
+    # Ensure uploads directory structure exists
+    avatars_dir = os.path.join(STATIC_DIR, "uploads", "avatars")
+    os.makedirs(avatars_dir, exist_ok=True)
+
+    yield
+    # ── Shutdown ──
+    logger.info("Shutting down Rise Up Roofing FastAPI backend...")
+    await close_redis()
+    await engine.dispose()
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    description=DOCS_DESCRIPTION,
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    lifespan=lifespan,
+)
+
+# ── CORS Middleware ──
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "https://riseuprac.com",
+    "https://www.riseuprac.com",
+    "https://crm.riseuprac.com",
+    "https://backend.riseuprac.com",
+    "https://development.riseuprac.com",
+    "https://riseuproofing.vercel.app",
+    "https://riseup-roofing.vercel.app",
+]
+if hasattr(settings, "CORS_ORIGINS") and settings.CORS_ORIGINS:
+    if isinstance(settings.CORS_ORIGINS, list):
+        origins.extend(settings.CORS_ORIGINS)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["X-Process-Time", "X-Request-Id", "Content-Disposition"],
+)
+
+# ── Compression Middleware ──
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# ── Telemetry & Live Request Ring Buffer Middleware ──
+app.add_middleware(TelemetryMiddleware)
+
+# ── Custom Error Handlers with CORS Header Preservation ──
+def _is_allowed_origin(origin: Optional[str]) -> bool:
+    if not origin:
+        return False
+    if origin in origins or origin.endswith(".riseuprac.com"):
+        return True
+    if origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
+        return True
+    return False
+
+def _with_cors(response: JSONResponse, request: Request) -> JSONResponse:
+    origin = request.headers.get("origin")
+    if origin and _is_allowed_origin(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return _with_cors(JSONResponse(
+        status_code=exc.status_code,
+        content={"ok": False, "error": exc.detail, "detail": exc.detail},
+    ), request)
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    first_error = errors[0]["msg"] if errors else "Invalid request data"
+    return _with_cors(JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"ok": False, "error": first_error, "detail": first_error, "details": errors},
+    ), request)
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    import traceback
+    traceback.print_exc()
+    error_msg = "Internal server error. Please contact support." if settings.APP_ENV.lower() in ("production", "prod") else str(exc)
+    return _with_cors(JSONResponse(
+        status_code=500,
+        content={"ok": False, "error": error_msg, "detail": error_msg},
+    ), request)
+
+# ── Mount Static Files ──
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# ── Mount Master API Router ──
+app.include_router(api_router)
+
+# ── Standalone Developer Dashboard UI ──
+@app.get("/developer", response_class=HTMLResponse, tags=["Developer Dashboard"])
+@app.get("/developer/{rest_of_path:path}", response_class=HTMLResponse, tags=["Developer Dashboard"])
+@app.get("/developers", response_class=HTMLResponse, tags=["Developer Dashboard"])
+@app.get("/developers/{rest_of_path:path}", response_class=HTMLResponse, tags=["Developer Dashboard"])
+async def developer_dashboard():
+    index_file = os.path.join(STATIC_DEV_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return HTMLResponse("<h1>Developer Dashboard UI Not Found</h1>", status_code=404)
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# ── Root & Health Check ──
+@app.get("/health", tags=["Health"])
+@app.get("/", tags=["Health"])
+async def health_check():
+    db_ok = True
+    redis_ok = True
+    try:
+        redis = await get_redis()
+        await redis.ping()
+    except Exception:
+        redis_ok = False
+
+    return {
+        "status": "healthy" if (db_ok and redis_ok) else "degraded",
+        "service": settings.APP_NAME,
+        "env": settings.APP_ENV,
+        "database": "connected" if db_ok else "unreachable",
+        "redis": "connected" if redis_ok else "unreachable",
+        "timestamp": time.time(),
+    }

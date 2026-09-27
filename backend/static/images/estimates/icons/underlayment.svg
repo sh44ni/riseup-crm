@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="#091b36" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Roll shape -->
+  <ellipse cx="24" cy="34" rx="14" ry="6"/>
+  <path d="M10 34V16"/>
+  <path d="M38 34V16"/>
+  <ellipse cx="24" cy="16" rx="14" ry="6"/>
+  <!-- Unrolling sheet -->
+  <path d="M38 16C38 16 40 10 36 6C32 2 26 4 24 8" stroke-dasharray="3 2"/>
+  <!-- Surface texture lines -->
+  <line x1="16" y1="22" x2="32" y2="22" opacity="0.3"/>
+  <line x1="16" y1="28" x2="32" y2="28" opacity="0.3"/>
+</svg>

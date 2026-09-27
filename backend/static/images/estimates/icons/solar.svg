@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="#091b36" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Panel -->
+  <rect x="6" y="14" width="36" height="24" rx="2" fill="#1a5ba5" fill-opacity="0.15"/>
+  <rect x="6" y="14" width="36" height="24" rx="2"/>
+  <!-- Grid lines -->
+  <line x1="18" y1="14" x2="18" y2="38"/>
+  <line x1="30" y1="14" x2="30" y2="38"/>
+  <line x1="6" y1="22" x2="42" y2="22"/>
+  <line x1="6" y1="30" x2="42" y2="30"/>
+  <!-- Sun -->
+  <circle cx="38" cy="8" r="4" fill="#FFB81C" stroke="#FFB81C"/>
+  <line x1="38" y1="2" x2="38" y2="4" stroke="#FFB81C" stroke-width="1.5"/>
+  <line x1="44" y1="8" x2="42" y2="8" stroke="#FFB81C" stroke-width="1.5"/>
+  <line x1="42" y1="4" x2="40" y2="6" stroke="#FFB81C" stroke-width="1.5"/>
+  <!-- Mount -->
+  <line x1="12" y1="38" x2="12" y2="44"/>
+  <line x1="36" y1="38" x2="36" y2="44"/>
+</svg>

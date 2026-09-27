@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="#091b36" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Skylight frame -->
+  <rect x="10" y="8" width="28" height="32" rx="2"/>
+  <rect x="14" y="12" width="20" height="24" rx="1" fill="#e8f4fd" stroke="#091b36"/>
+  <!-- Glass reflection -->
+  <line x1="18" y1="14" x2="30" y2="14" stroke="#00b0ed" opacity="0.4"/>
+  <line x1="16" y1="20" x2="32" y2="20" stroke="#00b0ed" opacity="0.3"/>
+  <!-- Hinge marks -->
+  <circle cx="14" cy="24" r="1.5" fill="#091b36"/>
+  <circle cx="34" cy="24" r="1.5" fill="#091b36"/>
+  <!-- Sun rays -->
+  <line x1="24" y1="2" x2="24" y2="6" stroke="#FFB81C" stroke-width="1.5"/>
+  <line x1="18" y1="4" x2="20" y2="7" stroke="#FFB81C" stroke-width="1.5"/>
+  <line x1="30" y1="4" x2="28" y2="7" stroke="#FFB81C" stroke-width="1.5"/>
+</svg>

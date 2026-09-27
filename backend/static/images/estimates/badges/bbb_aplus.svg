@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 36" fill="none">
+  <!-- BBB Torch Logo -->
+  <g transform="translate(4, 2)">
+    <rect x="0" y="0" width="30" height="32" rx="3" fill="#00508F"/>
+    <text x="15" y="13" text-anchor="middle" fill="#ffffff" font-family="Arial,sans-serif" font-size="6" font-weight="900" letter-spacing="0.5">BBB</text>
+    <!-- Torch flame -->
+    <g transform="translate(11, 15)">
+      <path d="M4 0 C4 0 6 3 6 5 C6 7 4 8 4 8 C4 8 2 7 2 5 C2 3 4 0 4 0Z" fill="#FFB81C"/>
+      <rect x="3" y="7" width="2" height="6" rx="0.5" fill="#ffffff"/>
+    </g>
+  </g>
+  <!-- A+ Badge -->
+  <g transform="translate(38, 4)">
+    <rect x="0" y="0" width="38" height="28" rx="3" fill="#091b36"/>
+    <text x="19" y="14" text-anchor="middle" fill="#ffffff" font-family="Arial,sans-serif" font-size="7" font-weight="800">ACCREDITED</text>
+    <text x="19" y="25" text-anchor="middle" fill="#00b0ed" font-family="Arial,sans-serif" font-size="12" font-weight="900">A+</text>
+  </g>
+</svg>

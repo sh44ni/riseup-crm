@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
+.env
+.env.local
+backend/.venv/
+backend/venv/
+backend/scratch/
+
+# Node / Vite
+crm/node_modules/
+crm/dist/
+crm/.env
+crm/.env.production
+crm/tsconfig.tsbuildinfo
+crm/antigravity-awesome-skills/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
