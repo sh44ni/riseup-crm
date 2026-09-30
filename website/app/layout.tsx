@@ -72,19 +72,29 @@ export default function RootLayout({
         <link rel="preconnect" href="https://www.google-analytics.com" />
       </head>
       <body className="antialiased">
-        {/* Google tag (gtag.js) */}
-        <Script
-          strategy="afterInteractive"
-          src="https://www.googletagmanager.com/gtag/js?id=G-82QZ88P6TK"
-        />
+        {/* Google tag (gtag.js) - active on production domains only; disabled on staging, localhost, and admin */}
         <Script id="google-tag-gtag" strategy="afterInteractive">
           {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
+            var isStagingOrDev = (
+              window.location.hostname === 'website.riseuprac.com' ||
+              window.location.hostname.indexOf('staging') !== -1 ||
+              window.location.hostname === 'localhost' ||
+              window.location.hostname === '127.0.0.1' ||
+              window.location.pathname.startsWith('/admin')
+            );
 
-            if (!window.location.pathname.startsWith('/admin')) {
+            if (isStagingOrDev) {
+              window['ga-disable-G-82QZ88P6TK'] = true;
+            } else {
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
               gtag('config', 'G-82QZ88P6TK');
+
+              var s = document.createElement('script');
+              s.async = true;
+              s.src = 'https://www.googletagmanager.com/gtag/js?id=G-82QZ88P6TK';
+              document.head.appendChild(s);
             }
           `}
         </Script>

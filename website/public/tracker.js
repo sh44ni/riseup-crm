@@ -10,7 +10,10 @@
       h === '::1' ||
       h.endsWith('.local') ||
       h.endsWith('.internal') ||
+      h === 'website.riseuprac.com' ||
+      h.indexOf('staging') !== -1 ||
       port === '3000' ||
+      port === '3002' ||
       port === '5173' ||
       window.location.pathname.startsWith('/admin')
     ) {

@@ -33,6 +33,7 @@ import { usePipelineData } from '@/hooks/usePipelineData';
 import { PipelineToolbar } from '@/components/pipeline/PipelineToolbar';
 import { PipelineModals, DropIntent } from '@/components/pipeline/PipelineModals';
 import { GatedLeadCard } from '@/components/pipeline/EstimateSentGatedModal';
+import { BackwardMoveWarning } from '@/components/pipeline/BackwardMoveModal';
 
 export function PipelinePage() {
   const { user, can, isOwner, getScope } = useAuth();
@@ -97,6 +98,8 @@ export function PipelinePage() {
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [dropIntent, setDropIntent] = useState<DropIntent | null>(null);
   const [isMoving, setIsMoving] = useState<boolean>(false);
+  const [backwardMoveWarning, setBackwardMoveWarning] = useState<BackwardMoveWarning | null>(null);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -213,16 +216,16 @@ export function PipelinePage() {
     const deal = deals.find((d) => d.id === dealId);
     if (!deal || deal.stageId === targetStageId) return;
 
-    const isUnclaimed = !deal.assignedToUserId || !deal.estimator?.name || deal.estimator.name.toLowerCase() === 'unassigned';
-    if (isUnclaimed && targetStageId !== 'cold_lead') {
-      toast.warning('Please claim the lead first before advancing its stage.');
-      return;
-    }
+    const fromIndex = PIPELINE_STAGES.findIndex((s) => s.id === deal.stageId);
+    const toIndex = PIPELINE_STAGES.findIndex((s) => s.id === targetStageId);
+    const fromStep = fromIndex >= 0 ? PIPELINE_STAGES[fromIndex].stepNumber : 1;
+    const toStep = toIndex >= 0 ? PIPELINE_STAGES[toIndex].stepNumber : 1;
 
     const fromDef = PIPELINE_STAGES.find((s) => s.id === deal.stageId) || {
       id: deal.stageId as PipelineStageId,
       shortTitle: deal.stageId.replace(/_/g, ' ').toUpperCase(),
       title: deal.stageId,
+      stepNumber: fromStep,
       accentColor: '#0284c7',
       pillBg: 'bg-sky-500/15 border-sky-500/30',
       pillText: 'text-sky-700',
@@ -232,11 +235,32 @@ export function PipelinePage() {
       id: targetStageId,
       shortTitle: targetStageId.replace(/_/g, ' ').toUpperCase(),
       title: targetStageId,
+      stepNumber: toStep,
       accentColor: '#10b981',
       pillBg: 'bg-emerald-500/15 border-emerald-500/30',
       pillText: 'text-emerald-700',
     };
 
+    // 1. Backward move check: leads cannot move backward, only forward or to lost
+    if (targetStageId !== 'closed_lost' && toStep < fromStep) {
+      setBackwardMoveWarning({
+        dealName: deal.name,
+        fromTitle: fromDef.shortTitle,
+        toTitle: toDef.shortTitle,
+        fromStep,
+        toStep,
+      });
+      return;
+    }
+
+    // 2. Unclaimed lead check: must be claimed before advancing past cold_lead
+    const isUnclaimed = !deal.assignedToUserId || !deal.estimator?.name || deal.estimator.name.toLowerCase() === 'unassigned';
+    if (isUnclaimed && targetStageId !== 'cold_lead') {
+      toast.warning('Please claim the lead first before advancing its stage.');
+      return;
+    }
+
+    // 3. Gated stages check: automated proposal/contract stages
     if (targetStageId === 'estimate_sent' || targetStageId === 'contract_sent') {
       setGatedEstimateDeal({
         id: deal.id,
@@ -302,6 +326,27 @@ export function PipelinePage() {
       return;
     }
 
+    // Safety guard against backward move
+    if (deal) {
+      const fromIndex = PIPELINE_STAGES.findIndex((s) => s.id === deal.stageId);
+      const toIndex = PIPELINE_STAGES.findIndex((s) => s.id === targetStageId);
+      const fromStep = fromIndex >= 0 ? PIPELINE_STAGES[fromIndex].stepNumber : 1;
+      const toStep = toIndex >= 0 ? PIPELINE_STAGES[toIndex].stepNumber : 1;
+      if (targetStageId !== 'closed_lost' && toStep < fromStep) {
+        setBackwardMoveWarning({
+          dealName: deal.name,
+          fromTitle: PIPELINE_STAGES[fromIndex]?.shortTitle || deal.stageId,
+          toTitle: PIPELINE_STAGES[toIndex]?.shortTitle || targetStageId,
+          fromStep,
+          toStep,
+        });
+        setDropIntent(null);
+        return;
+      }
+    }
+
+    // Save previous state for instant rollback if server rejects the move
+    const previousDeals = [...deals];
     setIsMoving(true);
 
     setDeals((prev) =>
@@ -323,8 +368,12 @@ export function PipelinePage() {
         authorName: user?.name,
         authorRole: user?.role,
       });
-    } catch (err) {
+      toast.success(`Moved ${card.name} to ${dropIntent.toCol.title}`);
+    } catch (err: any) {
       console.error('Failed to move stage on server:', err);
+      // Immediately revert back to the original column
+      setDeals(previousDeals);
+      toast.error(err?.message || 'Move not permitted. Deal returned to original stage.');
     } finally {
       setIsMoving(false);
       setDropIntent(null);
@@ -366,6 +415,8 @@ export function PipelinePage() {
     const stageIndex = PIPELINE_STAGES.findIndex((s) => s.id === nextStage);
     const nextStageDef = stageIndex >= 0 ? PIPELINE_STAGES[stageIndex] : null;
 
+    const previousDeals = [...deals];
+
     setDeals((prev) =>
       prev.map((d) =>
         d.id !== dealId
@@ -385,8 +436,11 @@ export function PipelinePage() {
         authorName: user?.name,
         authorRole: user?.role,
       });
-    } catch (err) {
+      toast.success(`Advanced to ${nextStageDef?.shortTitle || nextStage}`);
+    } catch (err: any) {
       console.error('Failed to advance deal:', err);
+      setDeals(previousDeals);
+      toast.error(err?.message || 'Stage advance not permitted.');
     } finally {
       refresh(true);
     }
@@ -1042,6 +1096,8 @@ export function PipelinePage() {
         isMoving={isMoving}
         handleConfirmMove={handleConfirmMove}
         handleCancelMove={handleCancelMove}
+        backwardMoveWarning={backwardMoveWarning}
+        setBackwardMoveWarning={setBackwardMoveWarning}
         followUpModalDeal={followUpModalDeal}
         setFollowUpModalDeal={setFollowUpModalDeal}
         isSavingFollowUp={isSavingFollowUp}

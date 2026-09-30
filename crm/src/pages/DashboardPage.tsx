@@ -25,6 +25,7 @@ import { CounterSignModal } from '@/components/contracts/CounterSignModal';
 import { PipelineDealModal } from '../components/pipeline/PipelineDealModal';
 import { MoveLeadModal } from '../components/pipeline/MoveLeadModal';
 import { CreateLeadModal, CreateLeadPayload } from '../components/pipeline/CreateLeadModal';
+import { BackwardMoveModal, BackwardMoveWarning } from '../components/pipeline/BackwardMoveModal';
 import { EnrichedDeal, enrichDeals, PipelineStageId } from '../components/pipeline/pipelineTypes';
 import { updatePipelineDealStage, logDealFollowUp, claimLead } from '../api/pipelineApi';
 import { leadsApi } from '@/api/leadsApi';
@@ -236,6 +237,7 @@ export function DashboardPage() {
   } | null>(null);
   const [dragOverColId, setDragOverColId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [backwardMoveWarning, setBackwardMoveWarning] = useState<BackwardMoveWarning | null>(null);
   const [followUpModalCard, setFollowUpModalCard] = useState<DealCard | null>(null);
   const [isLoggingFollowUp, setIsLoggingFollowUp] = useState(false);
   const [gatedEstimateCard, setGatedEstimateCard] = useState<GatedLeadCard | null>(null);
@@ -261,6 +263,18 @@ export function DashboardPage() {
     setDragOverColId((prev) => (prev === colId ? null : prev));
   };
 
+  const DASHBOARD_STAGE_ORDER: Record<string, number> = {
+    new_leads: 1,
+    contacted: 2,
+    est_scheduled: 3,
+    est_sent: 4,
+    follow_up: 5,
+    contract_sent: 6,
+    contract_signed: 7,
+    active_jobs: 8,
+    job_completed: 8,
+  };
+
   const handleDrop = (e: React.DragEvent, toCol: ColumnData) => {
     e.preventDefault();
     setIsDragging(false);
@@ -274,14 +288,28 @@ export function DashboardPage() {
     const card = fromCol?.cards.find((c) => c.id === drag.cardId);
     if (!fromCol || !card) return;
 
-    // Unclaimed Lead Stage Guard: Cannot advance unclaimed leads
+    // 1. Backward move check: leads cannot move backward
+    const fromOrder = DASHBOARD_STAGE_ORDER[fromCol.id] || 1;
+    const toOrder = DASHBOARD_STAGE_ORDER[toCol.id] || 1;
+    if (toCol.id !== 'closed_lost' && toOrder < fromOrder) {
+      setBackwardMoveWarning({
+        dealName: card.name,
+        fromTitle: fromCol.title,
+        toTitle: toCol.title,
+        fromStep: fromOrder,
+        toStep: toOrder,
+      });
+      return;
+    }
+
+    // 2. Unclaimed Lead Stage Guard: Cannot advance unclaimed leads
     const isUnclaimed = !card.assignedToUserId || !card.assignedToName || card.assignedToName.toLowerCase() === 'unassigned';
     if (isUnclaimed && toCol.id !== 'new_leads') {
       setToastMessage('Please claim the lead first before advancing its stage.');
       return;
     }
 
-    // Gated stage check: Estimate Sent is automated and cannot be manually dropped into
+    // 3. Gated stage check: Estimate Sent is automated and cannot be manually dropped into
     if (toCol.id === 'est_sent' || toCol.id === 'estimate_sent') {
       setGatedEstimateCard({
         id: card.id,
@@ -306,6 +334,21 @@ export function DashboardPage() {
     if (!dropIntent) return;
     const { card, fromCol, toCol } = dropIntent;
 
+    // Guard: Backward move
+    const fromOrder = DASHBOARD_STAGE_ORDER[fromCol.id] || 1;
+    const toOrder = DASHBOARD_STAGE_ORDER[toCol.id] || 1;
+    if (toCol.id !== 'closed_lost' && toOrder < fromOrder) {
+      setBackwardMoveWarning({
+        dealName: card.name,
+        fromTitle: fromCol.title,
+        toTitle: toCol.title,
+        fromStep: fromOrder,
+        toStep: toOrder,
+      });
+      setDropIntent(null);
+      return;
+    }
+
     // Guard: Prevent advancing unclaimed lead
     const isUnclaimed = !card.assignedToUserId || !card.assignedToName || card.assignedToName.toLowerCase() === 'unassigned';
     if (isUnclaimed && toCol.id !== 'new_leads') {
@@ -322,9 +365,12 @@ export function DashboardPage() {
     const mapping = STAGE_MAP[toCol.id] || { granularStage: 'cold_lead', pipelineStage: 'stage_1_lead_gen' };
     try {
       await updatePipelineDealStage(card.id, mapping.granularStage, notes.trim() || undefined, authorInfo);
-    } catch (err) {
+      setToastMessage(`Moved ${card.name} to ${toCol.title}`);
+    } catch (err: any) {
       console.error('Failed to update stage:', err);
-      refreshPipeline(true);
+      // Immediately revert optimistic move
+      moveCardOptimistically(card.id, toCol.id, fromCol.id);
+      setToastMessage(err?.message || 'Move not permitted. Card returned to original column.');
     } finally {
       setIsMoving(false);
       refreshPipeline(true);
@@ -872,6 +918,12 @@ export function DashboardPage() {
           onSuccess={handleReassignSuccess}
         />
       )}
+
+      {/* Backward Move Policy Modal */}
+      <BackwardMoveModal
+        warning={backwardMoveWarning}
+        onClose={() => setBackwardMoveWarning(null)}
+      />
     </div>
   );
 }

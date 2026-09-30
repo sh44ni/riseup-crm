@@ -90,6 +90,56 @@ STAGE_TO_MACRO = {
     "closed_lost": "stage_1_lead_gen",
 }
 
+STAGE_PROGRESSION_RANK: Dict[str, int] = {
+    # Step 1: Lead Gen / Cold
+    "cold_lead": 1,
+    "stage_1_lead_gen": 1,
+    "new_leads": 1,
+    "new": 1,
+
+    # Step 2: Initial Contact
+    "initial_call": 2,
+    "stage_2_initial_contact": 2,
+    "contacted": 2,
+
+    # Step 3: Site Visit / Inspection / Estimate Draft
+    "inspection_scheduled": 3,
+    "estimate_scheduled": 3,
+    "est_scheduled": 3,
+    "site_visit_scheduled": 3,
+    "inspection_completed": 3,
+    "inspected": 3,
+    "estimate_building": 3,
+    "estimate_drafting": 3,
+    "stage_3_site_visit_estimate": 3,
+
+    # Step 4: Proposal Delivered
+    "estimate_sent": 4,
+    "est_sent": 4,
+
+    # Step 5: Active Follow-Up
+    "follow_up": 5,
+    "followup_2day": 5,
+    "followup_7day": 5,
+    "decision_followup": 5,
+    "future_followup": 5,
+    "stage_4_closing": 5,
+
+    # Step 6: Contract Sent
+    "contract_sent": 6,
+
+    # Step 7: Contract Signed / Job Sold
+    "contract_signed": 7,
+    "closed_won": 7,
+    "won": 7,
+
+    # Step 8: Active Production / Jobs
+    "active_jobs": 8,
+    "job_completed": 8,
+    "completed": 8,
+    "stage_5_completion_followup": 8,
+}
+
 ALL_VALID_STAGES = set(
     MACRO_STAGES
     + GRANULAR_STAGES
@@ -672,7 +722,7 @@ async def get_pipeline_analytics(
     }
 
 async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession, user):
-    target = (await db.execute(text("SELECT id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
+    target = (await db.execute(text("SELECT id, created_by_user_id, assigned_to_user_id, pipeline_stage, status FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
     if not target:
         raise HTTPException(status_code=404, detail="Lead not found")
     if not check_resource_access(user, "pipeline.advance_stage", creator_id=target.get("created_by_user_id"), assigned_id=target.get("assigned_to_user_id")):
@@ -680,6 +730,21 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
 
     body = await request.json()
     new_stage = body.get("stage")
+
+    if not new_stage or new_stage not in ALL_VALID_STAGES:
+        raise HTTPException(status_code=400, detail=f"Invalid pipeline stage: {new_stage}")
+
+    # ── Backward Stage Move Guard ──
+    # Deals can only move forward through SOP stages or move to lost ("closed_lost")
+    if new_stage not in ("closed_lost", "lost"):
+        current_stage = target.get("pipeline_stage") or target.get("status") or "cold_lead"
+        current_rank = STAGE_PROGRESSION_RANK.get(current_stage, 1)
+        new_rank = STAGE_PROGRESSION_RANK.get(new_stage, 1)
+        if new_rank < current_rank:
+            raise HTTPException(
+                status_code=400,
+                detail="Backward stage moves are not permitted. Leads can only move forward through pipeline stages or be marked as lost."
+            )
 
     # ── Unclaimed Lead Stage Guard ──
     # If a lead is not claimed, its stage cannot be changed out of initial intake/cold stages.
@@ -699,9 +764,6 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
     loss_reason = body.get("lossReason") or body.get("loss_reason")
     future_bucket = body.get("futureBucket") or body.get("future_bucket")
     future_date = body.get("futureFollowUpDate") or body.get("future_date")
-
-    if not new_stage or new_stage not in ALL_VALID_STAGES:
-        raise HTTPException(status_code=400, detail=f"Invalid pipeline stage: {new_stage}")
 
     stage_title = STAGE_DISPLAY_NAMES.get(new_stage, new_stage.replace('_', ' ').title())
 

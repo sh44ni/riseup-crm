@@ -8,6 +8,8 @@ import { EstimateSentGatedModal, GatedLeadCard } from '@/components/pipeline/Est
 import { ClaimLeadModal } from '@/components/pipeline/ClaimLeadModal';
 import { ReassignLeadModal } from '@/components/pipeline/ReassignLeadModal';
 
+import { BackwardMoveModal, BackwardMoveWarning } from '@/components/pipeline/BackwardMoveModal';
+
 export interface DropIntent {
   card: MoveModalCard;
   fromCol: MoveModalColumn;
@@ -29,6 +31,9 @@ interface PipelineModalsProps {
   isMoving: boolean;
   handleConfirmMove: (notes: string) => Promise<void>;
   handleCancelMove: () => void;
+
+  backwardMoveWarning: BackwardMoveWarning | null;
+  setBackwardMoveWarning: (w: BackwardMoveWarning | null) => void;
   
   followUpModalDeal: PipelineDealItem | null;
   setFollowUpModalDeal: (d: PipelineDealItem | null) => void;
@@ -51,6 +56,7 @@ export function PipelineModals({
   activeDealModal, setActiveDealModal, handleAdvanceDeal, handleUpdateDeal,
   showCreateLeadModal, setShowCreateLeadModal, handleCreateLead,
   dropIntent, isMoving, handleConfirmMove, handleCancelMove,
+  backwardMoveWarning, setBackwardMoveWarning,
   followUpModalDeal, setFollowUpModalDeal, isSavingFollowUp, handleLogFollowUpSubmit,
   gatedEstimateDeal, setGatedEstimateDeal,
   claimModalDeal, setClaimModalDeal, handleConfirmClaimDeal,
@@ -77,6 +83,11 @@ export function PipelineModals({
         isMoving={isMoving}
         onConfirm={handleConfirmMove}
         onCancel={handleCancelMove}
+      />
+
+      <BackwardMoveModal
+        warning={backwardMoveWarning}
+        onClose={() => setBackwardMoveWarning(null)}
       />
 
       <LogFollowUpModal
