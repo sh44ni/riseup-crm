@@ -15,6 +15,8 @@ import { CoastalWeatherWidget } from '@/components/common/CoastalWeatherWidget';
 import { QuoteBannerWidget } from '@/components/common/QuoteBannerWidget';
 import { SidebarScheduleWidget } from '@/components/common/SidebarScheduleWidget';
 import { SidebarTasksWidget } from '@/components/common/SidebarTasksWidget';
+import { DevBadge } from '@/components/common/DevBadge';
+import { isDevEmail } from '@/utils/devUtils';
 import { api, API_ORIGIN } from '@/lib/api';
 
 const ProfileSettingsModal = React.lazy(() =>
@@ -176,8 +178,11 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
               <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 bg-emerald-500" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-[#1F1F1F] dark:text-slate-100 group-hover:text-[#1878B8] transition-colors leading-tight truncate">
-                {displayName}
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs font-bold text-[#1F1F1F] dark:text-slate-100 group-hover:text-[#1878B8] transition-colors leading-tight truncate">
+                  {displayName}
+                </span>
+                {isDevEmail(user?.email) && <DevBadge size="xs" />}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate flex items-center gap-1">
                 <span>{currentRoleLabel}</span>
@@ -205,7 +210,10 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-black text-slate-900 dark:text-white truncate leading-tight">{displayName}</div>
+                <div className="text-xs font-black text-slate-900 dark:text-white truncate leading-tight flex items-center gap-1.5">
+                  <span>{displayName}</span>
+                  {isDevEmail(user?.email) && <DevBadge size="xs" />}
+                </div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate leading-tight mt-0.5">{displayEmail}</div>
                 <div className="mt-1 flex items-center gap-1.5">
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 text-[9px] font-bold">

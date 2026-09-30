@@ -24,6 +24,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { DevBadge } from '@/components/common/DevBadge';
+import { isDevEmail } from '@/utils/devUtils';
 
 interface Role {
   id: number;
@@ -470,6 +472,7 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
                                   Owner
                                 </span>
                               )}
+                              {isDevEmail(u.email) && <DevBadge size="xs" />}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
                           </div>
@@ -629,6 +632,7 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
                         <div className="flex items-center gap-2">
                           <Mail size={13} className="text-slate-400 dark:text-slate-500" />
                           <span>{inv.email}</span>
+                          {isDevEmail(inv.email) && <DevBadge size="xs" />}
                         </div>
                       </td>
 

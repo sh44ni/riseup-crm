@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { DevBadge } from '@/components/common/DevBadge';
+import { isDevEmail } from '@/utils/devUtils';
 import { api, API_ORIGIN } from '@/lib/api';
 import { z } from 'zod';
 
@@ -385,6 +387,7 @@ export function ProfileSettingsModal({ isOpen, onClose }: ProfileSettingsModalPr
             <div className="min-w-0 flex-1 text-center sm:text-left space-y-2">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">{displayName}</h3>
+                {isDevEmail(user?.email) && <DevBadge size="sm" />}
                 <span className="px-2 py-0.5 rounded-md bg-[#1878B8]/10 dark:bg-sky-950/60 text-[#1878B8] dark:text-sky-300 border border-[#1878B8]/20 dark:border-sky-800/40 text-[10px] font-bold">
                   {roleTitle}
                 </span>

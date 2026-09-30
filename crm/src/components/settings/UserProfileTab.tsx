@@ -19,6 +19,8 @@ import {
   Check,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { DevBadge } from '@/components/common/DevBadge';
+import { isDevEmail } from '@/utils/devUtils';
 import { api, API_ORIGIN } from '@/lib/api';
 
 export function UserProfileTab() {
@@ -272,6 +274,7 @@ export function UserProfileTab() {
           <div className="min-w-0 flex-1 text-center sm:text-left space-y-2">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white leading-tight">{displayName}</h2>
+              {isDevEmail(user?.email) && <DevBadge size="sm" />}
               <span className="px-2.5 py-0.5 rounded-full bg-[#1878B8]/10 text-[#1878B8] dark:text-sky-400 border border-[#1878B8]/20 dark:border-sky-500/30 text-xs font-bold">
                 {roleTitle}
               </span>
