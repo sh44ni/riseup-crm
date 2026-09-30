@@ -8,6 +8,9 @@ PERMISSION_ALIASES: Dict[str, str] = {
     "finances.create_invoices": "finances.edit",
     "finances.record_payment": "finances.edit",
     "jobs.view_jobs": "jobs.view",
+    "jobs.change_stage": "jobs.edit",
+    "jobs.manage_permits": "jobs.edit",
+    "jobs.delete": "jobs.edit",
     "clients.view_clients": "clients.view",
     "users.manage": "users.assign_roles",
     "users.edit": "users.assign_roles",
@@ -16,7 +19,7 @@ PERMISSION_ALIASES: Dict[str, str] = {
 
 def normalize_permission_key(key: str) -> str:
     norm = key.replace(":", ".")
-    return PERMISSION_ALIASES.get(norm, norm)
+    return PERMISSION_ALIASES.get(norm, PERMISSION_ALIASES.get(key, norm))
 
 class AuthUser:
     def __init__(
@@ -74,7 +77,7 @@ def has_permission(
     permission: str,
     required_scope: Optional[str] = None
 ) -> bool:
-    if not user or user.status == "deactivated":
+    if not user or user.status != "active":
         return False
 
     norm_key = normalize_permission_key(permission)
@@ -103,7 +106,7 @@ def has_any_permission(user: Optional[AuthUser], permissions: List[str]) -> bool
     return any(has_permission(user, p) for p in permissions)
 
 def get_permission_scope(user: Optional[AuthUser], permission: str) -> Optional[str]:
-    if not user or user.status == "deactivated":
+    if not user or user.status != "active":
         return None
 
     if user.role == "owner" or user.is_protected_owner:
@@ -181,6 +184,57 @@ def build_scope_filter(
 
     return ScopeFilterResult({"allowed": False, "clause": "1=0", "params": {}})
 
+def check_resource_access(
+    user: Any,
+    permission: str,
+    creator_id: Optional[int] = None,
+    assigned_id: Optional[int] = None
+) -> bool:
+    """
+    Validates whether the current user has access to a specific record based on
+    their resolved permission scope ('all', 'assigned', 'own', 'none').
+    """
+    if not user:
+        return False
+
+    u_obj = user
+    if isinstance(user, dict):
+        u_obj = AuthUser(
+            id=user.get("id", 0),
+            name=user.get("name", ""),
+            email=user.get("email", ""),
+            role=user.get("role", ""),
+            status=user.get("status", "active"),
+            permissions=user.get("permissions", {}),
+            is_protected_owner=user.get("is_protected_owner", user.get("role") == "owner"),
+        )
+
+    if u_obj.role == "owner" or getattr(u_obj, "is_protected_owner", False):
+        return True
+
+    scope = get_permission_scope(u_obj, permission)
+    if not scope or scope == "none":
+        return False
+
+    if scope == "all":
+        return True
+
+    uid = getattr(u_obj, "id", None)
+    if uid is None or uid == 0 or uid == "0":
+        return False
+
+    str_uid = str(uid)
+    str_creator = str(creator_id) if creator_id is not None else None
+    str_assigned = str(assigned_id) if assigned_id is not None else None
+
+    if scope == "assigned":
+        return (str_assigned is not None and str_assigned == str_uid) or (str_creator is not None and str_creator == str_uid)
+
+    if scope == "own":
+        return str_creator is not None and str_creator == str_uid
+
+    return False
+
 async def get_user_effective_permissions(db: AsyncSession, user_id: int) -> Tuple[Dict[str, str], bool]:
     """
     Resolves effective permissions union across all roles assigned to user.
@@ -235,3 +289,118 @@ def require_any_permission(permissions: List[str]):
 def require_auth_user():
     from app.middlewares.auth import require_auth
     return require_auth
+
+SYSTEM_PERMISSIONS = [
+    # Leads
+    ("leads.view", "leads", "view", "View CRM leads"),
+    ("leads.create", "leads", "create", "Create new leads"),
+    ("leads.edit", "leads", "edit", "Edit lead details"),
+    ("leads.delete", "leads", "delete", "Delete leads"),
+    ("leads.claim", "leads", "claim", "Claim unassigned leads"),
+    ("leads.reassign", "leads", "reassign", "Reassign leads to other team members"),
+
+    # Clients
+    ("clients.view", "clients", "view", "View CRM clients"),
+    ("clients.create", "clients", "create", "Create new clients"),
+    ("clients.edit", "clients", "edit", "Edit client details"),
+    ("clients.delete", "clients", "delete", "Delete clients"),
+
+    # Pipeline
+    ("pipeline.view", "pipeline", "view", "View sales pipeline Kanban and analytics"),
+    ("pipeline.advance_stage", "pipeline", "advance_stage", "Move deals between pipeline stages"),
+    ("pipeline.override_gate", "pipeline", "override_gate", "Override automated stage transition gates"),
+
+    # Estimates
+    ("estimates.view", "estimates", "view", "View roofing estimates"),
+    ("estimates.create", "estimates", "create", "Create estimates"),
+    ("estimates.send", "estimates", "send", "Send estimates to clients"),
+    ("estimates.edit_pricing_templates", "estimates", "edit_pricing_templates", "Modify pricing calculators and cost catalogs"),
+
+    # Contracts
+    ("contracts.view", "contracts", "view", "View contracts"),
+    ("contracts.void", "contracts", "void", "Void or cancel contracts"),
+
+    # Jobs
+    ("jobs.view", "jobs", "view", "View jobs and dispatching"),
+    ("jobs.edit", "jobs", "edit", "Edit job schedules and assignments"),
+    ("jobs.mark_complete", "jobs", "mark_complete", "Mark jobs completed"),
+
+    # Calendar
+    ("calendar.view", "calendar", "view", "View schedule and calendar"),
+    ("calendar.create_event", "calendar", "create_event", "Schedule site visits and meetings"),
+    ("calendar.view_others", "calendar", "view_others", "View other team members' calendars"),
+
+    # Inspections
+    ("inspections.view", "inspections", "view", "View roof inspections"),
+    ("inspections.create", "inspections", "create", "Create and log roof inspections"),
+    ("inspections.edit_checklist_templates", "inspections", "edit_checklist_templates", "Edit inspection checklists"),
+
+    # Finances
+    ("finances.view", "finances", "view", "View company finances, job margins, and revenue"),
+    ("finances.edit", "finances", "edit", "Record payments and edit invoices"),
+
+    # Reports
+    ("reports.view", "reports", "view", "View executive reporting and KPI trends"),
+
+    # Warranties
+    ("warranties.view", "warranties", "view", "View warranty certificates"),
+    ("warranties.create", "warranties", "create", "Issue warranties"),
+    ("warranties.edit", "warranties", "edit", "Edit warranty terms"),
+
+    # Estimator Settings
+    ("estimator_settings.view", "estimator_settings", "view", "View estimator configuration"),
+    ("estimator_settings.edit", "estimator_settings", "edit", "Update cost baselines and square footage formulas"),
+
+    # Roles & Users
+    ("roles.view", "roles", "view", "View system roles and matrix"),
+    ("roles.create", "roles", "create", "Create new custom roles"),
+    ("roles.edit", "roles", "edit", "Modify role permissions and scopes"),
+    ("roles.delete", "roles", "delete", "Delete custom roles"),
+    ("roles.assign_permissions", "roles", "assign_permissions", "Assign granular permissions to roles"),
+
+    ("users.view", "users", "view", "View team members"),
+    ("users.invite", "users", "invite", "Invite new team members"),
+    ("users.deactivate", "users", "deactivate", "Deactivate users"),
+    ("users.assign_roles", "users", "assign_roles", "Assign roles to users"),
+
+    # Content & Settings Management
+    ("settings.edit", "settings", "edit", "Edit CRM appearance settings (banners, quotes, templates)"),
+    ("estimator_settings.view", "estimator_settings", "view", "View estimator pricing configuration"),
+    ("estimator_settings.edit", "estimator_settings", "edit", "Edit estimator pricing rules and formulas"),
+    ("calendar.view", "calendar", "view", "View team calendar and scheduled events"),
+    ("calendar.create_event", "calendar", "create_event", "Create and manage calendar events"),
+]
+
+async def seed_system_rbac(conn):
+    """
+    Idempotently seeds all system permissions and ensures the default Owner role exists.
+    """
+    for key, resource, action, description in SYSTEM_PERMISSIONS:
+        await conn.execute(
+            text("""
+                INSERT INTO permissions (key, resource, action, description)
+                VALUES (:k, :r, :a, :d)
+                ON CONFLICT (key) DO NOTHING
+            """),
+            {"k": key, "r": resource, "a": action, "d": description}
+        )
+
+    # Ensure Owner role exists
+    await conn.execute(text("""
+        INSERT INTO roles (name, description, is_protected, created_at, updated_at)
+        VALUES ('Owner', 'Executive owner with unrestricted access across all systems', true, NOW(), NOW())
+        ON CONFLICT (name) DO UPDATE SET is_protected = true
+    """))
+
+    # Associate Owner role with owner user
+    owner_user = (await conn.execute(text("SELECT id FROM users WHERE role = 'owner' ORDER BY id ASC LIMIT 1"))).mappings().first()
+    owner_role = (await conn.execute(text("SELECT id FROM roles WHERE is_protected = true LIMIT 1"))).mappings().first()
+    if owner_user and owner_role:
+        await conn.execute(
+            text("""
+                INSERT INTO user_roles (user_id, role_id, assigned_at)
+                VALUES (:uid, :rid, NOW())
+                ON CONFLICT (user_id, role_id) DO NOTHING
+            """),
+            {"uid": owner_user["id"], "rid": owner_role["id"]}
+        )

@@ -7,8 +7,10 @@ import { ReportsNavigation } from '@/components/reports/ReportsNavigation';
 import { RevenueVelocityTab } from '@/components/reports/RevenueVelocityTab';
 import { SalesRepLeaderboardTab } from '@/components/reports/SalesRepLeaderboardTab';
 import { DateRangeFilter, ReportTab, dateRangeToDates } from '@/types/reportTypes';
+import { useToast } from '@/context/ToastContext';
 
 export function ReportsPage() {
+  const { toast } = useToast();
   const [dateRange, setDateRange] = useState<DateRangeFilter>('this_quarter');
   const [activeTab, setActiveTab] = useState<ReportTab>('revenue');
   const [search, setSearch] = useState<string>('');
@@ -74,9 +76,10 @@ export function ReportsPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      toast.success('Analytics report exported to CSV');
     } catch (e) {
       console.error(e);
-      alert('Failed to export CSV');
+      toast.error('Failed to export CSV');
     }
   };
 
@@ -99,14 +102,14 @@ export function ReportsPage() {
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value as DateRangeFilter)}
-                className="h-9 appearance-none pl-3 pr-8 rounded-xl bg-white/95 border border-slate-300/90 text-xs font-bold text-slate-800 shadow-2xs hover:border-sky-400 focus:outline-none focus:border-[#1878B8] cursor-pointer"
+                className="h-9 appearance-none pl-3 pr-8 rounded-xl bg-white/95 dark:bg-slate-900 border border-slate-300/90 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-2xs hover:border-sky-400 focus:outline-none focus:border-[#1878B8] cursor-pointer"
               >
-                <option value="last_30_days">Last 30 Days</option>
-                <option value="this_quarter">This Quarter (Q3 2026)</option>
-                <option value="ytd">Year to Date (YTD 2026)</option>
-                <option value="last_year">Full Year 2025</option>
+                <option value="last_30_days" className="dark:bg-slate-900 dark:text-white">Last 30 Days</option>
+                <option value="this_quarter" className="dark:bg-slate-900 dark:text-white">This Quarter (Q3 2026)</option>
+                <option value="ytd" className="dark:bg-slate-900 dark:text-white">Year to Date (YTD 2026)</option>
+                <option value="last_year" className="dark:bg-slate-900 dark:text-white">Full Year 2025</option>
               </select>
-              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 dark:text-slate-400">
                 <ChevronDown size={13} />
               </div>
             </div>
@@ -115,16 +118,16 @@ export function ReportsPage() {
               type="button"
               onClick={handleExportCsv}
               title="Download Raw CSV"
-              className="h-9 inline-flex items-center gap-1.5 px-3.5 rounded-xl liquid-glass-btn text-xs font-bold text-slate-800 shadow-2xs hover:border-sky-400 transition-all cursor-pointer"
+              className="h-9 inline-flex items-center gap-1.5 px-3.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-xs font-bold text-slate-800 dark:text-slate-200 border border-slate-200/90 dark:border-white/10 shadow-2xs hover:border-sky-400 transition-all cursor-pointer"
             >
-              <Download size={13} className="text-slate-600" />
+              <Download size={13} className="text-slate-600 dark:text-slate-400" />
               <span>CSV</span>
             </button>
 
             <button
               type="button"
               onClick={handleExportPdf}
-              className="h-9 inline-flex items-center gap-1.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+              className="h-9 inline-flex items-center gap-1.5 px-4 rounded-xl bg-slate-900 dark:bg-sky-600 hover:bg-slate-800 dark:hover:bg-sky-500 text-white text-xs font-bold shadow-xs hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
             >
               <FileDown size={13} />
               <span>Executive PDF</span>
@@ -134,11 +137,11 @@ export function ReportsPage() {
               type="button"
               onClick={handleRefresh}
               title="Refresh Intelligence Data"
-              className="w-9 h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 hover:text-slate-900 hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
+              className="w-9 h-9 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/90 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
             >
               <RotateCcw
                 size={14}
-                className={`transition-transform duration-500 ${isRefreshing ? 'animate-spin text-sky-600' : ''}`}
+                className={`transition-transform duration-500 ${isRefreshing ? 'animate-spin text-sky-600 dark:text-sky-400' : ''}`}
               />
             </button>
           </div>

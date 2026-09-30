@@ -1,3 +1,4 @@
+from app.core.logger import get_logger
 import re
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,6 +6,7 @@ from sqlalchemy import text
 from app.core.database import get_db
 from app.core.audit import get_client_ip, get_user_agent
 from app.middlewares.rate_limit import rate_limit
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Analytics"])
 
@@ -128,5 +130,5 @@ async def track_web_event(request: Request, db: AsyncSession = Depends(get_db)):
         return {"ok": True}
     except Exception as e:
         # Silently log error, never break public visitor session
-        print(f"[Track Event Error] {e}")
+        logger.error(f"{e}")
         return {"ok": False}

@@ -12,9 +12,9 @@ class Client(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     full_name: Mapped[str] = mapped_column(Text, nullable=False, index=True)
-    phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True, index=True)
     phone_normalized: Mapped[Optional[str]] = mapped_column(Text, nullable=True, index=True)
-    email: Mapped[Optional[str]] = mapped_column(Text, nullable=True, index=True)
+    email: Mapped[Optional[str]] = mapped_column(Text, nullable=True, unique=True, index=True)
     secondary_phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     city: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -32,13 +32,18 @@ class Client(Base):
     total_revenue: Mapped[float] = mapped_column(Numeric(10, 2), server_default="0.00", nullable=False)
     total_jobs_count: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    assigned_to_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_to_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     source_type: Mapped[str] = mapped_column(Text, server_default="website", nullable=False)
     acquired_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     lead_source_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     client_since: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_clients_lower_email", func.lower(email)),
+        Index("idx_clients_email_phone", "email", "phone"),
+    )
 
 class Lead(Base):
     __tablename__ = "leads"
@@ -61,7 +66,7 @@ class Lead(Base):
     priority: Mapped[str] = mapped_column(Text, server_default="cool", nullable=False)
     lead_score: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
     lead_source: Mapped[Optional[str]] = mapped_column(Text, server_default="website", nullable=True)
-    source_type: Mapped[str] = mapped_column(Text, server_default="website", nullable=False)
+    source_type: Mapped[str] = mapped_column(Text, server_default="website", nullable=False, index=True)
     lead_source_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     pipeline_stage: Mapped[str] = mapped_column(Text, server_default="stage_1_lead_gen", nullable=False)
     stage_entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -73,24 +78,33 @@ class Lead(Base):
     job_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     last_contact_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    assigned_to_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    roof_sqf: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    roof_squares: Mapped[Optional[float]] = mapped_column(Numeric(6, 1), nullable=True)
+    roof_pitch: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    stories: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
+    roof_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    assigned_to_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     assigned_to: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    assigned_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    assigned_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by_role_snapshot: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     address_confirmed: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     discount_applied: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     financing_interested: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     estimated_value: Mapped[float] = mapped_column(Numeric(10, 2), server_default="0.00", nullable=False)
     lost_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lost_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    lost_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     __table_args__ = (
         Index("idx_leads_pipeline_stage_entered", "pipeline_stage", "stage_entered_at"),
         Index("idx_leads_assigned_stage", "assigned_to_user_id", "pipeline_stage"),
+        Index("idx_leads_status_created_at", "status", "created_at"),
+        Index("idx_leads_status_source_type", "status", "source_type"),
     )
 
 class Activity(Base):
@@ -106,7 +120,7 @@ class Activity(Base):
     performed_by: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     call_duration: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB, nullable=True)
-    user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     user_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
@@ -125,7 +139,7 @@ class Task(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     assigned_to: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     assigned_to_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    created_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     event_type: Mapped[str] = mapped_column(Text, server_default="task", nullable=False)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -137,3 +151,18 @@ class Task(Base):
     __table_args__ = (
         Index("idx_tasks_due_completed", "due_at", "completed_at"),
     )
+
+class ClientDocument(Base):
+    __tablename__ = "client_documents"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    file_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_type: Mapped[Optional[str]] = mapped_column(Text, server_default="document", nullable=True)
+    file_size: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    uploaded_by: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    doc_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+

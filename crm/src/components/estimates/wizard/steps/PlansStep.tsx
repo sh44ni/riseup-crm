@@ -88,7 +88,7 @@ export function PlansStep({ data, onDataChange }: StepProps) {
                 type="text"
                 value={currentPlan.price === 0 ? '' : currentPlan.price.toLocaleString('en-US')}
                 onChange={handlePriceChange}
-                className="w-full pl-8 pr-4 py-2.5 liquid-glass-input rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition-all shadow-sm"
+                className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition-all shadow-sm"
                 placeholder="0"
               />
             </div>

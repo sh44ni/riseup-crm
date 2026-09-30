@@ -2,7 +2,7 @@ import secrets
 import hashlib
 import hmac
 from typing import Optional, Tuple
-from passlib.hash import argon2
+from passlib.hash import argon2, bcrypt
 from app.core.config import settings
 
 def verify_scrypt_password(password: str, stored_hash: str, salt_hex: str) -> bool:
@@ -46,14 +46,25 @@ def verify_password(password: str, password_hash: str, salt: Optional[str] = Non
     """
     Dual verifier: supports Argon2id, bcrypt, and historical Node scrypt.
     """
-    # 1. Try Argon2 / bcrypt first if no salt or hash starts with identifier
-    if password_hash.startswith("$argon2") or password_hash.startswith("$2b$"):
+    # 1. Try Argon2
+    if password_hash.startswith("$argon2"):
         try:
             return argon2.verify(password, password_hash)
         except Exception:
             return False
 
-    # 2. Historical Node scrypt fallback
+    # 2. Try Bcrypt
+    if password_hash.startswith("$2b$") or password_hash.startswith("$2a$"):
+        try:
+            return bcrypt.verify(password, password_hash)
+        except Exception:
+            try:
+                import bcrypt as _b
+                return _b.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+            except Exception:
+                return False
+
+    # 3. Historical Node scrypt fallback
     if salt:
         return verify_scrypt_password(password, password_hash, salt)
 

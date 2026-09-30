@@ -21,12 +21,21 @@ import {
   ExternalLink,
   User,
   UserCheck,
+  UserCog,
+  FileText,
+  Edit3,
 } from 'lucide-react';
+import { ContractBuilderModal } from './ContractBuilderModal';
+import { ClaimLeadModal } from './ClaimLeadModal';
+import { ReassignLeadModal } from './ReassignLeadModal';
 import { EnrichedDeal } from './pipelineTypes';
 import { ProfileNotesFeed } from '@/components/common/ProfileNotesFeed';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { formatTimestamp12h, cleanseAuthor, serializeProfileNote } from '@/lib/noteUtils';
+import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
+import { ClientEditContactModal, ClientContactData } from '@/components/clients/ClientEditContactModal';
+import { broadcastContactUpdated } from '@/utils/syncEventBus';
 
 export interface GenericDealItem {
   id: string | number;
@@ -129,10 +138,15 @@ export function PipelineDealModal({
   onAdvanceStage,
   onUpdateDeal,
 }: PipelineDealModalProps) {
-  const { user } = useAuth();
+  const { user, can, isOwner } = useAuth();
+  const canViewFinances = can('finances.view');
+  const canClaimLead = isOwner || can('leads.claim');
+  const canReassignLead = isOwner || can('leads.reassign');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'notes'>('timeline');
   const [notes, setNotes] = useState('');
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
 
   // Live PostgreSQL data hydration
   const [leadDetail, setLeadDetail] = useState<any>(null);
@@ -145,6 +159,7 @@ export function PipelineDealModal({
   const [logNotes, setLogNotes] = useState('');
   const [isLogging, setIsLogging] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [showContractBuilder, setShowContractBuilder] = useState(false);
 
   // Resolved author
   const cleanAuthor = cleanseAuthor(user?.name, user?.role);
@@ -208,7 +223,65 @@ export function PipelineDealModal({
     };
   }, [isOpen]);
 
+  const [isEditContactOpen, setIsEditContactOpen] = useState(false);
+  const [localContact, setLocalContact] = useState<{
+    name?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    city?: string;
+    zip?: string;
+  }>({});
+
   if (!isOpen || !deal) return null;
+
+  const handleSaveContact = async (data: ClientContactData) => {
+    if (!deal) return;
+    try {
+      await api.updateLead(deal.id, {
+        full_name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        zip: data.zip,
+      });
+
+      broadcastContactUpdated({
+        leadId: deal.id,
+        clientId: (deal as any).clientId || (deal as any).client_id || leadDetail?.client_id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        zip: data.zip,
+      });
+
+      setLocalContact({
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        city: data.city,
+        zip: data.zip,
+      });
+
+      if (onUpdateDeal) {
+        onUpdateDeal({
+          ...deal,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          address: data.address,
+          city: data.city,
+        });
+      }
+    } catch (err: any) {
+      console.error('Failed to update contact info in Pipeline:', err);
+      throw err;
+    }
+  };
 
   const handleCopy = (text?: string, field?: string) => {
     if (!text || !field) return;
@@ -218,13 +291,14 @@ export function PipelineDealModal({
   };
 
   const displayId = String(deal.id);
-  const displayName = leadDetail?.full_name || deal.name;
-  const displayPhone = leadDetail?.phone || deal.phone || '(760) 555-0201';
-  const displayEmail = leadDetail?.email || deal.email || 'homeowner@riseuprac.com';
+  const displayName = localContact.name || leadDetail?.full_name || deal.name;
+  const displayPhone = localContact.phone || leadDetail?.phone || deal.phone || '';
+  const displayEmail = localContact.email || leadDetail?.email || deal.email || '';
   const displayService = leadDetail?.service_type || deal.service || 'Commercial Flat';
   const displayValue = Number(leadDetail?.contract_value || leadDetail?.estimated_value || deal.value || 42000);
-  const displayAddress = leadDetail?.address || deal.address || deal.location || '2240 Terrace Way';
-  const displayCity = leadDetail?.city || deal.city || 'Oceanside';
+  const displayAddress = localContact.address || leadDetail?.address || deal.address || deal.location || '';
+  const displayCity = localContact.city || leadDetail?.city || deal.city || 'Oceanside';
+  const displayZip = localContact.zip || leadDetail?.zip || deal.zip || '';
   const displayLocation = `${displayCity}, CA`;
   const displayStageKey = leadDetail?.pipeline_stage || deal.stageId || 'estimate_sent';
   const displayStageTitle = STAGE_TITLES[displayStageKey] || deal.stageTitle || 'Estimate Sent';
@@ -306,20 +380,20 @@ export function PipelineDealModal({
     }
   };
 
-  return createPortal(
+  const portal = createPortal(
     <div
       onClick={onClose}
       className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xl animate-in fade-in duration-200"
     >
       <div
-        className="relative w-full max-w-xl rounded-3xl bg-white/94 backdrop-blur-3xl border border-white/95 shadow-[0_25px_90px_rgba(0,0,0,0.40),0_0_0_1px_rgba(255,255,255,0.9)_inset] p-6 space-y-5 animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-xl rounded-3xl bg-white/94 dark:bg-[#0B1320]/95 backdrop-blur-3xl border border-white/95 dark:border-white/10 shadow-[0_25px_90px_rgba(0,0,0,0.40),0_0_0_1px_rgba(255,255,255,0.9)_inset] dark:shadow-[0_25px_90px_rgba(0,0,0,0.85)] p-6 space-y-5 animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Specular top highlight bevel */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white dark:via-white/20 to-transparent" />
 
         {/* Header Strip */}
-        <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200/70 shrink-0">
+        <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200/70 dark:border-white/10 shrink-0">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span
@@ -327,23 +401,23 @@ export function PipelineDealModal({
               >
                 {displayStageTitle}
               </span>
-              <span className="text-[10px] font-bold text-slate-400">ID: #{displayId.toUpperCase()}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">ID: #{displayId.toUpperCase()}</span>
               {isLoadingDetails && (
                 <Loader2 size={11} className="animate-spin text-sky-500" />
               )}
             </div>
-            <h2 className="text-xl font-black text-[#1F1F1F] tracking-tight">{displayName}</h2>
-            <div className="flex items-center gap-1 text-xs text-slate-500 font-medium mt-0.5">
+            <h2 className="text-xl font-black text-[#1F1F1F] dark:text-white tracking-tight">{displayName}</h2>
+            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               <MapPin size={12} className="text-[#1878B8]" />
               <span>{displayLocation}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {isUnassigned && (
+            {isUnassigned && canClaimLead && (
               <button
                 type="button"
-                onClick={handleClaim}
+                onClick={() => setIsClaimModalOpen(true)}
                 disabled={isClaiming}
                 className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
@@ -357,8 +431,30 @@ export function PipelineDealModal({
             )}
 
             <button
+              type="button"
+              onClick={() => setIsEditContactOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Edit Contact Info (Name, Phone, Email, Address)"
+            >
+              <Edit3 size={13} />
+              <span>Edit Info</span>
+            </button>
+
+            {!isUnassigned && canReassignLead && (
+              <button
+                type="button"
+                onClick={() => setIsReassignModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                title="Reassign lead to another staff member"
+              >
+                <UserCog size={13} />
+                <span>Reassign</span>
+              </button>
+            )}
+
+            <button
               onClick={onClose}
-              className="p-1.5 rounded-xl liquid-glass-btn text-slate-500 hover:text-slate-900 transition-all cursor-pointer"
+              className="p-1.5 rounded-xl liquid-glass-btn text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
               title="Close modal"
             >
               <X size={16} />
@@ -367,13 +463,13 @@ export function PipelineDealModal({
         </div>
 
         {/* Tab Navigation Segmented Control */}
-        <div className="flex items-center gap-1.5 bg-white/50 p-1 rounded-xl border border-white/80 backdrop-blur-md text-xs font-bold shrink-0">
+        <div className="flex items-center gap-1.5 bg-white/50 dark:bg-white/5 p-1 rounded-xl border border-white/80 dark:border-white/10 backdrop-blur-md text-xs font-bold shrink-0">
           <button
             onClick={() => setActiveTab('details')}
             className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'details'
                 ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
             }`}
           >
             Lead Overview
@@ -383,7 +479,7 @@ export function PipelineDealModal({
             className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'timeline'
                 ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
             }`}
           >
             Schedule &amp; Activity
@@ -393,7 +489,7 @@ export function PipelineDealModal({
             className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'notes'
                 ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
             }`}
           >
             Field Notes
@@ -413,9 +509,15 @@ export function PipelineDealModal({
                   <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
                     Estimated Value
                   </span>
-                  <div className="text-base font-black text-slate-800 flex items-center gap-0.5">
-                    <span className="text-[#0284C7]">$</span>
-                    {displayValue.toLocaleString()}
+                  <div className="text-base font-black text-slate-800 dark:text-white flex items-center gap-0.5">
+                    {canViewFinances ? (
+                      <>
+                        <span className="text-[#0284C7]">$</span>
+                        {displayValue.toLocaleString()}
+                      </>
+                    ) : (
+                      <span className="text-slate-400 font-medium text-sm">—</span>
+                    )}
                   </div>
                 </div>
 
@@ -438,7 +540,7 @@ export function PipelineDealModal({
                   <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
                     Appointment Date
                   </span>
-                  <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
                     <Calendar size={12} className="text-[#1878B8]" />
                     <span>{displayDate}</span>
                   </div>
@@ -448,74 +550,93 @@ export function PipelineDealModal({
 
               {/* Contact Channels */}
               <div className="p-3.5 rounded-2xl liquid-glass-tile space-y-2.5">
-                <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-slate-500">
-                  Contact Channels
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400">
+                    Contact Channels
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditContactOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/10 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Edit Contact Information"
+                  >
+                    <Edit3 size={11} />
+                    <span>Edit Contact</span>
+                  </button>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {/* Phone */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 border border-white/80 shadow-2xs">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-2xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-sky-100/90 text-[#0284c7] flex items-center justify-center shrink-0">
+                      <div className="w-7 h-7 rounded-lg bg-sky-100/90 dark:bg-sky-950/50 text-[#0284c7] dark:text-sky-300 flex items-center justify-center shrink-0">
                         <Phone size={13} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-[10px] text-slate-400 font-medium">Direct Phone</div>
-                        <div className="text-xs font-bold text-slate-800 truncate">{displayPhone}</div>
+                        <div className="text-xs font-bold text-slate-800 dark:text-white truncate">{displayPhone || 'No Phone'}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleCopy(displayPhone, 'phone')}
-                        title="Copy phone"
-                        className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
-                      >
-                        {copiedField === 'phone' ? (
-                          <Check size={12} className="text-emerald-500" />
-                        ) : (
-                          <Copy size={12} />
-                        )}
-                      </button>
-                      <a
-                        href={`tel:${displayPhone}`}
-                        className="p-1 rounded-md hover:bg-sky-100 text-[#0284c7] transition-colors"
-                        title="Dial now"
-                      >
-                        <ChevronRight size={14} />
-                      </a>
+                      {displayPhone && (
+                        <button
+                          onClick={() => handleCopy(displayPhone, 'phone')}
+                          title="Copy phone"
+                          className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                        >
+                          {copiedField === 'phone' ? (
+                            <Check size={12} className="text-emerald-500" />
+                          ) : (
+                            <Copy size={12} />
+                          )}
+                        </button>
+                      )}
+                      {displayPhone && (
+                        <a
+                          href={getTelUrl(displayPhone)}
+                          className="p-1 rounded-md hover:bg-sky-100 dark:hover:bg-sky-950/50 text-[#0284c7] dark:text-sky-300 transition-colors"
+                          title="Dial now"
+                        >
+                          <ChevronRight size={14} />
+                        </a>
+                      )}
                     </div>
                   </div>
 
                   {/* Email */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 border border-white/80 shadow-2xs">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-2xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-100/90 text-indigo-700 flex items-center justify-center shrink-0">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100/90 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
                         <Mail size={13} />
                       </div>
                       <div className="min-w-0">
                         <div className="text-[10px] text-slate-400 font-medium">Email Address</div>
-                        <div className="text-xs font-bold text-slate-800 truncate">{displayEmail}</div>
+                        <div className="text-xs font-bold text-slate-800 dark:text-white truncate">{displayEmail || 'No Email'}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleCopy(displayEmail, 'email')}
-                        title="Copy email"
-                        className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
-                      >
-                        {copiedField === 'email' ? (
-                          <Check size={12} className="text-emerald-500" />
-                        ) : (
-                          <Copy size={12} />
-                        )}
-                      </button>
-                      <a
-                        href={`mailto:${displayEmail}`}
-                        className="p-1 rounded-md hover:bg-indigo-100 text-indigo-700 transition-colors"
-                        title="Compose email"
-                      >
-                        <ChevronRight size={14} />
-                      </a>
+                      {displayEmail && (
+                        <button
+                          onClick={() => handleCopy(displayEmail, 'email')}
+                          title="Copy email"
+                          className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                        >
+                          {copiedField === 'email' ? (
+                            <Check size={12} className="text-emerald-500" />
+                          ) : (
+                            <Copy size={12} />
+                          )}
+                        </button>
+                      )}
+                      {displayEmail && (
+                        <a
+                          href={getMailtoUrl(displayEmail)}
+                          className="p-1 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 transition-colors"
+                          title="Compose email"
+                        >
+                          <ChevronRight size={14} />
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -523,11 +644,11 @@ export function PipelineDealModal({
 
               {/* Property Location */}
               <div className="p-3.5 rounded-2xl liquid-glass-tile space-y-1.5">
-                <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-slate-500">
+                <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400">
                   Property Site Address
                 </span>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-white">
                     <MapPin size={13} className="text-[#1878B8] shrink-0" />
                     <span>{displayAddress}, {displayLocation}</span>
                   </div>
@@ -535,7 +656,7 @@ export function PipelineDealModal({
                     href={`https://maps.google.com/?q=${encodeURIComponent(`${displayAddress}, ${displayLocation}`)}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1"
+                    className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-300 flex items-center gap-1"
                   >
                     <span>View Map</span>
                     <ExternalLink size={11} />
@@ -545,29 +666,29 @@ export function PipelineDealModal({
 
               {/* Latest Move Note Highlight Card */}
               {latestMoveActivity && (
-                <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/90 shadow-2xs space-y-1.5">
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/40 shadow-2xs space-y-1.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="p-1 rounded-md bg-amber-100 text-amber-700">
+                      <span className="p-1 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
                         <MoveRight size={12} />
                       </span>
-                      <span className="text-[11px] font-extrabold text-amber-900">
+                      <span className="text-[11px] font-extrabold text-amber-900 dark:text-amber-200">
                         Latest Pipeline Move Note
                       </span>
                     </div>
-                    <span className="text-[10px] font-medium text-amber-700">
+                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
                       {formatRelativeTime(latestMoveActivity.created_at)}
                     </span>
                   </div>
-                  <div className="text-xs font-bold text-slate-800">
+                  <div className="text-xs font-bold text-slate-800 dark:text-white">
                     {latestMoveActivity.title}
                   </div>
                   {latestMoveActivity.description && (
-                    <p className="text-xs text-slate-700 italic bg-white/70 p-2 rounded-xl border border-amber-200/60">
+                    <p className="text-xs text-slate-700 dark:text-slate-300 italic bg-white/70 dark:bg-white/5 p-2 rounded-xl border border-amber-200/60 dark:border-amber-800/30">
                       "{latestMoveActivity.description}"
                     </p>
                   )}
-                  <div className="text-[10.5px] text-slate-500 font-medium flex items-center gap-1">
+                  <div className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
                     <User size={10} className="text-slate-400" />
                     <span>Logged by {latestMoveActivity.performed_by || latestMoveActivity.user_name || 'Owner'}</span>
                   </div>
@@ -583,12 +704,12 @@ export function PipelineDealModal({
             <div className="space-y-4 p-1">
               {/* Timeline Header & Quick Log Trigger */}
               <div className="flex items-center justify-between pb-1">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Touchpoint &amp; Stage Movement Stream
                 </span>
                 <button
                   onClick={() => setShowLogDrawer(!showLogDrawer)}
-                  className="text-xs font-bold text-[#1878B8] hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-bold text-[#1878B8] hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1 cursor-pointer"
                 >
                   <Plus size={13} />
                   <span>{showLogDrawer ? 'Cancel' : 'Log Touchpoint'}</span>
@@ -597,7 +718,7 @@ export function PipelineDealModal({
 
               {/* Quick Log Inline Box */}
               {showLogDrawer && (
-                <div className="p-3.5 rounded-2xl bg-sky-50/90 border border-sky-200 shadow-sm space-y-2.5 animate-in fade-in duration-150">
+                <div className="p-3.5 rounded-2xl bg-sky-50/90 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 shadow-sm space-y-2.5 animate-in fade-in duration-150">
                   <div className="flex items-center gap-1 text-xs">
                     {(['call', 'sms', 'email', 'meeting', 'note'] as const).map((m) => (
                       <button
@@ -607,7 +728,7 @@ export function PipelineDealModal({
                         className={`px-2 py-1 rounded-lg font-bold text-[11px] capitalize transition-all cursor-pointer ${
                           logMethod === m
                             ? 'bg-[#1878B8] text-white shadow-2xs'
-                            : 'bg-white text-slate-600 hover:bg-slate-100'
+                            : 'bg-white dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/20'
                         }`}
                       >
                         {m}
@@ -619,12 +740,12 @@ export function PipelineDealModal({
                     value={logNotes}
                     onChange={(e) => setLogNotes(e.target.value)}
                     placeholder="Enter touchpoint details or follow-up note..."
-                    className="w-full text-xs p-2.5 rounded-xl border border-sky-300 bg-white text-slate-900 font-semibold placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all shadow-2xs"
+                    className="w-full text-xs p-2.5 rounded-xl border border-sky-300 dark:border-sky-700/50 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all shadow-2xs"
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setShowLogDrawer(false)}
-                      className="px-3 py-1 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100"
+                      className="px-3 py-1 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
                     >
                       Cancel
                     </button>
@@ -641,7 +762,7 @@ export function PipelineDealModal({
               )}
 
               {/* Continuous Vertical Timeline */}
-              <div className="space-y-4 relative pl-5 border-l-2 border-sky-300/60 ml-2.5">
+              <div className="space-y-4 relative pl-5 border-l-2 border-sky-300/60 dark:border-sky-700/40 ml-2.5">
                 {/* 1. Real Database Activities (Newest first) */}
                 {activities.map((act) => {
                   const isStageMove = act.activity_type === 'stage_changed';
@@ -649,12 +770,12 @@ export function PipelineDealModal({
                   const isComm = act.activity_type === 'communication';
 
                   const dotColor = isStageMove
-                    ? 'bg-amber-500 ring-amber-100'
+                    ? 'bg-amber-500 ring-amber-100 dark:ring-amber-950'
                     : isNote
-                    ? 'bg-purple-500 ring-purple-100'
+                    ? 'bg-purple-500 ring-purple-100 dark:ring-purple-950'
                     : isComm
-                    ? 'bg-sky-500 ring-sky-100'
-                    : 'bg-[#1878B8] ring-sky-100';
+                    ? 'bg-sky-500 ring-sky-100 dark:ring-sky-950'
+                    : 'bg-[#1878B8] ring-sky-100 dark:ring-sky-950';
 
                   return (
                     <div key={act.id} className="relative group">
@@ -663,7 +784,7 @@ export function PipelineDealModal({
                         className={`absolute -left-[27px] top-0.5 w-3.5 h-3.5 rounded-full ring-4 ${dotColor}`}
                       />
                       <div className="flex items-baseline justify-between gap-2">
-                        <div className="text-xs font-bold text-slate-800">
+                        <div className="text-xs font-bold text-slate-800 dark:text-white">
                           {act.title}
                         </div>
                         <span className="text-[10px] font-medium text-slate-400 shrink-0">
@@ -672,7 +793,7 @@ export function PipelineDealModal({
                       </div>
 
                       {/* Author / Attribution */}
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                         <User size={10} className="text-slate-400" />
                         <span>By {act.performed_by || act.user_name || 'Staff Member'}</span>
                       </div>
@@ -682,10 +803,10 @@ export function PipelineDealModal({
                         <div
                           className={`mt-1.5 text-[11.5px] p-2.5 rounded-xl border leading-relaxed ${
                             isStageMove
-                              ? 'bg-amber-50/80 border-amber-200 text-amber-950 font-medium'
+                              ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40 text-amber-950 dark:text-amber-200 font-medium'
                               : isNote
-                              ? 'bg-purple-50/70 border-purple-200 text-purple-950 font-medium'
-                              : 'bg-white/80 border-slate-200 text-slate-700'
+                              ? 'bg-purple-50/70 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/40 text-purple-950 dark:text-purple-200 font-medium'
+                              : 'bg-white/80 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300'
                           }`}
                         >
                           {act.description}
@@ -737,14 +858,43 @@ export function PipelineDealModal({
           )}
         </div>
 
+        {/* Contract Sent awaiting signature status indicator */}
+        {displayStageKey === 'contract_sent' && (
+          <div className="px-0 pt-0 pb-1 shrink-0">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700/40">
+              <FileText size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                Contract Sent — Awaiting Client Signature
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Contract Studio Action — strictly allowed only when lead is in estimate_sent stage */}
+        {displayStageKey === 'estimate_sent' && (
+          <div className="px-0 pt-0 pb-1 space-y-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                window.location.href = `/contracts?mode=studio&leadId=${deal.id}&name=${encodeURIComponent(deal.customerName)}&address=${encodeURIComponent(deal.address || '')}&phone=${encodeURIComponent(deal.phone || '')}&email=${encodeURIComponent(deal.email || '')}&value=${deal.value || ''}`;
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-[#1a5ba5] hover:bg-[#154a87] text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+            >
+              <FileText size={15} />
+              <span>Open Contract Studio</span>
+            </button>
+          </div>
+        )}
+
         {/* Footer Quick Controls */}
-        <div className="pt-3 border-t border-slate-200/70 flex items-center justify-between shrink-0">
+        <div className="pt-3 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between shrink-0">
           <div className="text-[11px] text-slate-400 font-medium">
-            Last modified: <strong className="text-slate-600">{displayRelativeTime}</strong>
+            Last modified: <strong className="text-slate-600 dark:text-slate-300">{displayRelativeTime}</strong>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 hover:text-slate-900 shadow-2xs transition-all cursor-pointer"
+            className="px-4 py-1.5 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white shadow-2xs transition-all cursor-pointer"
           >
             Done
           </button>
@@ -752,5 +902,63 @@ export function PipelineDealModal({
       </div>
     </div>,
     document.body
+  );
+
+  return (
+    <>
+      {portal}
+      {showContractBuilder && (
+        <ContractBuilderModal
+          deal={deal}
+          isOpen={showContractBuilder}
+          onClose={() => setShowContractBuilder(false)}
+          onContractSent={() => {
+            setShowContractBuilder(false);
+            if (onUpdateDeal) onUpdateDeal(deal);
+          }}
+        />
+      )}
+      <ClaimLeadModal
+        isOpen={isClaimModalOpen}
+        leadId={deal.id}
+        leadName={displayName}
+        service={displayService}
+        value={displayValue}
+        location={`${displayAddress}, ${displayLocation}`}
+        onClose={() => setIsClaimModalOpen(false)}
+        onConfirm={handleClaim}
+      />
+      {deal && (
+        <ReassignLeadModal
+          isOpen={isReassignModalOpen}
+          leadId={deal.id}
+          leadName={displayName}
+          currentAssigneeId={deal.assignedToUserId || leadDetail?.assigned_to_user_id}
+          currentAssigneeName={deal.assignedToName || (deal as any).estimator?.name || leadDetail?.assigned_to_name}
+          onClose={() => setIsReassignModalOpen(false)}
+          onSuccess={async () => {
+            await fetchLeadData(deal.id);
+            if (onUpdateDeal) onUpdateDeal(deal);
+          }}
+        />
+      )}
+      {/* Client 360 Source of Truth Edit Contact Modal */}
+      {isEditContactOpen && (
+        <ClientEditContactModal
+          isOpen={isEditContactOpen}
+          onClose={() => setIsEditContactOpen(false)}
+          clientName={displayName}
+          initialData={{
+            name: displayName,
+            email: displayEmail,
+            phone: displayPhone,
+            address: displayAddress,
+            city: displayCity,
+            zip: displayZip,
+          }}
+          onSave={handleSaveContact}
+        />
+      )}
+    </>
   );
 }

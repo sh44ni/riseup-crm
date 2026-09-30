@@ -1,23 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Client360Record } from '@/types/client360Types';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { backendClientToClient360 } from '@/lib/clientAdapter';
+import { Client360Record } from '@/types/client360Types';
+import { queryKeys } from '@/lib/queryKeys';
 
 export function useClients360() {
-  const [clients, setClients] = useState<Client360Record[]>([]);
-
-  const refresh = useCallback(async () => {
-    try {
+  const { data: clients = [], refetch } = useQuery<Client360Record[]>({
+    queryKey: queryKeys.clients.list(),
+    queryFn: async () => {
       const res = await api.request<{ clients: any[] }>('/admin/clients');
-      setClients(res.clients.map((c: any) => backendClientToClient360(c)));
-    } catch (err) {
-      console.error('Failed to load clients in useClients360:', err);
-    }
-  }, []);
+      return (res.clients || []).map((c: any) => backendClientToClient360(c));
+    },
+  });
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  return { clients, setClients, refresh };
+  return { clients, refresh: refetch };
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Shield,
   ShieldCheck,
@@ -28,9 +29,12 @@ import {
   Zap,
   Save,
   Trash2,
+  PenTool,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { TeamMembersList } from './TeamMembersList';
 
 interface ModuleConfig {
@@ -43,6 +47,7 @@ interface Role {
   name: string;
   description?: string;
   is_protected?: boolean;
+  is_authorized_signatory?: boolean;
   user_count?: number;
   permissions?: Array<{ permission_id: number; key?: string; scope: string }>;
   modules?: Record<string, ModuleConfig>;
@@ -72,6 +77,14 @@ const MODULE_DEFINITIONS: ModuleDefinition[] = [
     description: 'Kanban deal stages, win/loss probabilities, velocity tracking, and stage transitions',
     icon: Sliders,
     accentColor: 'from-sky-500 to-blue-600 text-sky-600 bg-sky-50 border-sky-200',
+    scoped: true,
+  },
+  {
+    id: 'clients',
+    label: 'Homeowner Profiles (360 Registry)',
+    description: 'Homeowner contact registry, 360 property histories, specs, notes, and records',
+    icon: Users,
+    accentColor: 'from-blue-500 to-cyan-600 text-blue-600 bg-blue-50 border-blue-200',
     scoped: true,
   },
   {
@@ -172,94 +185,9 @@ const MODULE_DEFINITIONS: ModuleDefinition[] = [
   },
 ];
 
-// Presets for 1-click role configuration
-const ROLE_PRESETS: Record<string, { label: string; description: string; getModules: () => Record<string, ModuleConfig> }> = {
-  sales_rep: {
-    label: 'Field Sales Rep',
-    description: 'Assigned leads, deals, estimates & calendar. No finances or company settings.',
-    getModules: () => ({
-      leads: { view: 'assigned', manage: true },
-      pipeline: { view: 'assigned', manage: true },
-      estimates: { view: 'assigned', manage: true },
-      contracts: { view: 'all', manage: false },
-      jobs: { view: 'assigned', manage: false },
-      calendar: { view: 'all', manage: true },
-      inspections: { view: 'all', manage: true },
-      finances: { view: 'none', manage: false },
-      reports: { view: 'none', manage: false },
-      warranties: { view: 'all', manage: false },
-      crew: { view: 'none', manage: false },
-      estimator_settings: { view: 'none', manage: false },
-      users: { view: 'none', manage: false },
-      roles: { view: 'none', manage: false },
-    }),
-  },
-  door_knocker: {
-    label: 'Door Knocker / Canvasser',
-    description: 'Creates & views own leads only. Completely restricted from quotes, jobs & financials.',
-    getModules: () => ({
-      leads: { view: 'own', manage: true },
-      pipeline: { view: 'none', manage: false },
-      estimates: { view: 'none', manage: false },
-      contracts: { view: 'none', manage: false },
-      jobs: { view: 'none', manage: false },
-      calendar: { view: 'own', manage: true },
-      inspections: { view: 'none', manage: false },
-      finances: { view: 'none', manage: false },
-      reports: { view: 'none', manage: false },
-      warranties: { view: 'none', manage: false },
-      crew: { view: 'none', manage: false },
-      estimator_settings: { view: 'none', manage: false },
-      users: { view: 'none', manage: false },
-      roles: { view: 'none', manage: false },
-    }),
-  },
-  project_manager: {
-    label: 'Project Manager',
-    description: 'Full operational control over leads, pipeline, estimates, contracts, jobs, and crews.',
-    getModules: () => ({
-      leads: { view: 'all', manage: true },
-      pipeline: { view: 'all', manage: true },
-      estimates: { view: 'all', manage: true },
-      contracts: { view: 'all', manage: true },
-      jobs: { view: 'all', manage: true },
-      calendar: { view: 'all', manage: true },
-      inspections: { view: 'all', manage: true },
-      finances: { view: 'none', manage: false },
-      reports: { view: 'all', manage: false },
-      warranties: { view: 'all', manage: true },
-      crew: { view: 'all', manage: true },
-      estimator_settings: { view: 'all', manage: false },
-      users: { view: 'none', manage: false },
-      roles: { view: 'none', manage: false },
-    }),
-  },
-  read_only: {
-    label: 'Read Only (Observer)',
-    description: 'Can view all records across all modules without ability to edit or delete.',
-    getModules: () => {
-      const m: Record<string, ModuleConfig> = {};
-      MODULE_DEFINITIONS.forEach((def) => {
-        m[def.id] = { view: 'all', manage: false };
-      });
-      return m;
-    },
-  },
-  full_admin: {
-    label: 'Full Operational Admin',
-    description: 'Grants view & manage privileges across every CRM module.',
-    getModules: () => {
-      const m: Record<string, ModuleConfig> = {};
-      MODULE_DEFINITIONS.forEach((def) => {
-        m[def.id] = { view: 'all', manage: true };
-      });
-      return m;
-    },
-  },
-};
-
 export function TeamRolesPermissionMatrix() {
   const { user: currentUser, isOwner, can } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'matrix' | 'members'>('matrix');
   const [roles, setRoles] = useState<Role[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
@@ -270,6 +198,10 @@ export function TeamRolesPermissionMatrix() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Accessible Dialog States
+  const [pendingSwitchRole, setPendingSwitchRole] = useState<Role | null>(null);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+
   // Search filter
   const [searchModule, setSearchModule] = useState<string>('');
 
@@ -277,10 +209,14 @@ export function TeamRolesPermissionMatrix() {
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState<boolean>(false);
   const [newRoleName, setNewRoleName] = useState<string>('');
   const [newRoleDesc, setNewRoleDesc] = useState<string>('');
-  const [selectedPresetKey, setSelectedPresetKey] = useState<string>('sales_rep');
+  const [newRoleIsSignatory, setNewRoleIsSignatory] = useState<boolean>(false);
+
+  // Active Role Signatory State
+  const [activeIsSignatory, setActiveIsSignatory] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
+    toast.success(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
@@ -323,10 +259,12 @@ export function TeamRolesPermissionMatrix() {
         const defaultRole = augmentedRoles.find((r) => !r.is_protected) || augmentedRoles[0];
         setSelectedRoleId(defaultRole.id);
         setActiveModules(defaultRole.modules || {});
+        setActiveIsSignatory(Boolean(defaultRole.is_authorized_signatory));
       } else if (selectedRoleId) {
         const curr = augmentedRoles.find((r) => r.id === selectedRoleId);
         if (curr) {
           setActiveModules(curr.modules || {});
+          setActiveIsSignatory(Boolean(curr.is_authorized_signatory));
         }
       }
     } catch (err: any) {
@@ -341,19 +279,48 @@ export function TeamRolesPermissionMatrix() {
     loadRoles();
   }, []);
 
+  useEffect(() => {
+    if (!isCreateRoleOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsCreateRoleOpen(false);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCreateRoleOpen]);
+
   const activeRole = useMemo(() => {
     return roles.find((r) => r.id === selectedRoleId) || null;
   }, [roles, selectedRoleId]);
 
-  const handleSelectRole = (role: Role) => {
-    if (hasUnsavedChanges) {
-      if (!window.confirm('You have unsaved permission changes. Switch role anyway?')) {
-        return;
-      }
-    }
+  const applySelectRole = (role: Role) => {
     setSelectedRoleId(role.id);
     setActiveModules(role.modules || {});
+    setActiveIsSignatory(Boolean(role.is_authorized_signatory));
     setHasUnsavedChanges(false);
+    setPendingSwitchRole(null);
+  };
+
+  const handleSelectRole = (role: Role) => {
+    if (hasUnsavedChanges) {
+      setPendingSwitchRole(role);
+      return;
+    }
+    applySelectRole(role);
+  };
+
+  const handleSignatoryChange = (val: boolean) => {
+    if (!activeRole || activeRole.is_protected) return;
+    if (!can('roles.edit') && !isOwner) {
+      showToast('You do not have permission to edit roles.');
+      return;
+    }
+    setActiveIsSignatory(val);
+    setHasUnsavedChanges(true);
   };
 
   const handleViewChange = (moduleId: string, newView: 'none' | 'own' | 'assigned' | 'all') => {
@@ -404,29 +371,19 @@ export function TeamRolesPermissionMatrix() {
     setHasUnsavedChanges(true);
   };
 
-  const handleApplyPreset = (presetKey: string) => {
-    if (!activeRole || activeRole.is_protected) return;
-    const preset = ROLE_PRESETS[presetKey];
-    if (!preset) return;
-
-    const newMods = preset.getModules();
-    setActiveModules(newMods);
-    setHasUnsavedChanges(true);
-    showToast(`Applied preset: ${preset.label}`);
-  };
-
   const handleSaveChanges = async () => {
     if (!activeRole || activeRole.is_protected) return;
     setIsSaving(true);
     try {
       await api.updateRole(activeRole.id, {
         modules: activeModules,
+        is_authorized_signatory: activeIsSignatory,
       });
-      showToast(`Permissions saved successfully for "${activeRole.name}".`);
+      showToast(`Permissions and signatory status saved successfully for "${activeRole.name}".`);
       setHasUnsavedChanges(false);
       await loadRoles();
     } catch (err: any) {
-      alert(err.message || 'Failed to save role permissions');
+      toast.error(err.message || 'Failed to save role permissions');
     } finally {
       setIsSaving(false);
     }
@@ -436,45 +393,55 @@ export function TeamRolesPermissionMatrix() {
     e.preventDefault();
     if (!newRoleName.trim()) return;
 
-    const preset = ROLE_PRESETS[selectedPresetKey];
-    const initialModules = preset ? preset.getModules() : {};
+    // Initialize all modules as none/false
+    const initialModules: Record<string, ModuleConfig> = {};
+    MODULE_DEFINITIONS.forEach((def) => {
+      initialModules[def.id] = { view: 'none', manage: false };
+    });
 
     try {
       const res = await api.createRole({
         name: newRoleName.trim(),
         description: newRoleDesc.trim() || 'Custom operational role',
+        is_authorized_signatory: newRoleIsSignatory,
         modules: initialModules,
       });
-      showToast(`Role "${newRoleName}" created successfully!`);
+      showToast(`Role "${newRoleName}" created successfully! Configure its permissions below.`);
       setIsCreateRoleOpen(false);
       setNewRoleName('');
       setNewRoleDesc('');
+      setNewRoleIsSignatory(false);
       await loadRoles();
       if (res.role?.id) {
         setSelectedRoleId(res.role.id);
-        setActiveModules(res.role.modules || {});
+        setActiveModules(res.role.modules || initialModules);
+        setActiveIsSignatory(Boolean(res.role.is_authorized_signatory));
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to create role');
+      toast.error(err.message || 'Failed to create role');
     }
   };
 
-  const handleDeleteRole = async (role: Role) => {
+  const promptDeleteRole = (role: Role) => {
     if (role.is_protected) {
-      showToast('Cannot delete system protected Owner role.');
+      toast.warning('Cannot delete system protected Owner role.');
       return;
     }
-    if (!window.confirm(`Are you sure you want to delete role "${role.name}"? Users in this role will lose their privileges.`)) {
-      return;
-    }
+    setRoleToDelete(role);
+  };
+
+  const confirmDeleteRole = async () => {
+    if (!roleToDelete) return;
     try {
-      await api.deleteRole(role.id);
-      showToast(`Role "${role.name}" deleted.`);
-      const remaining = roles.filter((r) => r.id !== role.id);
+      await api.deleteRole(roleToDelete.id);
+      showToast(`Role "${roleToDelete.name}" deleted.`);
+      const remaining = roles.filter((r) => r.id !== roleToDelete.id);
       setSelectedRoleId(remaining[0]?.id || null);
       await loadRoles();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete role');
+      toast.error(err.message || 'Failed to delete role');
+    } finally {
+      setRoleToDelete(null);
     }
   };
 
@@ -506,14 +473,14 @@ export function TeamRolesPermissionMatrix() {
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 mb-2 shadow-2xs">
-            <ShieldCheck size={14} className="text-sky-600" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 mb-2 shadow-2xs">
+            <ShieldCheck size={14} className="text-sky-600 dark:text-sky-400" />
             <span>Role Permissions Studio • {roles.length} Configured Roles</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
             Team, Roles & Access Control
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Configure dynamic roles per module with clean [View] and [Manage] access controls.
           </p>
         </div>
@@ -526,9 +493,9 @@ export function TeamRolesPermissionMatrix() {
               showToast('Role permissions synced with database.');
             }}
             disabled={isRefreshing}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 transition-all flex items-center gap-2 shadow-2xs cursor-pointer"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:bg-slate-50 hover:dark:bg-slate-700 hover:text-slate-900 hover:dark:text-white hover:border-slate-300 transition-all flex items-center gap-2 shadow-2xs cursor-pointer"
           >
-            <RotateCcw size={14} className={isRefreshing ? 'animate-spin text-sky-600' : 'text-slate-500'} />
+            <RotateCcw size={14} className={isRefreshing ? 'animate-spin text-sky-600' : 'text-slate-500 dark:text-slate-400'} />
             <span>Sync</span>
           </button>
 
@@ -545,13 +512,13 @@ export function TeamRolesPermissionMatrix() {
       </div>
 
       {/* Top Tab Bar (Members vs Roles Studio) */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-white/10 pb-1">
         <button
           onClick={() => setActiveTab('members')}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 relative cursor-pointer ${
             activeTab === 'members'
-              ? 'text-sky-700 bg-sky-50 border border-sky-200 shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/50 shadow-2xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-slate-100 hover:dark:bg-slate-800'
           }`}
         >
           <Users size={15} />
@@ -562,13 +529,13 @@ export function TeamRolesPermissionMatrix() {
           onClick={() => setActiveTab('matrix')}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 relative cursor-pointer ${
             activeTab === 'matrix'
-              ? 'text-sky-700 bg-sky-50 border border-sky-200 shadow-2xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/50 shadow-2xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-slate-100 hover:dark:bg-slate-800'
           }`}
         >
-          <Shield size={15} className={activeTab === 'matrix' ? 'text-sky-600' : ''} />
+          <Shield size={15} className={activeTab === 'matrix' ? 'text-sky-600 dark:text-sky-400' : ''} />
           <span>Role Permissions Studio</span>
-          <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-sky-100 text-sky-700 border border-sky-200">
+          <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60">
             {roles.length} Roles
           </span>
         </button>
@@ -584,7 +551,7 @@ export function TeamRolesPermissionMatrix() {
         <div className="space-y-6 animate-in fade-in duration-150">
           {/* 1. Horizontal Role Selector Bar */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
+            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 px-1">
               <span>Select Role to Configure</span>
               <span>Click a role to adjust its module radios</span>
             </div>
@@ -598,30 +565,37 @@ export function TeamRolesPermissionMatrix() {
                     onClick={() => handleSelectRole(r)}
                     className={`p-3 rounded-xl text-left transition-all relative border flex flex-col justify-between cursor-pointer ${
                       isSelected
-                        ? 'bg-sky-50/80 border-sky-400 shadow-sm ring-2 ring-sky-400/20'
-                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 shadow-2xs'
+                        ? 'bg-sky-50/80 dark:bg-sky-950/60 border-sky-400 dark:border-sky-500 shadow-sm ring-2 ring-sky-400/20 dark:ring-sky-500/30'
+                        : 'bg-white dark:bg-slate-800/70 border-slate-200 dark:border-white/10 hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-50/50 hover:dark:bg-slate-800 shadow-2xs'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className={`text-xs font-bold truncate ${isSelected ? 'text-sky-900' : 'text-slate-900'}`}>
+                        <span className={`text-xs font-bold truncate ${isSelected ? 'text-sky-900 dark:text-sky-200' : 'text-slate-900 dark:text-white'}`}>
                           {r.name}
                         </span>
-                        {r.is_protected && (
-                          <span title="Protected Owner Role">
-                            <Lock size={11} className="text-amber-600 shrink-0" />
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {r.is_authorized_signatory && (
+                            <span title="Authorized Signatory Role" className="text-purple-600 dark:text-purple-400">
+                              <PenTool size={11} />
+                            </span>
+                          )}
+                          {r.is_protected && (
+                            <span title="Protected Owner Role">
+                              <Lock size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-500 line-clamp-1">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
                         {r.description || 'Custom role'}
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400 font-medium">
+                    <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100 dark:border-white/5 text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                       <span>{r.user_count ?? 0} staff</span>
                       {isSelected && (
-                        <span className="text-[10px] font-bold text-sky-600 flex items-center gap-0.5">
+                        <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 flex items-center gap-0.5">
                           <Check size={11} /> Active
                         </span>
                       )}
@@ -634,62 +608,35 @@ export function TeamRolesPermissionMatrix() {
 
           {/* 2. Active Role Control Studio */}
           {activeRole && (
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden backdrop-blur-md">
               {/* Studio Header Bar */}
-              <div className="p-5 border-b border-slate-200 bg-slate-50/70 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="p-5 border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-black uppercase tracking-wider text-sky-700 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-200">
+                    <span className="text-xs font-black uppercase tracking-wider text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/50 px-2 py-0.5 rounded-md border border-sky-200 dark:border-sky-800/50">
                       Configuring Role
                     </span>
-                    <h2 className="text-lg font-black text-slate-900">{activeRole.name}</h2>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">{activeRole.name}</h2>
                     {activeRole.is_protected && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 flex items-center gap-1">
                         <Lock size={10} /> Root Owner
                       </span>
                     )}
+                    {activeIsSignatory && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 dark:bg-purple-950/50 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 flex items-center gap-1">
+                        <PenTool size={10} /> Authorized Signatory
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     {activeRole.description || 'Custom operational role with tailored module permissions.'}
                   </p>
                 </div>
 
-                {/* Preset Templates Bar & Save Action */}
+                {/* Save & Delete Actions */}
                 <div className="flex items-center flex-wrap gap-2">
                   {!activeRole.is_protected && (
                     <>
-                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
-                        <span className="text-[11px] font-bold text-slate-500 px-2">Presets:</span>
-                        <button
-                          type="button"
-                          onClick={() => handleApplyPreset('sales_rep')}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Sales Rep
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleApplyPreset('door_knocker')}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Door Knocker
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleApplyPreset('project_manager')}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Project Mgr
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleApplyPreset('read_only')}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          Read Only
-                        </button>
-                      </div>
-
                       <button
                         type="button"
                         onClick={handleSaveChanges}
@@ -697,7 +644,7 @@ export function TeamRolesPermissionMatrix() {
                         className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                           hasUnsavedChanges
                             ? 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-md animate-pulse'
-                            : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-white/10 cursor-not-allowed'
                         }`}
                       >
                         {isSaving ? (
@@ -715,9 +662,10 @@ export function TeamRolesPermissionMatrix() {
 
                       <button
                         type="button"
-                        onClick={() => handleDeleteRole(activeRole)}
+                        onClick={() => promptDeleteRole(activeRole)}
                         title="Delete this role"
-                        className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
+                        aria-label="Delete this role"
+                        className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 transition-colors cursor-pointer"
                       >
                         <Trash2 size={15} />
                       </button>
@@ -725,43 +673,110 @@ export function TeamRolesPermissionMatrix() {
                   )}
 
                   {activeRole.is_protected && (
-                    <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center gap-1.5">
-                      <Lock size={13} className="text-amber-600" />
+                    <div className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5">
+                      <Lock size={13} className="text-amber-600 dark:text-amber-400" />
                       <span>Owner permissions are permanent root (* &rarr; all).</span>
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* Authorized Signatory Authority Radio Selector Banner */}
+              <div className="px-5 py-3.5 border-b border-slate-200/90 dark:border-white/10 bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-slate-50 dark:from-purple-950/25 dark:via-indigo-950/20 dark:to-slate-900/40">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0 mt-0.5">
+                      <PenTool size={15} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          Authorized Signatory Authority
+                        </span>
+                        {activeIsSignatory ? (
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/50">
+                            Authorized Signatory
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-white/10">
+                            Standard Role
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Designates members in this role with legal authority to counter-sign official California contracts &amp; agreements.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200/90 dark:border-white/10 shrink-0">
+                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                      !activeIsSignatory
+                        ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
+                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="active_role_signatory"
+                        checked={!activeIsSignatory}
+                        disabled={activeRole.is_protected}
+                        onChange={() => handleSignatoryChange(false)}
+                        className="text-sky-600 focus:ring-sky-500"
+                      />
+                      <span>Standard Role</span>
+                    </label>
+
+                    <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                      activeIsSignatory
+                        ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 shadow-2xs font-bold border border-purple-200 dark:border-purple-800/50'
+                        : 'text-slate-500 hover:text-purple-700 dark:text-slate-400'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="active_role_signatory"
+                        checked={activeIsSignatory}
+                        disabled={activeRole.is_protected}
+                        onChange={() => handleSignatoryChange(true)}
+                        className="text-purple-600 focus:ring-purple-500"
+                      />
+                      <span>Authorized Signatory</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               {/* Module Search & Filter Bar */}
-              <div className="p-3 border-b border-slate-100 bg-white flex items-center justify-between gap-3">
+              <div className="p-3 border-b border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900/40 flex items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-sm">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                   <input
                     type="text"
                     value={searchModule}
                     onChange={(e) => setSearchModule(e.target.value)}
                     placeholder="Search module (e.g. leads, pipeline, finances)..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">Access Legend:</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                    None (Hidden)
+                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Access Legend:</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/10">
+                    None
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                    View Only
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
+                    Own Only
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Full Manage
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50">
+                    Assigned
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                    Org-Wide
                   </span>
                 </div>
               </div>
 
               {/* Module Radios Table / Rows */}
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-white/5">
                 {filteredModules.map((module) => {
                   const modConfig = activeModules[module.id] || { view: 'none', manage: false };
                   const isProtected = activeRole.is_protected;
@@ -773,18 +788,22 @@ export function TeamRolesPermissionMatrix() {
                   // Compute summary badge
                   let summaryBadge = {
                     label: 'No Access',
-                    className: 'bg-slate-100 text-slate-500 border-slate-200',
+                    className: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10',
                   };
                   if (currentView !== 'none') {
+                    let scopeText = 'Org-Wide';
+                    if (currentView === 'own') scopeText = 'Own Only';
+                    else if (currentView === 'assigned') scopeText = 'Assigned';
+
                     if (currentManage) {
                       summaryBadge = {
-                        label: currentView === 'all' ? 'Full Manage (All)' : `Full Manage (${currentView.toUpperCase()})`,
-                        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-black',
+                        label: `Full Manage (${scopeText})`,
+                        className: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 font-black',
                       };
                     } else {
                       summaryBadge = {
-                        label: currentView === 'all' ? 'View Only (All)' : `View Only (${currentView.toUpperCase()})`,
-                        className: 'bg-sky-50 text-sky-700 border-sky-200 font-bold',
+                        label: `View Only (${scopeText})`,
+                        className: 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 font-bold',
                       };
                     }
                   }
@@ -792,7 +811,7 @@ export function TeamRolesPermissionMatrix() {
                   return (
                     <div
                       key={module.id}
-                      className="p-4 hover:bg-slate-50/50 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
+                      className="p-4 hover:bg-slate-50/50 hover:dark:bg-slate-800/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4"
                     >
                       {/* Left: Module Info */}
                       <div className="flex items-start gap-3 md:w-5/12">
@@ -801,12 +820,12 @@ export function TeamRolesPermissionMatrix() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-slate-900">{module.label}</span>
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">{module.label}</span>
                             <span className={`px-2 py-0.2 rounded-full text-[10px] uppercase tracking-wider border ${summaryBadge.className}`}>
                               {summaryBadge.label}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
                             {module.description}
                           </p>
                         </div>
@@ -816,10 +835,10 @@ export function TeamRolesPermissionMatrix() {
                       <div className="flex flex-col sm:flex-row sm:items-center gap-4 md:w-7/12 justify-end">
                         {/* 1. View Access Radios */}
                         <div className="space-y-1">
-                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
                             View Access
                           </label>
-                          <div className="inline-flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200 gap-1 shadow-2xs">
+                          <div className="inline-flex items-center p-1 bg-slate-100/90 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-white/10 gap-1 shadow-2xs">
                             {/* None */}
                             <button
                               type="button"
@@ -827,8 +846,8 @@ export function TeamRolesPermissionMatrix() {
                               onClick={() => handleViewChange(module.id, 'none')}
                               className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                 currentView === 'none'
-                                  ? 'bg-white text-slate-900 shadow-2xs font-bold border border-slate-200'
-                                  : 'text-slate-500 hover:text-slate-800'
+                                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold border border-slate-200 dark:border-white/10'
+                                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 hover:dark:text-white'
                               } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
                             >
                               None
@@ -840,15 +859,28 @@ export function TeamRolesPermissionMatrix() {
                                 <button
                                   type="button"
                                   disabled={isProtected}
+                                  onClick={() => handleViewChange(module.id, 'own')}
+                                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                                    currentView === 'own'
+                                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-2xs font-bold'
+                                      : 'text-slate-500 dark:text-slate-400 hover:text-amber-600 hover:dark:text-amber-300'
+                                  } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                  title="Can only view records created by this user (e.g. Door Knocker)"
+                                >
+                                  Own Only
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isProtected}
                                   onClick={() => handleViewChange(module.id, 'assigned')}
                                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                                    currentView === 'assigned' || currentView === 'own'
+                                    currentView === 'assigned'
                                       ? 'bg-sky-600 text-white shadow-2xs font-bold'
-                                      : 'text-slate-500 hover:text-slate-800'
+                                      : 'text-slate-500 dark:text-slate-400 hover:text-sky-600 hover:dark:text-sky-300'
                                   } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                  title="Can only view leads/deals assigned to user or created by them"
+                                  title="Can view records assigned to user or created by them (e.g. Sales Rep)"
                                 >
-                                  Assigned / Own
+                                  Assigned
                                 </button>
                                 <button
                                   type="button"
@@ -857,9 +889,9 @@ export function TeamRolesPermissionMatrix() {
                                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                     currentView === 'all'
                                       ? 'bg-emerald-600 text-white shadow-2xs font-bold'
-                                      : 'text-slate-500 hover:text-slate-800'
+                                      : 'text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:dark:text-emerald-300'
                                   } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                  title="Can view all records across the entire organization"
+                                  title="Can view all organization records (e.g. Door Knocker Lead / Manager)"
                                 >
                                   Org-Wide
                                 </button>
@@ -872,7 +904,7 @@ export function TeamRolesPermissionMatrix() {
                                 className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                   currentView === 'all'
                                     ? 'bg-emerald-600 text-white shadow-2xs font-bold'
-                                    : 'text-slate-500 hover:text-slate-800'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 hover:dark:text-white'
                                 } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
                               >
                                 Can View
@@ -883,11 +915,11 @@ export function TeamRolesPermissionMatrix() {
 
                         {/* 2. Manage Access Radios */}
                         <div className="space-y-1">
-                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
                             Manage Access
                           </label>
                           <div className={`inline-flex items-center p-1 rounded-xl border gap-1 shadow-2xs ${
-                            canManageDisabled ? 'bg-slate-50 border-slate-200/60 opacity-60' : 'bg-slate-100/90 border-slate-200'
+                            canManageDisabled ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-white/5 opacity-60' : 'bg-slate-100/90 dark:bg-slate-800/80 border-slate-200 dark:border-white/10'
                           }`}>
                             <button
                               type="button"
@@ -895,8 +927,8 @@ export function TeamRolesPermissionMatrix() {
                               onClick={() => handleManageChange(module.id, false)}
                               className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                 !currentManage
-                                  ? 'bg-white text-slate-900 shadow-2xs font-bold border border-slate-200'
-                                  : 'text-slate-500 hover:text-slate-800'
+                                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold border border-slate-200 dark:border-white/10'
+                                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 hover:dark:text-white'
                               } ${canManageDisabled ? 'cursor-not-allowed' : ''}`}
                             >
                               Read Only
@@ -909,7 +941,7 @@ export function TeamRolesPermissionMatrix() {
                               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                                 currentManage
                                   ? 'bg-gradient-to-r from-[#E06800] to-[#FF8A00] text-white shadow-2xs font-bold'
-                                  : 'text-slate-500 hover:text-slate-800'
+                                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 hover:dark:text-white'
                               } ${canManageDisabled ? 'cursor-not-allowed' : ''}`}
                               title="Allows creating, updating, editing, and deleting records in this module"
                             >
@@ -925,9 +957,9 @@ export function TeamRolesPermissionMatrix() {
 
               {/* Bottom Sticky Save Bar if unsaved */}
               {hasUnsavedChanges && !activeRole.is_protected && (
-                <div className="p-4 bg-amber-50 border-t border-amber-200 flex items-center justify-between animate-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
-                    <AlertCircle size={15} className="text-amber-600" />
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-800/50 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                    <AlertCircle size={15} className="text-amber-600 dark:text-amber-400" />
                     <span>You have unsaved radio changes for <strong>{activeRole.name}</strong>.</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -937,7 +969,7 @@ export function TeamRolesPermissionMatrix() {
                         setActiveModules(activeRole.modules || {});
                         setHasUnsavedChanges(false);
                       }}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-amber-100/60 cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-amber-100/60 dark:hover:bg-white/10 cursor-pointer"
                     >
                       Reset
                     </button>
@@ -959,95 +991,165 @@ export function TeamRolesPermissionMatrix() {
       )}
 
       {/* Create New Role Modal */}
-      {isCreateRoleOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 relative space-y-4">
-            <button
-              onClick={() => setIsCreateRoleOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 cursor-pointer"
+      {isCreateRoleOpen &&
+        createPortal(
+          <div
+            onClick={() => setIsCreateRoleOpen(false)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200 select-none"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-white/95 dark:bg-[#0B1320]/95 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-2xl dark:shadow-[0_25px_90px_rgba(0,0,0,0.85)] p-6 relative space-y-4 my-auto max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200"
             >
-              <X size={18} />
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsCreateRoleOpen(false)}
+                className="absolute top-4 right-4 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-white cursor-pointer transition-colors"
+              >
+                <X size={18} />
+              </button>
 
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#E06800] to-[#FF8A00] flex items-center justify-center text-white font-bold shadow-md">
-                <Shield size={20} />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#E06800] to-[#FF8A00] flex items-center justify-center text-white font-bold shadow-md">
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Create New Custom Role</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Define an operational role with preset module permissions.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Create New Custom Role</h3>
-                <p className="text-xs text-slate-500">
-                  Define an operational role with preset module permissions.
-                </p>
-              </div>
+
+              <form onSubmit={handleCreateRole} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Role Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value)}
+                    placeholder="e.g. Commercial Estimator, Field Auditor, Billing Specialist"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/90 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-sky-500/10 shadow-2xs transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Role Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newRoleDesc}
+                    onChange={(e) => setNewRoleDesc(e.target.value)}
+                    placeholder="e.g. Canvassing neighborhoods, qualifying leads, performing roof inspections"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50/80 dark:bg-white/5 border border-slate-200/90 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-sky-500/10 shadow-2xs transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                    Signatory Authority
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <label
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        !newRoleIsSignatory
+                          ? 'border-sky-400 dark:border-sky-500 bg-sky-50/60 dark:bg-sky-950/40 ring-1 ring-sky-400/20'
+                          : 'border-slate-200 dark:border-white/10 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="create_role_signatory"
+                        checked={!newRoleIsSignatory}
+                        onChange={() => setNewRoleIsSignatory(false)}
+                        className="mt-0.5 text-sky-600 focus:ring-sky-500"
+                      />
+                      <div>
+                        <span className="block text-xs font-bold text-slate-900 dark:text-white">
+                          Standard Role
+                        </span>
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                          Operational permissions only. Cannot execute contracts.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        newRoleIsSignatory
+                          ? 'border-purple-500 bg-purple-50/80 dark:bg-purple-950/40 ring-1 ring-purple-500/20'
+                          : 'border-slate-200 dark:border-white/10 hover:border-purple-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="create_role_signatory"
+                        checked={newRoleIsSignatory}
+                        onChange={() => setNewRoleIsSignatory(true)}
+                        className="mt-0.5 text-purple-600 focus:ring-purple-500"
+                      />
+                      <div>
+                        <span className="block text-xs font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1">
+                          <PenTool size={12} className="text-purple-600" /> Authorized Signatory
+                        </span>
+                        <span className="block text-[11px] text-purple-700/80 dark:text-purple-300/80">
+                          Designated to counter-sign official CSLB contracts.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateRoleOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#E06800] to-[#FF8A00] hover:from-[#C85A00] hover:to-[#E06800] shadow-md transition-all cursor-pointer"
+                  >
+                    Create Role
+                  </button>
+                </div>
+              </form>
             </div>
+          </div>,
+          document.body
+        )}
 
-            <form onSubmit={handleCreateRole} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Role Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="e.g. Commercial Estimator, Field Auditor, Billing Specialist"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10 shadow-2xs"
-                />
-              </div>
+      {/* 4. Accessible Confirm Dialog: Switch Role with Unsaved Changes */}
+      <ConfirmDialog
+        isOpen={pendingSwitchRole !== null}
+        title="Unsaved Permission Changes"
+        message={`You have unsaved changes to role permissions. Discard changes and switch to "${pendingSwitchRole?.name}"?`}
+        confirmLabel="Discard & Switch"
+        variant="warning"
+        onConfirm={() => {
+          if (pendingSwitchRole) {
+            applySelectRole(pendingSwitchRole);
+          }
+        }}
+        onCancel={() => setPendingSwitchRole(null)}
+      />
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Role Description
-                </label>
-                <textarea
-                  rows={2}
-                  value={newRoleDesc}
-                  onChange={(e) => setNewRoleDesc(e.target.value)}
-                  placeholder="e.g. Canvassing neighborhoods, qualifying leads, performing roof inspections"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10 shadow-2xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Base Template Preset
-                </label>
-                <select
-                  value={selectedPresetKey}
-                  onChange={(e) => setSelectedPresetKey(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10 shadow-2xs cursor-pointer"
-                >
-                  <option value="sales_rep">Field Sales Rep (Assigned Deals, Quotes & Calendar)</option>
-                  <option value="door_knocker">Door Knocker (Create & View Own Leads Only)</option>
-                  <option value="project_manager">Project Manager (Full Operations, No Finances)</option>
-                  <option value="read_only">Read Only Observer (View-only all records)</option>
-                  <option value="full_admin">Full Operational Admin (All Modules)</option>
-                </select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {ROLE_PRESETS[selectedPresetKey]?.description}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateRoleOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#E06800] to-[#FF8A00] hover:from-[#C85A00] hover:to-[#E06800] shadow-md transition-all cursor-pointer"
-                >
-                  Create Role
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 5. Accessible Confirm Dialog: Delete Role */}
+      <ConfirmDialog
+        isOpen={roleToDelete !== null}
+        title="Delete Role"
+        message={`Are you sure you want to delete role "${roleToDelete?.name}"? Users assigned to this role will lose their permission profiles.`}
+        confirmLabel="Delete Role"
+        variant="danger"
+        onConfirm={confirmDeleteRole}
+        onCancel={() => setRoleToDelete(null)}
+      />
     </div>
   );
 }

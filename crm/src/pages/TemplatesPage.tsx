@@ -12,8 +12,10 @@ import {
 import { DevelopmentInProgressBanner } from '@/components/common/DevelopmentInProgressBanner';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
 import { useCompany } from '@/context/CompanyContext';
+import { useToast } from '@/context/ToastContext';
 
 export function TemplatesPage() {
+  const { toast } = useToast();
   const { dba, legalName } = useCompany();
   const companyDba = dba || 'Rise Up Roofing';
   const companyLegal = legalName || 'Rise Up Roofing & Solar LLC';
@@ -82,7 +84,7 @@ export function TemplatesPage() {
         topRightActions={
           <button
             type="button"
-            onClick={() => alert('Opening template creator...')}
+            onClick={() => toast.info('Template creation wizard will be available in the upcoming templates sprint.')}
             className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
           >
             <Plus size={13} />

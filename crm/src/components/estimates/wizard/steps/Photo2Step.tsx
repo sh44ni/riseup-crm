@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
 import { Upload, Image as ImageIcon } from 'lucide-react';
+import { PhotoFrameEditor } from '../PhotoFrameEditor';
 import { api, API_ORIGIN } from '@/lib/api';
 
 const getImgSrc = (url?: string) => {
@@ -40,7 +41,15 @@ export function Photo2Step({ data, onDataChange }: StepProps) {
         onDataChange({
           photo2: { 
             mode: 'upload',
-            asset: { url: res.url, filename: file.name, focalPoint: { x: 0.5, y: 0.5 } }
+            asset: {
+              url: res.url,
+              filename: file.name,
+              x: 0,
+              y: 0,
+              zoom: 1.0,
+              position: { x: 0, y: 0 },
+              focalPoint: { x: 0.5, y: 0.5 },
+            }
           }
         });
       }
@@ -98,7 +107,7 @@ export function Photo2Step({ data, onDataChange }: StepProps) {
       ) : (
         <div className="space-y-3">
           {!data.photo2.asset?.url ? (
-            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors relative">
+            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 dark:border-white/10 rounded-2xl bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/60 cursor-pointer transition-colors relative">
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <Upload className="w-8 h-8 mb-3 text-slate-400" />
                 <p className="mb-2 text-sm text-slate-500 font-medium">
@@ -114,20 +123,16 @@ export function Photo2Step({ data, onDataChange }: StepProps) {
               )}
             </label>
           ) : (
-            <div className="space-y-3">
-              <div className="relative w-full h-48 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-                <img src={getImgSrc(data.photo2.asset.url)} alt="Photo 2" className="w-full h-full object-cover" />
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500 font-medium truncate max-w-[200px]">{data.photo2.asset.filename}</span>
-                <button 
-                  onClick={() => onDataChange({ photo2: { mode: 'upload', asset: undefined } })}
-                  className="text-red-500 hover:text-red-600 font-bold"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
+            <PhotoFrameEditor
+              photo={data.photo2.asset}
+              onChange={(updated) => onDataChange({ photo2: { mode: 'upload', asset: updated } })}
+              onRemove={() => onDataChange({ photo2: { mode: 'upload', asset: undefined } })}
+              onReplace={handleFileUpload}
+              isReplacing={isUploading}
+              label="Page 2 Overview Photo"
+              helperText="Drag to reposition and zoom to frame the overview photo on Page 2."
+              aspectRatio={412 / 264}
+            />
           )}
         </div>
       )}

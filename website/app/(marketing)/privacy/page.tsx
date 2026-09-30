@@ -1,4 +1,4 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { Section } from '@/components/shared/Container';
 import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs';
@@ -38,7 +38,7 @@ export default function PrivacyPolicyPage() {
             </div>
           </div>
           <p className="text-sm leading-relaxed text-slate-600">
-            {COMPANY_NAME} (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) values your trust. We are committed to protecting the personally identifiable information you share with us when requesting roof inspections, itemized estimates, or navigating our website. We do not sell, rent, or trade customer contact details to third-party telemarketers or lead generation brokers.
+            {COMPANY_NAME} (&ldquo;Company,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) values your trust. We are committed to protecting the personally identifiable information you share with us when requesting roof inspections, itemized estimates, or navigating our website. We do not sell, rent, or trade client contact details to third-party telemarketers or lead generation brokers.
           </p>
         </div>
 
@@ -60,7 +60,7 @@ export default function PrivacyPolicyPage() {
         <div className="glass-card rounded-2xl p-6 sm:p-8 border border-slate-200/80 space-y-3">
           <h2 className="text-xl font-bold text-slate-900">2. How We Use Your Information</h2>
           <p className="text-sm leading-relaxed">
-            The information collected from homeowners and commercial property managers is used strictly for legitimate construction contracting and customer service purposes, including:
+            The information collected from homeowners and commercial property managers is used strictly for legitimate construction contracting and client service purposes, including:
           </p>
           <ul className="list-disc pl-5 space-y-1.5 text-sm">
             <li>Scheduling physical roof assessments, leak diagnostics, and digital roof measurement reports.</li>
@@ -97,7 +97,7 @@ export default function PrivacyPolicyPage() {
         <div className="glass-card rounded-2xl p-6 sm:p-8 border border-slate-200/80 space-y-3">
           <h2 className="text-xl font-bold text-slate-900">5. Data Security &amp; Retention</h2>
           <p className="text-sm leading-relaxed">
-            We implement industry-standard administrative, technical, and physical safeguards designed to protect personal information against unauthorized access, loss, or alteration. All web transmissions are encrypted via Transport Layer Security (TLS/HTTPS). Customer project records and warranty documentation are retained in accordance with California statutory construction documentation standards.
+            We implement industry-standard administrative, technical, and physical safeguards designed to protect personal information against unauthorized access, loss, or alteration. All web transmissions are encrypted via Transport Layer Security (TLS/HTTPS). Client project records and warranty documentation are retained in accordance with California statutory construction documentation standards.
           </p>
         </div>
 

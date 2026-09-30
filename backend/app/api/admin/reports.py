@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -45,14 +46,20 @@ def normalize_material_category(raw_val: Optional[str]) -> str:
         return "tpo"
     return "other"
 
-def _get_date_filters(from_date: Optional[str], to_date: Optional[str], table_alias: str = "") -> str:
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$")
+
+def _get_date_filters(from_date: Optional[str], to_date: Optional[str], table_alias: str = "") -> tuple[str, dict]:
+    """Return a (where_clause, bind_params) tuple using parameterized queries."""
     alias = f"{table_alias}." if table_alias else ""
     where_clause = "1=1"
-    if from_date:
-        where_clause += f" AND {alias}created_at >= '{from_date}'::TIMESTAMPTZ"
-    if to_date:
-        where_clause += f" AND {alias}created_at < ('{to_date}'::DATE + INTERVAL '1 day')::TIMESTAMPTZ"
-    return where_clause
+    params: dict = {}
+    if from_date and DATE_PATTERN.match(str(from_date).strip()):
+        where_clause += f" AND {alias}created_at >= :filter_from"
+        params["filter_from"] = str(from_date).strip()
+    if to_date and DATE_PATTERN.match(str(to_date).strip()):
+        where_clause += f" AND {alias}created_at < (:filter_to::DATE + INTERVAL '1 day')::TIMESTAMPTZ"
+        params["filter_to"] = str(to_date).strip()
+    return where_clause, params
 
 @router.get("/revenue")
 async def get_revenue_report(
@@ -61,7 +68,7 @@ async def get_revenue_report(
     user: Dict[str, Any] = Depends(require_any_permission(["reports:view", "reports.view"])),
     db: AsyncSession = Depends(get_db)
 ):
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     
     # 1. Monthly revenue breakdown from accepted estimates
     monthly_q = f"""
@@ -78,7 +85,7 @@ async def get_revenue_report(
     
     ytd_q = f"SELECT COALESCE(SUM(total), 0) AS total_rev, COUNT(*) AS count FROM estimates WHERE status = 'accepted' AND {date_filter}"
     
-    monthly_res = await db.execute(text(monthly_q))
+    monthly_res = await db.execute(text(monthly_q), filter_params)
     monthly_data = []
     for r in monthly_res.fetchall():
         row = dict(r._mapping)
@@ -90,7 +97,7 @@ async def get_revenue_report(
             "bookedJobs": int(row["booked_jobs"])
         })
         
-    ytd_res = await db.execute(text(ytd_q))
+    ytd_res = await db.execute(text(ytd_q), filter_params)
     ytd_row = ytd_res.first()
     ytd_total = float(ytd_row.total_rev if ytd_row else 0)
     count = int(ytd_row.count if ytd_row else 0)
@@ -105,7 +112,7 @@ async def get_revenue_report(
         WHERE status = 'accepted' AND {date_filter}
         GROUP BY COALESCE(NULLIF(TRIM(material_type), ''), 'other')
     """
-    mat_res = await db.execute(text(mat_q))
+    mat_res = await db.execute(text(mat_q), filter_params)
     
     cat_splits: Dict[str, Dict[str, Any]] = {
         "shingle": {
@@ -185,7 +192,7 @@ async def get_revenue_report(
         FROM estimates
         WHERE status = 'accepted' AND {date_filter}
     """
-    fin_row = (await db.execute(text(fin_q))).first()
+    fin_row = (await db.execute(text(fin_q), filter_params)).first()
     fin_count = int(fin_row.financed_count or 0) if fin_row else 0
     avg_monthly = float(fin_row.avg_monthly or 0) if fin_row else 0.0
     financing_adoption_pct = round((fin_count / count * 100), 1) if count > 0 else 0.0
@@ -209,14 +216,14 @@ async def get_lead_conversion_report(
     user: Dict[str, Any] = Depends(require_any_permission(["reports:view", "reports.view"])),
     db: AsyncSession = Depends(get_db)
 ):
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     q = f"""
         SELECT status, COUNT(*) AS count
         FROM leads
         WHERE {date_filter}
         GROUP BY status
     """
-    res = await db.execute(text(q))
+    res = await db.execute(text(q), filter_params)
     status_counts = {row.status: int(row.count) for row in res.fetchall()}
     
     return {
@@ -230,7 +237,7 @@ async def get_sales_reps_report(
     user: Dict[str, Any] = Depends(require_any_permission(["reports:view", "reports.view"])),
     db: AsyncSession = Depends(get_db)
 ):
-    date_filter = _get_date_filters(from_date, to_date, "l")
+    date_filter, filter_params = _get_date_filters(from_date, to_date, "l")
     q = f"""
         SELECT 
             u.id AS rep_id,
@@ -245,7 +252,7 @@ async def get_sales_reps_report(
         WHERE u.role IN ('estimator', 'sales', 'admin', 'project_manager') OR l.id IS NOT NULL
         GROUP BY u.id, u.name, u.role
     """
-    res = await db.execute(text(q))
+    res = await db.execute(text(q), filter_params)
     
     reps = []
     for r in res.fetchall():
@@ -347,7 +354,7 @@ async def get_pipeline_velocity_report(
     user: Dict[str, Any] = Depends(require_any_permission(["reports:view", "reports.view"])),
     db: AsyncSession = Depends(get_db)
 ):
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     q = text(f"""
         SELECT 
             AVG(EXTRACT(EPOCH FROM (initial_contacted_at - created_at)) / 86400) 
@@ -359,7 +366,7 @@ async def get_pipeline_velocity_report(
         FROM leads
         WHERE {date_filter}
     """)
-    row = (await db.execute(q)).first()
+    row = (await db.execute(q, filter_params)).first()
     return {
         "velocity": [
             {"stage": "Lead to Contact", "avgDays": round(float(row.lead_to_contact or 0), 1)},
@@ -375,7 +382,7 @@ async def get_lead_sources_report(
     user: Dict[str, Any] = Depends(require_any_permission(["reports:view", "reports.view"])),
     db: AsyncSession = Depends(get_db)
 ):
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     q = f"""
         SELECT 
             COALESCE(source_type, 'website') AS source_type,
@@ -386,7 +393,7 @@ async def get_lead_sources_report(
         WHERE {date_filter}
         GROUP BY COALESCE(source_type, 'website')
     """
-    res = await db.execute(text(q))
+    res = await db.execute(text(q), filter_params)
     
     sources = []
     for r in res.fetchall():
@@ -415,7 +422,7 @@ async def get_report_kpis(
     db: AsyncSession = Depends(get_db)
 ):
     """Unified KPI summary for the Reports page top cards."""
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     
     try:
         # 1. Booked Revenue (from accepted estimates in date range)
@@ -426,7 +433,7 @@ async def get_report_kpis(
             FROM estimates 
             WHERE status = 'accepted' AND {date_filter}
         """
-        rev_row = (await db.execute(text(rev_q))).first()
+        rev_row = (await db.execute(text(rev_q), filter_params)).first()
         booked_revenue = float(rev_row.booked_revenue) if rev_row else 0
         booked_count = int(rev_row.booked_count) if rev_row else 0
         avg_ticket = round(booked_revenue / booked_count) if booked_count > 0 else 0
@@ -458,7 +465,7 @@ async def get_report_kpis(
                 COUNT(*) FILTER (WHERE status = 'won' OR contract_signed_at IS NOT NULL) AS won
             FROM leads WHERE {date_filter}
         """
-        wr_row = (await db.execute(text(wr_q))).first()
+        wr_row = (await db.execute(text(wr_q), filter_params)).first()
         quoted = int(wr_row.quoted) if wr_row else 0
         won = int(wr_row.won) if wr_row else 0
         win_rate = round((won / quoted) * 100, 1) if quoted > 0 else 0
@@ -503,7 +510,7 @@ async def get_report_kpis(
             FROM leads
             WHERE initial_contacted_at IS NOT NULL AND {date_filter}
         """
-        stl_row = (await db.execute(text(stl_q))).first()
+        stl_row = (await db.execute(text(stl_q), filter_params)).first()
         avg_speed = round(float(stl_row.avg_minutes), 1) if stl_row and stl_row.avg_minutes else 0
         total_contacted_stl = int(stl_row.total_contacted) if stl_row else 0
         within_sla = int(stl_row.within_sla) if stl_row else 0
@@ -549,7 +556,7 @@ async def get_speed_to_lead_distribution(
     - Bucket 4: 30 – 60 Minutes (1801 to 3600 seconds)
     - Bucket 5: 2+ Hours / Overnight (> 3600 seconds or uncontacted)
     """
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     try:
         q = f"""
             SELECT 
@@ -567,7 +574,7 @@ async def get_speed_to_lead_distribution(
             GROUP BY bucket_id
             ORDER BY bucket_id
         """
-        res = await db.execute(text(q))
+        res = await db.execute(text(q), filter_params)
         bucket_map = {int(r.bucket_id): (int(r.leads_count), int(r.won_count)) for r in res.fetchall()}
         
         # Overall speed and SLA metrics
@@ -580,7 +587,7 @@ async def get_speed_to_lead_distribution(
             FROM leads
             WHERE {date_filter}
         """
-        summary_row = (await db.execute(text(summary_q))).first()
+        summary_row = (await db.execute(text(summary_q), filter_params)).first()
         total_contacted = int(summary_row.total_contacted) if summary_row and summary_row.total_contacted else 0
         avg_speed = round(float(summary_row.avg_speed_mins), 1) if summary_row and summary_row.avg_speed_mins else 0.0
         within_sla = int(summary_row.within_sla) if summary_row and summary_row.within_sla else 0
@@ -680,7 +687,7 @@ async def get_executive_insights(
     - Speed to lead response time SLA compliance
     - Material and proposal ticket performance
     """
-    date_filter = _get_date_filters(from_date, to_date)
+    date_filter, filter_params = _get_date_filters(from_date, to_date)
     
     try:
         # 1. Query gross margin and expenses from jobs & job_expenses
@@ -695,7 +702,7 @@ async def get_executive_insights(
             ) je ON je.job_id = j.id
             WHERE j.status NOT IN ('cancelled') AND {date_filter.replace('created_at', 'j.created_at')}
         """
-        margin_row = (await db.execute(text(margin_q))).first()
+        margin_row = (await db.execute(text(margin_q), filter_params)).first()
         total_rev = float(margin_row.total_revenue) if margin_row else 0.0
         total_exp = float(margin_row.total_expenses) if margin_row else 0.0
         total_jobs = int(margin_row.total_jobs) if margin_row else 0
@@ -714,7 +721,7 @@ async def get_executive_insights(
             GROUP BY COALESCE(source_type, 'website')
             ORDER BY won_count DESC, leads_count DESC
         """
-        sources_rows = (await db.execute(text(sources_q))).fetchall()
+        sources_rows = (await db.execute(text(sources_q), filter_params)).fetchall()
 
         # 3. Speed to lead SLA metrics
         stl_q = f"""
@@ -726,7 +733,7 @@ async def get_executive_insights(
             FROM leads
             WHERE {date_filter}
         """
-        stl_row = (await db.execute(text(stl_q))).first()
+        stl_row = (await db.execute(text(stl_q), filter_params)).first()
         total_contacted = int(stl_row.total_contacted) if stl_row and stl_row.total_contacted else 0
         avg_speed = round(float(stl_row.avg_speed_mins), 1) if stl_row and stl_row.avg_speed_mins else 0.0
         within_sla = int(stl_row.within_sla) if stl_row and stl_row.within_sla else 0
@@ -746,7 +753,7 @@ async def get_executive_insights(
             GROUP BY COALESCE(NULLIF(TRIM(material_type), ''), 'shingle')
             ORDER BY booked_revenue DESC, total_estimates DESC
         """
-        mat_rows = (await db.execute(text(mat_q))).fetchall()
+        mat_rows = (await db.execute(text(mat_q), filter_params)).fetchall()
 
         insights: List[Dict[str, Any]] = []
 

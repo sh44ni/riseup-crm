@@ -47,7 +47,7 @@ export function TasksHero({
 
   return (
     <>
-      <div className="relative rounded-2xl overflow-hidden light-glass-panel border border-white/85 shadow-[0_12px_36px_rgba(15,23,42,0.06)] h-[220px] min-h-[220px] max-h-[220px] flex flex-col justify-between p-5 lg:p-6 select-none group/hero glossy-sheen">
+      <div className="relative rounded-2xl overflow-hidden light-glass-panel border border-white/85 dark:border-white/10 shadow-[0_12px_36px_rgba(15,23,42,0.06)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] h-[220px] min-h-[220px] max-h-[220px] flex flex-col justify-between p-5 lg:p-6 select-none group/hero glossy-sheen">
         {/* Background panoramic image with ambient gradient overlay */}
         <div
           className="absolute inset-0 bg-no-repeat transition-all duration-700 pointer-events-none group-hover/hero:scale-[1.01]"

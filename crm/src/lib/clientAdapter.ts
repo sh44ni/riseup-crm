@@ -1,3 +1,4 @@
+import type { BackendClient } from '@/types/backendTypes';
 // Rise Up CRM — Client 360 Adapter
 // Bridges backend PostgreSQL records with frontend Client360Record UI schema
 
@@ -14,7 +15,7 @@ import {
   CompletedJob,
   LossPostMortem,
 } from '@/types/client360Types';
-import { ClientApiRecord, Client360ApiResponse } from '@/api/clientsApi';
+import { Client360ApiResponse } from '@/api/clientsApi';
 
 export function normalizeClientStatus(
   status?: string | null,
@@ -28,11 +29,15 @@ export function normalizeClientStatus(
     return { status: 'closed_lost', label: 'Closed Lost • Win-Back Opportunity' };
   }
 
+  if (s === 'active_job' || s === 'in_progress' || s === 'scheduled') {
+    return { status: 'active_job', label: 'Existing Client • Active Jobsite' };
+  }
+
   if (s === 'completed' || s === 'repeat' || c === 'existing_client' || hasCompletedJob) {
     return { status: 'completed', label: 'Lifetime Client • 50-Year Warranty' };
   }
 
-  if (s === 'active_job' || s === 'in_progress' || s === 'scheduled' || c === 'new_client') {
+  if (c === 'new_client') {
     return { status: 'active_job', label: 'Existing Client • Active Jobsite' };
   }
 
@@ -40,8 +45,7 @@ export function normalizeClientStatus(
 }
 
 export function backendClientToClient360(
-  raw: ClientApiRecord,
-  detail?: Partial<Client360ApiResponse>
+  raw: BackendClient, detail?: Partial<Client360ApiResponse>
 ): Client360Record {
   const warranties = detail?.warranties || [];
   const invoices = detail?.invoices || [];
@@ -111,8 +115,8 @@ export function backendClientToClient360(
       title: finishedJob?.name || (raw.roof_type ? `Full ${raw.roof_type} Replacement` : 'Completed Roofing Project'),
       totalPaid: Number(raw.total_paid || raw.total_revenue || 0),
       installedDate: finishedJob?.completed_at ? new Date(finishedJob.completed_at).toLocaleDateString() : 'Completed',
-      warrantyType: warranties[0]?.warranty_type || '50-Year Golden Pledge & Manufacturer Lifetime',
-      warrantyCertNumber: warranties[0]?.certificate_number || `RUP-CERT-${raw.id}`,
+      warrantyType: (warranties[0] as Record<string, unknown>)?.warranty_type as string || '50-Year Golden Pledge & Manufacturer Lifetime',
+      warrantyCertNumber: (warranties[0] as Record<string, unknown>)?.certificate_number as string || `RUP-CERT-${raw.id}`,
       nextAnnualInspectionDate: 'Annual Routine',
     };
   }
@@ -266,9 +270,16 @@ export function roofSpecsToBackendPayload(specs: Partial<RoofSpecs>): Record<str
     payload.hoa = specs.hoaCommunity.toLowerCase().includes('yes');
   }
   if (specs.cityZip) {
-    const parts = specs.cityZip.trim().split(' ');
-    if (parts.length > 0) payload.city = parts[0];
-    if (parts.length > 1) payload.zip = parts[parts.length - 1];
+    const tokens = specs.cityZip.trim().split(/\s+/);
+    const lastToken = tokens[tokens.length - 1];
+    if (tokens.length > 1 && /^\d+/.test(lastToken)) {
+      payload.zip = lastToken;
+      payload.city = tokens.slice(0, -1).join(' ');
+    } else {
+      payload.city = specs.cityZip.trim();
+    }
   }
   return payload;
 }
+
+

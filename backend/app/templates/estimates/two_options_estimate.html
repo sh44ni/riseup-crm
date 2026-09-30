@@ -481,7 +481,14 @@ body{font-family:'Barlow','Arial Narrow',Arial,sans-serif;color:var(--ink);-webk
 
   <div class="c-photo">
     <svg class="photo-svg" viewBox="0 0 816 530" preserveAspectRatio="xMidYMid slice"><use href="#scene"/></svg>
-    <div class="photo-img"{% if proposal.hero_photo_url %} style="background-image: url('{{ proposal.hero_photo_url }}'); display: block;"{% endif %}></div>
+    {% if proposal.hero_photo_url %}
+    <div class="photo-frame" style="position:absolute;inset:0;overflow:hidden;z-index:2;">
+      <img src="{{ proposal.hero_photo_url }}" 
+           alt="Cover Photo" 
+           class="photo-rendered"
+           style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:center;transform:translate({{ proposal.hero_photo_x or 0 }}%, {{ proposal.hero_photo_y or 0 }}%) scale({{ proposal.hero_photo_zoom or 1.0 }});transform-origin:center center;display:block;" />
+    </div>
+    {% endif %}
   </div>
 
   <div class="c-hdr"></div>
@@ -520,9 +527,9 @@ body{font-family:'Barlow','Arial Narrow',Arial,sans-serif;color:var(--ink);-webk
   <div class="c-sub"><span>Labor &amp; Material Estimate</span></div>
 
   <div class="c-info">
-    <div class="row" style="top:2px"><div class="sq"><svg class="ic"><use href="#i-home"/></svg></div><div class="lab" style="top:16px">Property:</div><div class="vl"></div><div class="val" style="top:5px"><span>{{ proposal.client_property_1 or "16543 Paulina Ter," }}</span><br><span>{{ proposal.client_property_2 or "Poway, CA 92064" }}</span></div></div>
-    <div class="row" style="top:52px"><div class="sq"><svg class="ic"><use href="#i-phone"/></svg></div><div class="lab" style="top:16px">Phone:</div><div class="vl"></div><div class="val" style="top:14px">{{ proposal.client_phone or "(858) 336-9321" }}</div></div>
-    <div class="row" style="top:102px"><div class="sq"><svg class="ic"><use href="#i-mail"/></svg></div><div class="lab" style="top:16px">Email:</div><div class="vl"></div><div class="val" style="top:14px">{{ proposal.client_email or "Ryanmiles2002@yahoo.com" }}</div></div>
+    <div class="row" style="top:2px"><div class="sq"><svg class="ic"><use href="#i-home"/></svg></div><div class="lab" style="top:16px">Property:</div><div class="vl"></div><div class="val" style="top:5px"><span>{{ proposal.client_property_1 or "[Address Pending]" }}</span><br><span>{{ proposal.client_property_2 or "" }}</span></div></div>
+    <div class="row" style="top:52px"><div class="sq"><svg class="ic"><use href="#i-phone"/></svg></div><div class="lab" style="top:16px">Phone:</div><div class="vl"></div><div class="val" style="top:14px">{{ proposal.client_phone or "[Phone Pending]" }}</div></div>
+    <div class="row" style="top:102px"><div class="sq"><svg class="ic"><use href="#i-mail"/></svg></div><div class="lab" style="top:16px">Email:</div><div class="vl"></div><div class="val" style="top:14px">{{ proposal.client_email or "[Email Pending]" }}</div></div>
   </div>
 
   <div class="c-tag">
@@ -548,7 +555,14 @@ body{font-family:'Barlow','Arial Narrow',Arial,sans-serif;color:var(--ink);-webk
 
   <div class="p-photo">
     <svg class="photo-svg" viewBox="356 214 452 288" preserveAspectRatio="xMidYMid slice"><use href="#scene"/></svg>
-    <div class="photo-img"{% if proposal.page2_photo_url %} style="background-image: url('{{ proposal.page2_photo_url }}'); display: block;"{% endif %}></div>
+    {% if proposal.page2_photo_url %}
+    <div class="photo-frame" style="position:absolute;inset:0;overflow:hidden;z-index:2;">
+      <img src="{{ proposal.page2_photo_url }}" 
+           alt="Page 2 Overview Photo" 
+           class="photo-rendered"
+           style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:center;transform:translate({{ proposal.page2_photo_x or 0 }}%, {{ proposal.page2_photo_y or 0 }}%) scale({{ proposal.page2_photo_zoom or 1.0 }});transform-origin:center center;display:block;" />
+    </div>
+    {% endif %}
   </div>
 
   {% if proposal.logo_data_uri %}
@@ -610,7 +624,7 @@ body{font-family:'Barlow','Arial Narrow',Arial,sans-serif;color:var(--ink);-webk
     <svg class="art"><use href="#art-roll"/></svg>
     {% endif %}
     <h5>{{ proposal.addon_1.title or "Premium PSU / Peel-and-Stick (TileSeal) Underlayment Upgrade" }}</h5>
-    <p>{{ proposal.addon_1.description or "Upgrade the standard underlayment to a premium self-adhered peel-and-stick system,<br>such as TileSeal or approved equivalent.<br>Provides a fully adhered secondary water-resistant barrier and improved<br>sealing around fastener penetrations." | safe }}</p>
+    <p>{{ (proposal.addon_1.description | e | replace('\n', '<br>') if proposal.addon_1.description else "Upgrade the standard underlayment to a premium self-adhered peel-and-stick system,<br>such as TileSeal or approved equivalent.<br>Provides a fully adhered secondary water-resistant barrier and improved<br>sealing around fastener penetrations.") | safe }}</p>
     <div class="pb"><small>Add-on Price</small><b>{{ proposal.addon_1.price_prefix or "+" }}{{ proposal.addon_1.price | format_price }}</b></div>
   </div>
 
@@ -629,7 +643,7 @@ body{font-family:'Barlow','Arial Narrow',Arial,sans-serif;color:var(--ink);-webk
       <svg class="arrow"><use href="#i-arrow"/></svg>
       <div class="bx std"><small>Standard price<br>after {{ proposal.pricing.lock_in_days or 20 }} day lock-in</small><b>{{ proposal.pricing.standard_price_b | format_price }}</b></div>
     </div>
-    <div class="imp"><svg class="ic"><use href="#i-clock"/></svg><div><b>IMPORTANT:</b> {{ proposal.pricing.important_note or ('These special “Lock-In” prices are valid when you schedule within ' ~ (proposal.pricing.lock_in_days or 20) ~ ' days from the date of this proposal.<br>Work does not need to be completed within the ' ~ (proposal.pricing.lock_in_days or 20) ~ '-day period.') | safe }}</div></div>
+    <div class="imp"><svg class="ic"><use href="#i-clock"/></svg><div><b>IMPORTANT:</b> {{ (proposal.pricing.important_note | e | replace('\n', '<br>') if proposal.pricing.important_note else ('These special “Lock-In” prices are valid when you schedule within ' ~ (proposal.pricing.lock_in_days or 20) ~ ' days from the date of this proposal.<br>Work does not need to be completed within the ' ~ (proposal.pricing.lock_in_days or 20) ~ '-day period.')) | safe }}</div></div>
   </div>
 
   <!-- Pressure washing -->
@@ -640,7 +654,7 @@ body{font-family:'Barlow','Arial Narrow',Arial,sans-serif;color:var(--ink);-webk
     <svg class="art"><use href="#art-wash"/></svg>
     {% endif %}
     <h5>{{ proposal.addon_2.title or "Pressure Washing Add-On" }}</h5>
-    <p>{{ proposal.addon_2.description or "Professional soft wash of roof tiles, exterior surfaces, walkways, and driveway to remove<br>dirt, mold, mildew, and algae." | safe }}</p>
+    <p>{{ (proposal.addon_2.description | e | replace('\n', '<br>') if proposal.addon_2.description else "Professional soft wash of roof tiles, exterior surfaces, walkways, and driveway to remove<br>dirt, mold, mildew, and algae.") | safe }}</p>
     <div class="pb"><small>Add-on Price</small><b>{{ proposal.addon_2.price_prefix or "" }}{{ proposal.addon_2.price | format_price }}</b></div>
   </div>
 

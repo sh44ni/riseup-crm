@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 import orjson
 
 from app.core.database import get_db
-from app.core.permissions import require_auth_user, has_permission
+from app.core.permissions import require_auth_user, has_permission, require_permission
 from app.core.redis import cache_delete
 
 router = APIRouter()
@@ -37,7 +37,7 @@ SERVICE_SLUG_MAP = {
 
 @router.get("/estimator")
 async def get_admin_estimator_config(
-    user: Dict[str, Any] = Depends(require_auth_user()),
+    user: Dict[str, Any] = Depends(require_permission("estimator_settings.view")),
     db: AsyncSession = Depends(get_db)
 ):
     # 1. Services with joined pricing rules
@@ -159,7 +159,7 @@ async def get_admin_estimator_config(
 @router.post("/estimator")
 async def update_admin_estimator_config(
     request: Request,
-    user: Dict[str, Any] = Depends(require_auth_user()),
+    user: Dict[str, Any] = Depends(require_permission("estimator_settings.edit")),
     db: AsyncSession = Depends(get_db)
 ):
     body = await request.json()
@@ -226,6 +226,143 @@ async def update_admin_estimator_config(
             """),
             {"val": json_str}
         )
+
+    action = body.get("action")
+    if action == "update_pricing":
+        sid = body.get("serviceId")
+        if not sid:
+            raise HTTPException(status_code=400, detail="Service ID is required")
+
+        await db.execute(
+            text("""
+                UPDATE estimator_pricing_rules
+                SET price_per_sqft_low = :low,
+                    price_per_sqft_high = :high,
+                    base_fee_low = :blow,
+                    base_fee_high = :bhigh,
+                    min_sqft = :mins,
+                    max_sqft = :maxs,
+                    apr_available = :apr,
+                    financing_apr = :fapr,
+                    financing_term_months = :term,
+                    updated_at = NOW(),
+                    updated_by = :by
+                WHERE service_id = :sid
+            """),
+            {
+                "low": float(body.get("pricePerSqftLow", 0)),
+                "high": float(body.get("pricePerSqftHigh", 0)),
+                "blow": float(body.get("baseFeeLow", 0)),
+                "bhigh": float(body.get("baseFeeHigh", 0)),
+                "mins": int(body.get("minSqft", 500)),
+                "maxs": int(body.get("maxSqft", 12000)),
+                "apr": bool(body.get("aprAvailable")),
+                "fapr": float(body.get("financingApr", 0)),
+                "term": int(body.get("financingTermMonths", 60)),
+                "by": user.get("name") or user.get("email") or "Staff",
+                "sid": int(sid)
+            }
+        )
+        await db.commit()
+        try:
+            await cache_delete("crm:dashboard:stats")
+            await cache_delete("estimator:config")
+        except Exception:
+            pass
+        return {"ok": True, "message": "Pricing rules updated successfully"}
+
+    elif action == "save_service":
+        sid = body.get("id")
+        name = body.get("name")
+        short_label = body.get("shortLabel")
+        icon_key = body.get("iconKey")
+        if not name or not short_label or not icon_key:
+            raise HTTPException(status_code=400, detail="Name, short label, and icon key are required")
+
+        if sid:
+            await db.execute(
+                text("""
+                    UPDATE estimator_services
+                    SET name = :name, short_label = :slabel, icon_key = :ikey, badge_label = :badge,
+                        sort_order = :sort, is_active = :act
+                    WHERE id = :id
+                """),
+                {
+                    "name": name, "slabel": short_label, "ikey": icon_key,
+                    "badge": body.get("badgeLabel"), "sort": int(body.get("sortOrder", 0)),
+                    "act": bool(body.get("isActive", True)), "id": int(sid)
+                }
+            )
+        else:
+            safe_slug = body.get("slug") or name.lower().replace(" ", "-")
+            res = await db.execute(
+                text("""
+                    INSERT INTO estimator_services (slug, name, short_label, icon_key, badge_label, sort_order, is_active)
+                    VALUES (:slug, :name, :slabel, :ikey, :badge, :sort, :act)
+                    RETURNING id
+                """),
+                {
+                    "slug": safe_slug, "name": name, "slabel": short_label, "ikey": icon_key,
+                    "badge": body.get("badgeLabel"), "sort": int(body.get("sortOrder", 10)),
+                    "act": bool(body.get("isActive", True))
+                }
+            )
+            new_id = res.scalar()
+            await db.execute(
+                text("""
+                    INSERT INTO estimator_pricing_rules (
+                        service_id, price_per_sqft_low, price_per_sqft_high, base_fee_low, base_fee_high,
+                        min_sqft, max_sqft, apr_available, financing_apr, financing_term_months, updated_by
+                    ) VALUES (:sid, 4.00, 6.50, 500, 1000, 800, 8000, true, 0, 60, :by)
+                """),
+                {"sid": new_id, "by": user.get("name") or user.get("email") or "Staff"}
+            )
+
+        await db.commit()
+        try:
+            await cache_delete("crm:dashboard:stats")
+            await cache_delete("estimator:config")
+        except Exception:
+            pass
+        return {"ok": True, "message": "Service saved successfully"}
+
+    elif action == "save_preset":
+        pid = body.get("id")
+        label = body.get("label")
+        sqft = body.get("sqftValue")
+        if not label or not sqft:
+            raise HTTPException(status_code=400, detail="Label and sqft value required")
+
+        if pid:
+            await db.execute(
+                text("UPDATE estimator_size_presets SET label = :lbl, sqft_value = :sqft, sort_order = :sort, service_id = :sid WHERE id = :id"),
+                {"lbl": label, "sqft": int(sqft), "sort": int(body.get("sortOrder", 0)), "sid": body.get("serviceId"), "id": int(pid)}
+            )
+        else:
+            await db.execute(
+                text("INSERT INTO estimator_size_presets (service_id, label, sqft_value, sort_order) VALUES (:sid, :lbl, :sqft, :sort)"),
+                {"sid": body.get("serviceId"), "lbl": label, "sqft": int(sqft), "sort": int(body.get("sortOrder", 0))}
+            )
+        await db.commit()
+        try:
+            await cache_delete("crm:dashboard:stats")
+            await cache_delete("estimator:config")
+        except Exception:
+            pass
+        return {"ok": True, "message": "Preset saved successfully"}
+
+    elif action == "delete_preset":
+        pid = body.get("id")
+        if not pid:
+            raise HTTPException(status_code=400, detail="Preset ID required")
+        await db.execute(text("DELETE FROM estimator_size_presets WHERE id = :id"), {"id": int(pid)})
+        await db.commit()
+        try:
+            await cache_delete("crm:dashboard:stats")
+            await cache_delete("estimator:config")
+        except Exception:
+            pass
+        return {"ok": True, "message": "Preset deleted successfully"}
 
     await db.commit()
 

@@ -936,9 +936,8 @@
         </div>
       </div>
 
-      <!-- Large Hero House Photo Banner (media_1789808978236.png) -->
-      <div class="cover-hero-wrapper">
-        <img src="{{ proposal.hero_photo_url }}" alt="Featured Property Residence" />
+      <div class="cover-hero-wrapper" style="overflow: hidden;">
+        <img src="{{ proposal.hero_photo_url }}" alt="Featured Property Residence" style="transform: translate({{ proposal.hero_photo_x or 0 }}%, {{ proposal.hero_photo_y or 0 }}%) scale({{ proposal.hero_photo_zoom or 1.0 }}); transform-origin: center center;" />
       </div>
 
       <!-- Large Bold Title Block -->
@@ -957,7 +956,17 @@
             </div>
             <div class="cover-spec-content">
               <span class="cover-spec-label">PROPERTY:</span>
-              <span class="cover-spec-val">{{ proposal.customer_address }}, {{ proposal.customer_city }}</span>
+              <span class="cover-spec-val">
+                {% if proposal.customer_address and proposal.customer_city %}
+                  {{ proposal.customer_address }}, {{ proposal.customer_city }}
+                {% elif proposal.customer_address %}
+                  {{ proposal.customer_address }}
+                {% elif proposal.customer_city %}
+                  {{ proposal.customer_city }}
+                {% else %}
+                  [Address Pending]
+                {% endif %}
+              </span>
             </div>
           </div>
 
@@ -967,7 +976,7 @@
             </div>
             <div class="cover-spec-content">
               <span class="cover-spec-label">PHONE:</span>
-              <span class="cover-spec-val">{{ proposal.customer_phone or '(760) 555-0199' }}</span>
+              <span class="cover-spec-val">{{ proposal.customer_phone or 'Phone not on file' }}</span>
             </div>
           </div>
 
@@ -977,7 +986,7 @@
             </div>
             <div class="cover-spec-content">
               <span class="cover-spec-label">EMAIL:</span>
-              <span class="cover-spec-val">{{ proposal.customer_email or 'client@example.com' }}</span>
+              <span class="cover-spec-val">{{ proposal.customer_email or 'Email not on file' }}</span>
             </div>
           </div>
         </div>
@@ -1140,8 +1149,8 @@
           </div>
         </div>
 
-        <div class="overview-photo-col">
-          <img src="{{ proposal.hero_photo_url }}" alt="Property Roof Overview" />
+        <div class="overview-photo-col" style="overflow: hidden;">
+          <img src="{{ proposal.page2_photo_url or proposal.hero_photo_url }}" alt="Property Roof Overview" style="transform: translate({{ proposal.page2_photo_x or proposal.hero_photo_x or 0 }}%, {{ proposal.page2_photo_y or proposal.hero_photo_y or 0 }}%) scale({{ proposal.page2_photo_zoom or proposal.hero_photo_zoom or 1.0 }}); transform-origin: center center;" />
         </div>
       </div>
 

@@ -3,6 +3,42 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone, timedelta, date as py_date
+from pydantic import BaseModel, Field
+
+class CreateTaskPayload(BaseModel):
+    title: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    category: Optional[str] = None
+    eventType: Optional[str] = None
+    assignedToUserId: Optional[int] = None
+    assignedTo: Optional[str] = None
+    dueAt: Optional[str] = None
+    date: Optional[str] = None
+    startTime: Optional[str] = None
+    endAt: Optional[str] = None
+    endTime: Optional[str] = None
+    entityId: Optional[int] = None
+    entityType: Optional[str] = None
+    priority: Optional[str] = None
+    workCategory: Optional[str] = None
+
+class UpdateTaskPayload(BaseModel):
+    id: Optional[str] = None
+    numericId: Optional[int] = None
+    completed: Optional[bool] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    priority: Optional[str] = None
+    category: Optional[str] = None
+    eventType: Optional[str] = None
+    dueAt: Optional[str] = None
+    date: Optional[str] = None
+    startTime: Optional[str] = None
+    endAt: Optional[str] = None
+    assignedToUserId: Optional[int] = None
+    assignedTo: Optional[str] = None
 
 from app.core.database import get_db
 from app.core.permissions import require_any_permission, has_any_permission
@@ -673,6 +709,15 @@ async def get_tasks(
         else:
             upcoming.append(t)
 
+
+    counts = {
+        "total": len(rows),
+        "overdue": len(overdue),
+        "today": len(today),
+        "upcoming": len(upcoming),
+        "completed": len(completed),
+    }
+
     return {
         "ok": True,
         "success": True,
@@ -684,13 +729,7 @@ async def get_tasks(
             "upcoming": upcoming,
             "completed": completed,
         },
-        "counts": {
-            "total": len(rows),
-            "overdue": len(overdue),
-            "today": len(today),
-            "upcoming": len(upcoming),
-            "completed": len(completed),
-        },
+        "counts": counts,
         "teamCount": int(c_row.team_count if c_row else 0),
         "personalCount": int(c_row.personal_count if c_row else 0),
     }
@@ -698,28 +737,26 @@ async def get_tasks(
 
 @router.post("/tasks")
 async def create_task(
-    payload: Dict[str, Any],
+    payload: CreateTaskPayload,
     user: Dict[str, Any] = Depends(require_any_permission(["field:view_calendar", "leads:edit", "jobs:change_stage", "leads:view"])),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Schedule a team operation or task with assignee, due date, start/end time, and optional CRM entity link.
     """
-    title = payload.get("title")
-    if not title or not str(title).strip():
-        raise HTTPException(status_code=400, detail="Title is required")
+    title = payload.title
 
-    category = payload.get("category") or payload.get("eventType") or "team_task"
+    category = payload.category or payload.eventType or "team_task"
     assigned_name = None
     assigned_user_id = None
 
-    if payload.get("assignedToUserId"):
-        assigned_user_id = int(payload["assignedToUserId"])
+    if payload.assignedToUserId:
+        assigned_user_id = payload.assignedToUserId
         u_res = await db.execute(text("SELECT name FROM users WHERE id = :id"), {"id": assigned_user_id})
         u_row = u_res.first()
-        assigned_name = u_row.name if u_row else payload.get("assignedTo", "Staff")
-    elif payload.get("assignedTo") and "unassigned" not in str(payload.get("assignedTo")).lower():
-        assigned_name = str(payload["assignedTo"]).strip()
+        assigned_name = u_row.name if u_row else (payload.assignedTo or "Staff")
+    elif payload.assignedTo and "unassigned" not in str(payload.assignedTo).lower():
+        assigned_name = str(payload.assignedTo).strip()
         u_res = await db.execute(text("SELECT id FROM users WHERE LOWER(name) = LOWER(:name)"), {"name": assigned_name})
         u_row = u_res.first()
         if u_row:
@@ -730,9 +767,9 @@ async def create_task(
 
     # Compute due_at and end_at timestamps
     due_at = None
-    if payload.get("dueAt"):
+    if payload.dueAt:
         try:
-            cleaned = str(payload["dueAt"]).replace("Z", "+00:00")
+            cleaned = str(payload.dueAt).replace("Z", "+00:00")
             due_at = datetime.fromisoformat(cleaned)
             if not due_at.tzinfo:
                 due_at = due_at.replace(tzinfo=timezone.utc)
@@ -740,26 +777,26 @@ async def create_task(
             due_at = None
 
     if not due_at:
-        date_str = payload.get("date") or datetime.now().strftime("%Y-%m-%d")
-        time_str = payload.get("startTime") or "09:00 AM"
+        date_str = payload.date or datetime.now().strftime("%Y-%m-%d")
+        time_str = payload.startTime or "09:00 AM"
         due_at = compose_datetime(date_str, time_str)
 
     end_at = None
-    if payload.get("endAt"):
+    if payload.endAt:
         try:
-            cleaned = str(payload["endAt"]).replace("Z", "+00:00")
+            cleaned = str(payload.endAt).replace("Z", "+00:00")
             end_at = datetime.fromisoformat(cleaned)
             if not end_at.tzinfo:
                 end_at = end_at.replace(tzinfo=timezone.utc)
         except Exception:
             end_at = None
 
-    if not end_at and payload.get("endTime"):
-        date_str = payload.get("date") or (due_at.strftime("%Y-%m-%d") if due_at else datetime.now().strftime("%Y-%m-%d"))
-        end_at = compose_datetime(date_str, payload["endTime"])
+    if not end_at and payload.endTime:
+        date_str = payload.date or (due_at.strftime("%Y-%m-%d") if due_at else datetime.now().strftime("%Y-%m-%d"))
+        end_at = compose_datetime(date_str, payload.endTime)
 
-    entity_id = int(payload["entityId"]) if payload.get("entityId") else None
-    entity_type = payload.get("entityType") if entity_id else None
+    entity_id = payload.entityId
+    entity_type = payload.entityType if entity_id else None
 
     resolved_client_id = None
     if entity_id:
@@ -787,7 +824,7 @@ async def create_task(
     """)
     res = await db.execute(stmt, {
         "title": str(title).strip(),
-        "desc": payload.get("description") or payload.get("notes"),
+        "desc": payload.description or payload.notes,
         "etype": entity_type,
         "eid": entity_id,
         "cid": resolved_client_id,
@@ -795,9 +832,9 @@ async def create_task(
         "uid": assigned_user_id,
         "due_at": due_at,
         "end_at": end_at,
-        "priority": payload.get("priority", "normal").lower(),
+        "priority": (payload.priority or "normal").lower(),
         "event_type": category,
-        "wcat": payload.get("workCategory", "Rise Up"),
+        "wcat": payload.workCategory or "Rise Up",
         "creator": user["id"],
     })
     new_task = dict(res.first()._mapping)
@@ -830,14 +867,14 @@ async def create_task(
 
 @router.patch("/tasks")
 async def update_task(
-    payload: Dict[str, Any],
+    payload: UpdateTaskPayload,
     user: Dict[str, Any] = Depends(require_any_permission(["field:view_calendar", "leads:edit", "jobs:change_stage", "leads:view"])),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Update a team operation or task (e.g. toggle completion, change assignee, reschedule).
     """
-    raw_id = payload.get("id") or payload.get("numericId")
+    raw_id = payload.id or payload.numericId
     if not raw_id:
         raise HTTPException(status_code=400, detail="Task ID is required")
 
@@ -847,75 +884,79 @@ async def update_task(
     except Exception:
         raise HTTPException(status_code=400, detail=f"Invalid task ID format: {raw_id}")
 
-    if "completed" in payload:
-        completed_at = datetime.now(timezone.utc) if payload["completed"] else None
+    if payload.completed is not None:
+        completed_at = datetime.now(timezone.utc) if payload.completed else None
         await db.execute(
             text("UPDATE tasks SET completed_at = :cat WHERE id = :id"),
             {"cat": completed_at, "id": task_id}
         )
         await db.commit()
-        return {"ok": True, "success": True, "completed": bool(payload["completed"])}
+        return {"ok": True, "success": True, "completed": payload.completed}
 
     updates = []
     params: Dict[str, Any] = {"id": task_id}
 
-    if "title" in payload:
-        params["title"] = str(payload["title"]).strip()
+    if payload.title is not None:
+        params["title"] = str(payload.title).strip()
         updates.append("title = :title")
 
-    if "description" in payload or "notes" in payload:
-        params["description"] = payload.get("description") or payload.get("notes")
+    if payload.description is not None or payload.notes is not None:
+        params["description"] = payload.description or payload.notes
         updates.append("description = :description")
 
-    if "priority" in payload:
-        params["priority"] = str(payload["priority"]).lower()
+    if payload.priority is not None:
+        params["priority"] = str(payload.priority).lower()
         updates.append("priority = :priority")
 
-    if "category" in payload or "eventType" in payload:
-        params["event_type"] = payload.get("category") or payload.get("eventType")
+    if payload.category is not None or payload.eventType is not None:
+        params["event_type"] = payload.category or payload.eventType
         updates.append("event_type = :event_type")
 
     # Due date / time updates
-    if "dueAt" in payload:
+    if payload.dueAt is not None:
         try:
-            cleaned = str(payload["dueAt"]).replace("Z", "+00:00")
+            cleaned = str(payload.dueAt).replace("Z", "+00:00")
             d = datetime.fromisoformat(cleaned)
             params["due_at"] = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
             updates.append("due_at = :due_at")
         except Exception:
             pass
-    elif "date" in payload or "startTime" in payload:
+    elif payload.date is not None or payload.startTime is not None:
         existing = await db.execute(text("SELECT due_at FROM tasks WHERE id = :id"), {"id": task_id})
         ex_row = existing.first()
         cur_date = ex_row.due_at.strftime("%Y-%m-%d") if ex_row and ex_row.due_at else datetime.now().strftime("%Y-%m-%d")
-        new_date = payload.get("date") or cur_date
-        new_time = payload.get("startTime") or "09:00 AM"
+        new_date = payload.date or cur_date
+        new_time = payload.startTime or "09:00 AM"
         composed = compose_datetime(new_date, new_time)
         if composed:
             params["due_at"] = composed
             updates.append("due_at = :due_at")
 
-    if "endAt" in payload:
+    if payload.endAt is not None:
         try:
-            cleaned = str(payload["endAt"]).replace("Z", "+00:00")
+            cleaned = str(payload.endAt).replace("Z", "+00:00")
             d = datetime.fromisoformat(cleaned)
             params["end_at"] = d if d.tzinfo else d.replace(tzinfo=timezone.utc)
             updates.append("end_at = :end_at")
         except Exception:
             pass
 
-    if "assignedToUserId" in payload:
-        uid = int(payload["assignedToUserId"]) if payload["assignedToUserId"] else None
+    if payload.assignedToUserId is not None:
+        uid = int(payload.assignedToUserId) if payload.assignedToUserId else None
         params["assigned_to_user_id"] = uid
         updates.append("assigned_to_user_id = :assigned_to_user_id")
 
         if uid:
             u_res = await db.execute(text("SELECT name FROM users WHERE id = :id"), {"id": uid})
             u_row = u_res.first()
-            params["assigned_to"] = u_row.name if u_row else payload.get("assignedTo", "Staff")
+            params["assigned_to"] = u_row.name if u_row else (payload.assignedTo or "Staff")
         else:
-            clean_name = str(payload.get("assignedTo")).strip() if payload.get("assignedTo") and "unassigned" not in str(payload.get("assignedTo")).lower() else None
+            clean_name = str(payload.assignedTo).strip() if payload.assignedTo and "unassigned" not in str(payload.assignedTo).lower() else None
             params["assigned_to"] = clean_name
+        updates.append("assigned_to = :assigned_to")
+    elif payload.assignedTo is not None:
+        clean_name = str(payload.assignedTo).strip() if "unassigned" not in str(payload.assignedTo).lower() else None
+        params["assigned_to"] = clean_name
         updates.append("assigned_to = :assigned_to")
 
     if updates:

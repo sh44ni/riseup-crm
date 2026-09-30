@@ -49,67 +49,19 @@ export interface HeroImageUploadResult {
   size_bytes: number;
 }
 
-import { API_ORIGIN } from '@/lib/api';
-
-// Configurable API base URL: defaults to local FastAPI port 8000
-const API_BASE_URL = API_ORIGIN;
-
-const API_TIMEOUT_MS = 3500;
-
-/**
- * Internal fetch with timeout & credentials/headers handling
- */
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
-  try {
-    const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_auth_token') || localStorage.getItem('access_token')) : null;
-    const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'X-Client-Platform': 'crm-web',
-      ...(options.headers as Record<string, string>),
-    };
-
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey;
-    }
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.warn(`[HeroBannerApi] Request to ${endpoint} returned HTTP ${response.status}`);
-      return null;
-    }
-
-    const json = await response.json();
-    return json?.data ?? json;
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    // Suppress network errors in development when backend is not actively running
-    if (err.name !== 'AbortError') {
-      console.debug(`[HeroBannerApi] Backend currently offline or unreachable at ${API_BASE_URL}`);
-    }
-    return null;
-  }
-}
+import { apiFetch, API_BASE } from '@/lib/api';
+import api from '@/lib/api';
 
 /**
  * 1. Fetch All Hero Banners (Global + Per-Page Overrides)
  */
 export async function fetchHeroBannersMap(): Promise<HeroBannerMapResponse | null> {
-  return apiRequest<HeroBannerMapResponse>('/api/admin/hero-banners');
+  try {
+    const res = await apiFetch<any>('/admin/hero-banners');
+    return res?.data ?? res;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -118,7 +70,12 @@ export async function fetchHeroBannersMap(): Promise<HeroBannerMapResponse | nul
 export async function fetchHeroBannerForPage(
   pageId: string
 ): Promise<HeroBannerBackendData | null> {
-  return apiRequest<HeroBannerBackendData>(`/api/admin/hero-banners/${pageId}`);
+  try {
+    const res = await apiFetch<any>(`/admin/hero-banners/${pageId}`);
+    return res?.data ?? res;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -128,23 +85,29 @@ export async function saveHeroBannerToBackend(
   pageId: string,
   payload: HeroBannerSavePayload
 ): Promise<HeroBannerBackendData | null> {
-  return apiRequest<HeroBannerBackendData>(`/api/admin/hero-banners/${pageId}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const res = await apiFetch<any>(`/admin/hero-banners/${pageId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return res?.data ?? res;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * 4. Reset Single Page Hero Banner to Global Defaults
  */
 export async function resetHeroBannerOnBackend(pageId: string): Promise<boolean> {
-  const res = await apiRequest<{ success: boolean }>(`/api/admin/hero-banners/${pageId}`, {
-    method: 'DELETE',
-  });
-  return res !== null;
+  try {
+    await apiFetch<any>(`/admin/hero-banners/${pageId}`, {
+      method: 'DELETE',
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -152,44 +115,23 @@ export async function resetHeroBannerOnBackend(pageId: string): Promise<boolean>
  * Returns the permanent CDN / public asset URL.
  */
 export async function uploadHeroImageFile(file: File): Promise<HeroImageUploadResult | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout for image uploads
-
   try {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_auth_token') || localStorage.getItem('access_token')) : null;
-    const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
-    const headers: Record<string, string> = {
-      'X-Client-Platform': 'crm-web',
-    };
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey;
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_BASE_URL}/api/admin/hero-banners/upload`, {
+    const headers = api.getAuthHeaders();
+    
+    // Note: No Content-Type for FormData
+    const response = await fetch(`${API_BASE}/admin/hero-banners/upload`, {
       method: 'POST',
       headers,
       body: formData,
-      signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.warn(`[HeroBannerApi] Upload failed with HTTP ${response.status}`);
-      return null;
-    }
-
+    if (!response.ok) return null;
     const json = await response.json();
     return json?.data ?? json;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.debug('[HeroBannerApi] Image upload server unavailable, using local client fallback.');
+  } catch {
     return null;
   }
 }
@@ -198,18 +140,10 @@ export async function uploadHeroImageFile(file: File): Promise<HeroImageUploadRe
  * 6. Quick Health Check to probe if FastAPI Backend is active
  */
 export async function checkBackendConnection(): Promise<boolean> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1200);
-
   try {
-    const response = await fetch(`${API_BASE_URL}/docs`, {
-      method: 'HEAD',
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response.ok || response.status === 200 || response.status === 404;
+    await apiFetch('/docs', { method: 'HEAD', timeoutMs: 1200 });
+    return true;
   } catch {
-    clearTimeout(timeoutId);
     return false;
   }
 }

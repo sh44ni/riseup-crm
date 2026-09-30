@@ -40,7 +40,7 @@ export function EstimateStepScope({
     .reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
   return (
-    <div className="light-glass-panel rounded-3xl p-6 md:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 space-y-6">
+    <div className="light-glass-panel rounded-3xl p-6 md:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 dark:border-white/10 space-y-6">
       {/* Title */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">

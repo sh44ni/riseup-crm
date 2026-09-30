@@ -385,7 +385,7 @@ export function MobileNav({ stats }: { stats?: ReviewStats }) {
               )}
             >
               <div className="flex items-center gap-2">
-                <span>Customer Reviews</span>
+                <span>Client Reviews</span>
                 <span className="flex items-center gap-0.5 text-[10px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 rounded">
                   <Icon name="star" className="w-2.5 h-2.5 text-amber-400 fill-amber-400" /> {stats?.averageRating ? stats.averageRating.toFixed(1) : '5.0'}★
                 </span>

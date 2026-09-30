@@ -39,7 +39,7 @@ services:
 
   # ── MinIO S3-Compatible Object Storage ─────────────────────────────────────
   minio:
-    image: minio/minio:RELEASE.2024-02-26T09-38-56Z
+    image: minio/minio:latest
     container_name: riseup_minio
     restart: unless-stopped
     ports:
@@ -59,7 +59,7 @@ services:
 
   # Auto-provision MinIO Buckets
   minio-init:
-    image: minio/mc:RELEASE.2024-02-26T11-00-54Z
+    image: minio/mc:latest
     container_name: riseup_minio_init
     depends_on:
       minio:
@@ -86,15 +86,16 @@ services:
     env_file:
       - .env
     environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@postgres:5432/riseup_db
       - REDIS_URL=redis://redis:6379/0
-      - S3_ENDPOINT_URL=http://minio:9000
+    volumes:
+      - ./app:/app/app
+      - ./static:/app/static
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
 
   # ── ARQ Background Worker (Async Review & Media Processing) ───────────────
   worker:
@@ -107,8 +108,12 @@ services:
     env_file:
       - .env
     environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@postgres:5432/riseup_db
       - REDIS_URL=redis://redis:6379/0
       - S3_ENDPOINT_URL=http://minio:9000
+    volumes:
+      - ./app:/app/app
+      - ./static:/app/static
     depends_on:
       postgres:
         condition: service_healthy

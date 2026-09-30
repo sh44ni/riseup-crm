@@ -4,11 +4,100 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import math
+import asyncio
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.middlewares.auth import get_current_user
-from app.core.permissions import require_permission
-from app.services.sync import find_or_create_client, normalize_phone, recalculate_client_stats, auto_heal_dataflow_sync
+from app.core.permissions import require_permission, build_scope_filter, check_resource_access, AuthUser
+from app.services.sync import find_or_create_client, normalize_phone, recalculate_client_stats, auto_heal_dataflow_sync, parse_address_components
+from app.schemas.clients import CreateClientRequest, CreateExistingClientRequest, ClientResponse
+
+class CreateClientPayload(BaseModel):
+    fullName: Optional[str] = None
+    full_name: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    secondaryPhone: Optional[str] = None
+    secondary_phone: Optional[str] = None
+    sourceType: Optional[str] = None
+    source_type: Optional[str] = None
+    acquiredByUserId: Optional[int] = None
+    acquired_by_user_id: Optional[int] = None
+    leadSourceDetail: Optional[str] = None
+    lead_source_detail: Optional[str] = None
+    assignedToUserId: Optional[int] = None
+    assigned_to_user_id: Optional[int] = None
+    roofSqf: Optional[int] = None
+    roof_sqf: Optional[int] = None
+    roofAge: Optional[int] = None
+    roof_age: Optional[int] = None
+    stories: Optional[Any] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    zip: Optional[str] = None
+    zip_code: Optional[str] = None
+    propertyType: Optional[str] = None
+    property_type: Optional[str] = None
+    roofType: Optional[str] = None
+    roof_type: Optional[str] = None
+    hoa: Optional[bool] = None
+    notes: Optional[str] = None
+
+class UpdateClientPayload(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    secondary_phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    zip: Optional[str] = None
+    property_type: Optional[str] = None
+    roof_type: Optional[str] = None
+    roof_sqf: Optional[int] = None
+    roof_age: Optional[int] = None
+    stories: Optional[Any] = None
+    hoa: Optional[bool] = None
+    status: Optional[str] = None
+    client_category: Optional[str] = None
+    lost_reason: Optional[str] = None
+    tags: Optional[List[str]] = None
+    notes: Optional[str] = None
+    assigned_to_user_id: Optional[int] = None
+    source_type: Optional[str] = None
+    acquired_by_user_id: Optional[int] = None
+    lead_source_detail: Optional[str] = None
+    client_since: Optional[str] = None
+
+class MarkClientLostPayload(BaseModel):
+    lost_reason: Optional[str] = None
+    lostReason: Optional[str] = None
+    lost_notes: Optional[str] = None
+    lostNotes: Optional[str] = None
+
+class AddClientActivityPayload(BaseModel):
+    title: str = Field(..., min_length=1)
+    activityType: Optional[str] = "note"
+    description: Optional[str] = None
+    callDuration: Optional[Any] = None
+
+class CreateClientTaskPayload(BaseModel):
+    title: str = Field(..., min_length=1)
+    dueAt: Optional[str] = None
+    dueDate: Optional[str] = None
+    priority: Optional[str] = "normal"
+    description: Optional[str] = ""
+    assignedToUserId: Optional[int] = None
+    assignedTo: Optional[str] = None
+
+class AddClientDocumentPayload(BaseModel):
+    name: Optional[str] = "Document"
+    fileUrl: Optional[str] = None
+    url: Optional[str] = None
+    fileType: Optional[str] = "document"
+    fileSize: Optional[Any] = None
+    file_size: Optional[Any] = None
 
 router = APIRouter()
 
@@ -21,6 +110,7 @@ async def get_clients(
     tag: Optional[str] = None,
     sort: Optional[str] = "recent",
     page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=500),
     sync: bool = False,
     user: Dict[str, Any] = Depends(require_permission("clients:view")),
     db: AsyncSession = Depends(get_db)
@@ -31,11 +121,33 @@ async def get_clients(
         except Exception as sync_err:
             pass
 
-    limit = 20
-    offset = (page - 1) * limit
+    page_val = page if isinstance(page, int) else 1
+    limit_val = limit if isinstance(limit, int) else 100
+    offset = (page_val - 1) * limit_val
 
     conditions: List[str] = []
     params: Dict[str, Any] = {}
+
+    # Enforce Client Data Scope
+    scope = build_scope_filter(
+        user=user,
+        permission="leads.view",
+        creator_col="c.acquired_by_user_id",
+        assigned_col="c.acquired_by_user_id",
+        param_prefix="client_scope_"
+    )
+    if not scope["allowed"]:
+        return {
+            "clients": [],
+            "total": 0,
+            "page": page,
+            "limit": limit,
+            "totalPages": 0,
+            "counts": {"all": 0, "lead": 0, "new_client": 0, "existing_client": 0, "lost_lead": 0}
+        }
+    if scope["clause"] != "1=1":
+        conditions.append(scope["clause"])
+        params.update(scope["params"])
 
     if category and category != "all":
         target_cat = category
@@ -47,13 +159,11 @@ async def get_clients(
         params["target_cat"] = target_cat
         conditions.append("c.client_category = :target_cat")
     elif status and status != "all":
-        if status == "lost":
-            conditions.append("(c.client_category = 'lost_lead' OR c.status = 'lost')")
+        if status in ("lost", "closed_lost"):
+            conditions.append("(c.client_category = 'lost_lead' OR c.status IN ('lost', 'closed_lost'))")
         else:
             params["status"] = status
             conditions.append("c.status = :status")
-    else:
-        conditions.append("(c.client_category IS NULL OR c.client_category != 'lost_lead')")
 
     if tag and tag != "all":
         params["tag"] = tag
@@ -120,19 +230,24 @@ async def get_clients(
     """)
 
     count_query = text(f"SELECT COUNT(*) as count FROM clients c {where_clause}")
-    summary_query = text("""
+    summary_conditions = []
+    if scope["clause"] != "1=1":
+        summary_conditions.append(scope["clause"])
+    summary_where = f"WHERE {' AND '.join(summary_conditions)}" if summary_conditions else ""
+    summary_query = text(f"""
         SELECT 
-            COUNT(CASE WHEN client_category != 'lost_lead' OR client_category IS NULL THEN 1 END) as total_clients,
-            COUNT(CASE WHEN client_category = 'existing_client' OR status IN ('active_job', 'completed', 'repeat') THEN 1 END) as existing_clients_count,
-            COUNT(CASE WHEN client_category = 'new_client' OR (client_category != 'existing_client' AND client_category != 'lost_lead' AND status = 'opportunity') THEN 1 END) as new_clients_count,
-            COUNT(CASE WHEN client_category = 'lead' OR (client_category IS NULL AND status = 'lead') THEN 1 END) as leads_count,
-            COUNT(CASE WHEN client_category = 'lost_lead' OR (client_category != 'existing_client' AND status = 'lost') THEN 1 END) as lost_leads_count,
-            COUNT(CASE WHEN status = 'active_job' THEN 1 END) as active_jobs,
-            COALESCE(SUM(CASE WHEN client_category != 'lost_lead' THEN total_revenue ELSE 0 END), 0) as total_ltv
-        FROM clients
+            COUNT(CASE WHEN c.client_category != 'lost_lead' OR c.client_category IS NULL THEN 1 END) as total_clients,
+            COUNT(CASE WHEN c.client_category = 'existing_client' OR c.status IN ('active_job', 'completed', 'repeat') THEN 1 END) as existing_clients_count,
+            COUNT(CASE WHEN c.client_category = 'new_client' OR (c.client_category != 'existing_client' AND c.client_category != 'lost_lead' AND c.status = 'opportunity') THEN 1 END) as new_clients_count,
+            COUNT(CASE WHEN c.client_category = 'lead' OR (c.client_category IS NULL AND c.status = 'lead') THEN 1 END) as leads_count,
+            COUNT(CASE WHEN c.client_category = 'lost_lead' OR c.status IN ('lost', 'closed_lost') THEN 1 END) as lost_leads_count,
+            COUNT(CASE WHEN c.status = 'active_job' THEN 1 END) as active_jobs,
+            COALESCE(SUM(CASE WHEN c.client_category != 'lost_lead' THEN c.total_revenue ELSE 0 END), 0) as total_ltv
+        FROM clients c
+        {summary_where}
     """)
 
-    params["limit"] = limit
+    params["limit"] = limit_val
     params["offset"] = offset
 
     clients_res = await db.execute(clients_query, params)
@@ -141,7 +256,7 @@ async def get_clients(
     count_res = await db.execute(count_query, params)
     total = count_res.scalar() or 0
 
-    summary_res = await db.execute(summary_query)
+    summary_res = await db.execute(summary_query, params)
     s_row = summary_res.first()
 
     summary = {
@@ -170,53 +285,221 @@ async def get_clients(
         "ok": True,
         "clients": enriched,
         "total": total,
-        "page": page,
-        "limit": limit,
-        "totalPages": math.ceil(total / limit) if limit else 1,
+        "page": page_val,
+        "limit": limit_val,
+        "totalPages": math.ceil(total / limit_val) if limit_val else 1,
         "summary": summary,
     }
 
+STAGE_LABELS: Dict[str, str] = {
+    "cold_lead": "Cold Lead",
+    "new_leads": "Cold Lead",
+    "initial_call": "Contacted",
+    "contacted": "Contacted",
+    "estimate_scheduled": "Estimate Scheduled",
+    "inspection_scheduled": "Estimate Scheduled",
+    "est_scheduled": "Estimate Scheduled",
+    "inspection_completed": "Inspection Completed",
+    "estimate_building": "Drafting Estimate",
+    "estimate_sent": "Estimate Sent",
+    "est_sent": "Estimate Sent",
+    "follow_up": "Follow-Up",
+    "contract_sent": "Contract Sent",
+    "contract_signed": "Contract Signed",
+    "active_jobs": "Active Job",
+    "job_completed": "Job Completed",
+    "completed": "Lifetime Warrantied",
+    "closed_won": "Closed Won",
+}
+
+async def check_contact_conflict(
+    db: AsyncSession,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    exclude_client_id: Optional[int] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Checks whether a client already exists with the given email or phone number.
+    Returns None if no conflict, or a dict with details:
+      {
+        "field": "email" | "phone",
+        "client": {"id": int, "full_name": str, "email": str, "phone": str, "status": str},
+        "message": str
+      }
+    """
+    clean_email = email.strip().lower() if email and str(email).strip() else None
+    norm_phone = normalize_phone(phone) if phone and str(phone).strip() else None
+
+    # 1. Check Email
+    if clean_email:
+        email_query = """
+            SELECT id, full_name, email, phone, status
+            FROM clients
+            WHERE LOWER(email) = :email
+        """
+        params: Dict[str, Any] = {"email": clean_email}
+        if exclude_client_id:
+            email_query += " AND id != :exc_id"
+            params["exc_id"] = exclude_client_id
+        email_query += " ORDER BY id ASC LIMIT 1"
+        row = (await db.execute(text(email_query), params)).first()
+        if row:
+            return {
+                "field": "email",
+                "client": {
+                    "id": row[0],
+                    "full_name": row[1],
+                    "email": row[2],
+                    "phone": row[3],
+                    "status": row[4],
+                },
+                "message": f"A client with this email already exists: '{row[1]}' (Client #{row[0]}). Please use a unique email or edit the existing client profile."
+            }
+
+    # 2. Check Phone
+    if norm_phone:
+        phone_query = """
+            SELECT id, full_name, email, phone, status
+            FROM clients
+            WHERE (
+                phone_normalized = :norm
+                OR (phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10) = :norm)
+                OR (secondary_phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(secondary_phone, '\\D', '', 'g'), 10) = :norm)
+            )
+        """
+        params = {"norm": norm_phone}
+        if exclude_client_id:
+            phone_query += " AND id != :exc_id"
+            params["exc_id"] = exclude_client_id
+        phone_query += " ORDER BY id ASC LIMIT 1"
+        row = (await db.execute(text(phone_query), params)).first()
+        if row:
+            return {
+                "field": "phone",
+                "client": {
+                    "id": row[0],
+                    "full_name": row[1],
+                    "email": row[2],
+                    "phone": row[3],
+                    "status": row[4],
+                },
+                "message": f"A client with this phone number already exists: '{row[1]}' (Client #{row[0]}). Please use a unique phone number or edit the existing client profile."
+            }
+
+    return None
+
+
+@router.get("/clients/check-contact")
+@router.get("/clients/check-email")
+async def check_client_contact(
+    email: Optional[str] = Query(None),
+    phone: Optional[str] = Query(None),
+    exclude_client_id: Optional[int] = Query(None),
+    user: Dict[str, Any] = Depends(require_permission("clients:view")),
+    db: AsyncSession = Depends(get_db)
+):
+    conflict = await check_contact_conflict(
+        db, email=email, phone=phone, exclude_client_id=exclude_client_id
+    )
+    if conflict:
+        return {
+            "exists": True,
+            "field": conflict["field"],
+            "conflict_field": conflict["field"],
+            "client": conflict["client"],
+            "message": conflict["message"]
+        }
+    return {
+        "exists": False,
+        "field": None,
+        "conflict_field": None,
+        "client": None,
+        "message": None
+    }
+
+
 @router.post("/clients")
 async def create_client(
-    payload: Dict[str, Any],
+    payload: CreateClientPayload,
     user: Dict[str, Any] = Depends(require_permission("clients:create")),
     db: AsyncSession = Depends(get_db)
 ):
-    full_name = payload.get("fullName")
-    phone = payload.get("phone")
-    email = payload.get("email")
+    payload_dict = payload.model_dump(exclude_unset=True)
+    full_name = (payload_dict.get("fullName") or payload_dict.get("full_name") or payload_dict.get("name") or "").strip()
+    phone = payload_dict.get("phone")
+    email = payload_dict.get("email")
 
     if not full_name or (not phone and not email):
         raise HTTPException(status_code=400, detail="Client name and at least one contact method (phone or email) are required")
 
-    source_type = "team_member" if payload.get("sourceType") == "team_member" else "website"
+    # Prevent duplicate email or phone
+    conflict = await check_contact_conflict(db, email=email, phone=phone)
+    sec_phone = payload_dict.get("secondaryPhone") or payload_dict.get("secondary_phone")
+    if not conflict and sec_phone:
+        conflict = await check_contact_conflict(db, phone=sec_phone)
+    if conflict:
+        raise HTTPException(status_code=400, detail=conflict["message"])
+
+    clean_email = email.strip().lower() if email and str(email).strip() else None
+    source_type = "team_member" if payload_dict.get("sourceType") == "team_member" or payload_dict.get("source_type") == "team_member" else "website"
     acquired_by = None
     if source_type == "team_member":
-        acquired_by = int(payload["acquiredByUserId"]) if payload.get("acquiredByUserId") else user["id"]
-    source_detail = payload.get("leadSourceDetail") or ("Team Member Attribution" if source_type == "team_member" else "Manual Office Inbound")
+        acq_val = payload_dict.get("acquiredByUserId") or payload_dict.get("acquired_by_user_id")
+        acquired_by = int(acq_val) if acq_val else user["id"]
+    source_detail = payload_dict.get("leadSourceDetail") or payload_dict.get("lead_source_detail") or ("Team Member Attribution" if source_type == "team_member" else "Manual Office Inbound")
 
-    client = await find_or_create_client(
-        db=db,
-        full_name=full_name,
-        phone=phone,
-        email=email,
-        secondary_phone=payload.get("secondaryPhone"),
-        address=payload.get("address"),
-        city=payload.get("city"),
-        zip_code=payload.get("zip"),
-        property_type=payload.get("propertyType"),
-        roof_type=payload.get("roofType"),
-        roof_sqf=int(payload["roofSqf"]) if payload.get("roofSqf") else None,
-        roof_age=int(payload["roofAge"]) if payload.get("roofAge") else None,
-        stories=int(payload["stories"]) if payload.get("stories") else 1,
-        hoa=bool(payload.get("hoa")),
-        lead_source="admin_manual",
-        notes=payload.get("notes"),
-        assigned_to_user_id=int(payload["assignedToUserId"]) if payload.get("assignedToUserId") else None,
-        source_type=source_type,
-        acquired_by_user_id=acquired_by,
-        lead_source_detail=source_detail
-    )
+    asgn_val = payload_dict.get("assignedToUserId") or payload_dict.get("assigned_to_user_id")
+    sqf_val = payload_dict.get("roofSqf") or payload_dict.get("roof_sqf")
+    age_val = payload_dict.get("roofAge") or payload_dict.get("roof_age")
+    stories_val = payload_dict.get("stories") or 1
+    stories_int = int(stories_val) if str(stories_val).isdigit() else 1
+
+    parsed_addr = parse_address_components(payload_dict.get("address"), payload_dict.get("city"), payload_dict.get("zip") or payload_dict.get("zip_code"))
+    clean_address = parsed_addr["address"]
+    clean_city = parsed_addr["city"] or payload_dict.get("city") or "Oceanside"
+    clean_zip = parsed_addr["zip"] or payload_dict.get("zip") or payload_dict.get("zip_code") or "92054"
+    norm_phone = normalize_phone(phone)
+
+    insert_sql = text("""
+        INSERT INTO clients (
+            full_name, phone, phone_normalized, secondary_phone, email,
+            address, city, zip, property_type, roof_type, roof_sqf, roof_age,
+            stories, hoa, status, client_category, tags, total_revenue,
+            total_jobs_count, notes, assigned_to_user_id, source_type,
+            acquired_by_user_id, lead_source_detail, client_since,
+            created_at, updated_at
+        ) VALUES (
+            :name, :phone, :norm_phone, :sec_phone, :email,
+            :addr, :city, :zip, :property_type, :roof_type, :sqf, :roof_age,
+            :stories, :hoa, 'lead', 'new_client', '{"New Client"}', 0.00,
+            0, :notes, :asgn_id, :source_type,
+            :acq_id, :src_detail, NOW(),
+            NOW(), NOW()
+        ) RETURNING id
+    """)
+
+    res = await db.execute(insert_sql, {
+        "name": full_name,
+        "phone": phone,
+        "norm_phone": norm_phone,
+        "sec_phone": payload_dict.get("secondaryPhone") or payload_dict.get("secondary_phone"),
+        "email": clean_email,
+        "addr": clean_address,
+        "city": clean_city,
+        "zip": clean_zip,
+        "property_type": payload_dict.get("propertyType") or payload_dict.get("property_type") or "Single Family",
+        "roof_type": payload_dict.get("roofType") or payload_dict.get("roof_type"),
+        "sqf": int(sqf_val) if sqf_val else None,
+        "roof_age": int(age_val) if age_val else None,
+        "stories": stories_int,
+        "hoa": bool(payload_dict.get("hoa")),
+        "notes": payload_dict.get("notes"),
+        "asgn_id": int(asgn_val) if asgn_val else None,
+        "source_type": source_type,
+        "acq_id": acquired_by,
+        "src_detail": source_detail
+    })
+    client_id = res.scalar_one()
 
     try:
         await db.execute(
@@ -224,13 +507,297 @@ async def create_client(
                 INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by)
                 VALUES ('client', :cid, :cid, 'system', 'Client Profile Created', 'Manual client profile setup by staff', :performer)
             """),
-            {"cid": client.id, "performer": user.get("name") or "Staff"}
+            {"cid": client_id, "performer": user.get("name") or "Staff"}
         )
         await db.commit()
     except Exception:
         pass
 
-    return {"ok": True, "client": {"id": client.id, "full_name": client.full_name}}
+    return {"ok": True, "client": {"id": client_id, "full_name": full_name}}
+
+
+@router.post("/clients/existing")
+async def create_existing_client(
+    payload: CreateExistingClientRequest,
+    user: Dict[str, Any] = Depends(require_permission("clients:create")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Onboard an existing homeowner at any stage of the pipeline with full
+    property/roof specs, historical context, contract value, and staff attribution.
+    Atomically creates and syncs:
+      1. 'clients' row (client_category='existing_client', status matched to stage)
+      2. 'leads' row (sales pipeline card at target stage)
+      3. 'jobs' row (if in production or completed lifetime warranty)
+      4. 'activities' entry documenting who added the homeowner and the initial stage
+    """
+    if not payload.full_name or len(payload.full_name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Homeowner full name is required (at least 2 characters)")
+    if not payload.phone and not payload.email:
+        raise HTTPException(status_code=400, detail="At least one contact method (phone or email) are required")
+
+    # 1. Prevent duplicate email or phone number across existing clients
+    conflict = await check_contact_conflict(db, email=payload.email, phone=payload.phone)
+    if not conflict and payload.secondary_phone:
+        conflict = await check_contact_conflict(db, phone=payload.secondary_phone)
+    if conflict:
+        raise HTTPException(status_code=400, detail=conflict["message"])
+
+    # 2. Address & Phone Sanitization
+    parsed_addr = parse_address_components(payload.address, payload.city, payload.zip)
+    clean_address = parsed_addr["address"]
+    clean_city = parsed_addr["city"] or payload.city or "Oceanside"
+    clean_zip = parsed_addr["zip"] or payload.zip or "92054"
+    clean_email = payload.email.strip().lower() if payload.email and payload.email.strip() else None
+    norm_phone = normalize_phone(payload.phone)
+
+    # 2. Staff Attribution & Assignment
+    staff_id = user["id"]
+    staff_name = user.get("name") or "Staff"
+    roles_list = user.get("roles", [])
+    if roles_list and isinstance(roles_list, list):
+        staff_role = ", ".join([r.get("name", "Staff") if isinstance(r, dict) else str(r) for r in roles_list])
+    else:
+        staff_role = user.get("role") or "Staff"
+
+    assigned_rep_id = payload.assigned_to_user_id or staff_id
+    assigned_name = staff_name
+    if payload.assigned_to_user_id and payload.assigned_to_user_id != staff_id:
+        rep_row = (await db.execute(text("SELECT name FROM users WHERE id = :uid"), {"uid": payload.assigned_to_user_id})).first()
+        if rep_row:
+            assigned_name = rep_row[0]
+
+    lead_source_detail = payload.lead_source_detail or f"Staff Onboarding by {staff_name} ({staff_role})"
+
+    # 3. Stage Resolution
+    target_stage = (payload.pipeline_stage or "active_jobs").strip().lower()
+    stage_label = STAGE_LABELS.get(target_stage, target_stage.replace('_', ' ').title())
+
+    is_active_job = target_stage == "active_jobs"
+    is_completed = target_stage in ("completed", "closed_won", "job_completed")
+    is_production = is_active_job or is_completed
+
+    if is_active_job:
+        client_status = "active_job"
+    elif is_completed:
+        client_status = "completed"
+    else:
+        client_status = "opportunity"
+
+    contract_val = float(payload.contract_value or 0.0)
+    total_rev = contract_val if (is_completed or is_active_job) else 0.0
+    jobs_cnt = 1 if is_production else 0
+
+    stories_int = int(payload.stories) if str(payload.stories).isdigit() else 1
+
+    client_since_dt = None
+    if payload.client_since:
+        if isinstance(payload.client_since, datetime):
+            client_since_dt = payload.client_since
+        else:
+            try:
+                client_since_dt = datetime.fromisoformat(str(payload.client_since).replace("Z", "+00:00"))
+            except Exception:
+                client_since_dt = None
+
+    client_tags = ["Existing Client"]
+    if is_active_job:
+        client_tags.append("Active Project")
+    elif is_completed:
+        client_tags.append("Completed Project")
+
+    # 4. Insert Brand New Independent Client Record (never overwrite existing clients)
+    insert_client_stmt = text("""
+        INSERT INTO clients (
+            full_name, phone, phone_normalized, secondary_phone, email,
+            address, city, zip, property_type, roof_type, roof_sqf, roof_age,
+            stories, hoa, status, client_category, tags, total_revenue,
+            total_jobs_count, notes, assigned_to_user_id, source_type,
+            acquired_by_user_id, lead_source_detail, client_since,
+            created_at, updated_at
+        ) VALUES (
+            :name, :phone, :norm_phone, :sec_phone, :email,
+            :addr, :city, :zip, :property_type, :roof_type, :sqf, :roof_age,
+            :stories, :hoa, :status, 'existing_client', :tags, :rev,
+            :jobs_cnt, :notes, :asgn_id, 'team_member',
+            :acq_id, :src_detail, COALESCE(:client_since, NOW()),
+            NOW(), NOW()
+        ) RETURNING id
+    """)
+
+    res = await db.execute(insert_client_stmt, {
+        "name": payload.full_name.strip(),
+        "phone": payload.phone,
+        "norm_phone": norm_phone,
+        "sec_phone": payload.secondary_phone,
+        "email": clean_email,
+        "addr": clean_address,
+        "city": clean_city,
+        "zip": clean_zip,
+        "property_type": payload.property_type or "Single Family",
+        "roof_type": payload.roof_type,
+        "sqf": payload.roof_sqf,
+        "roof_age": payload.roof_age,
+        "stories": stories_int,
+        "hoa": bool(payload.hoa),
+        "status": client_status,
+        "tags": client_tags,
+        "rev": total_rev,
+        "jobs_cnt": jobs_cnt,
+        "acq_id": staff_id,
+        "asgn_id": assigned_rep_id,
+        "src_detail": lead_source_detail,
+        "client_since": client_since_dt,
+        "notes": payload.notes,
+    })
+    client_id = res.scalar_one()
+
+    # 5. Staging in Leads Table (Sales Pipeline Sync)
+    if is_production or target_stage == "contract_signed":
+        lead_status = "won"
+    elif target_stage in ("cold_lead", "new_leads"):
+        lead_status = "new"
+    else:
+        lead_status = "contacted"
+
+    lead_pipeline_stage = "closed_won" if target_stage == "completed" else target_stage
+
+    lead_stmt = text("""
+        INSERT INTO leads (
+            client_id, form_type, full_name, phone, email, address, city, zip,
+            service_type, notes, status, priority, pipeline_stage,
+            lead_source, source_type, lead_source_detail,
+            roof_sqf, roof_type, stories,
+            assigned_to_user_id, assigned_to,
+            created_by_user_id, created_by, created_by_role_snapshot,
+            estimated_value, created_at, updated_at
+        ) VALUES (
+            :cid, 'existing_homeowner', :name, :phone, :email, :addr, :city, :zip,
+            :svc, :notes, :status, 'cool', :stage,
+            'existing_client', 'team_member', :src_detail,
+            :sqf, :roof_type, :stories,
+            :asgn_uid, :asgn_name,
+            :creator_uid, :creator_uid, :creator_role,
+            :val, NOW(), NOW()
+        ) RETURNING id
+    """)
+    lead_res = await db.execute(lead_stmt, {
+        "cid": client_id,
+        "name": payload.full_name,
+        "phone": payload.phone,
+        "email": payload.email,
+        "addr": clean_address,
+        "city": clean_city,
+        "zip": clean_zip,
+        "svc": payload.service_type or "Roof Replacement",
+        "notes": payload.notes,
+        "status": lead_status,
+        "stage": lead_pipeline_stage,
+        "src_detail": lead_source_detail,
+        "sqf": payload.roof_sqf,
+        "roof_type": payload.roof_type,
+        "stories": stories_int,
+        "asgn_uid": assigned_rep_id,
+        "asgn_name": assigned_name,
+        "creator_uid": staff_id,
+        "creator_role": staff_role,
+        "val": contract_val
+    })
+    lead_id = lead_res.scalar()
+
+    # 6. Production / Completed Job Creation
+    created_job_id = None
+    created_job_num = None
+    if is_production:
+        year = datetime.now(timezone.utc).year
+        count_res = await db.execute(text("SELECT COUNT(*) FROM jobs"))
+        seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
+        job_number = f"JOB-{year}-{seq}"
+        job_status = "completed" if is_completed else "in_progress"
+
+        job_stmt = text("""
+            INSERT INTO jobs (
+                lead_id, client_id, job_number, status, stage, customer_name, customer_phone, customer_email,
+                address, city, zip, service_type, contract_value, notes,
+                assigned_to, assigned_to_user_id, created_by, created_by_role_snapshot,
+                created_at, updated_at
+            ) VALUES (
+                :lid, :cid, :job_num, :status, :stage, :name, :phone, :email,
+                :addr, :city, :zip, :svc, :val, :notes,
+                :asgn_name, :asgn_uid, :creator_uid, :creator_role,
+                NOW(), NOW()
+            ) RETURNING id, job_number
+        """)
+        job_res = await db.execute(job_stmt, {
+            "lid": lead_id,
+            "cid": client_id,
+            "job_num": job_number,
+            "status": job_status,
+            "stage": target_stage,
+            "name": payload.full_name,
+            "phone": payload.phone,
+            "email": payload.email,
+            "addr": clean_address,
+            "city": clean_city,
+            "zip": clean_zip,
+            "svc": payload.service_type or "Roof Replacement",
+            "val": contract_val,
+            "notes": payload.notes,
+            "asgn_name": assigned_name,
+            "asgn_uid": assigned_rep_id,
+            "creator_uid": staff_id,
+            "creator_role": staff_role
+        })
+        job_row = job_res.first()
+        if job_row:
+            created_job_id = job_row[0]
+            created_job_num = job_row[1]
+
+    # 7. Activity Audit Trail Entry
+    val_note = f" • Value: ${contract_val:,.2f}" if contract_val > 0 else ""
+    await db.execute(text("""
+        INSERT INTO activities (
+            entity_type, entity_id, client_id, activity_type,
+            title, description, performed_by, user_id, user_name
+        ) VALUES (
+            'client', :cid, :cid, 'system',
+            :title, :desc, :performer, :uid, :uname
+        )
+    """), {
+        "cid": client_id,
+        "title": f"Existing Homeowner Added ({stage_label})",
+        "desc": f"Onboarded by {staff_name} ({staff_role}) at '{stage_label}' stage{val_note}. {payload.notes or ''}".strip(),
+        "performer": staff_name,
+        "uid": staff_id,
+        "uname": staff_name
+    })
+
+    # 8. Recalculate Client Stats and Commit Transaction
+    try:
+        await recalculate_client_stats(db, client_id)
+        await db.commit()
+    except Exception:
+        await db.commit()
+
+    return {
+        "ok": True,
+        "client": {
+            "id": client_id,
+            "full_name": payload.full_name,
+            "phone": payload.phone,
+            "email": payload.email,
+            "address": clean_address,
+            "city": clean_city,
+            "zip": clean_zip,
+            "status": client_status,
+            "client_category": "existing_client",
+            "acquired_by_name": staff_name,
+            "acquired_by_role": staff_role,
+        },
+        "lead": {"id": lead_id, "pipeline_stage": target_stage} if lead_id else None,
+        "job": {"id": created_job_id, "job_number": created_job_num} if is_production else None,
+        "message": f"Successfully onboarded {payload.full_name} at '{stage_label}' stage."
+    }
 
 @router.get("/clients/{client_id}")
 async def get_client_360(
@@ -259,6 +826,9 @@ async def get_client_360(
         raise HTTPException(status_code=404, detail="Client not found")
 
     client = dict(client_row._mapping)
+    if not check_resource_access(user, "clients.view", creator_id=client.get("acquired_by_user_id"), assigned_id=client.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to access this client")
+
     is_team = bool(client.get("acquired_by_user_id") or client.get("acquired_by_name"))
     client["source_type"] = "team_member" if is_team else "website"
     client["lead_source_detail"] = client.get("lead_source_detail") or ("Sales Rep Outreach" if is_team else "Website Inbound")
@@ -268,16 +838,30 @@ async def get_client_360(
     clean_email = client.get("email").lower() if client.get("email") else "__NONE__"
 
     # Fetch related entities in parallel
-    leads_res = await db.execute(text("""
+    async def _q(stmt, params=None):
+        res = await db.execute(stmt, params or {})
+        return [dict(r._mapping) for r in res.fetchall()]
+
+    (
+        leads,
+        inspections,
+        estimates,
+        jobs,
+        invoices,
+        warranties,
+        reviews,
+        activities,
+        tasks,
+        documents,
+    ) = await asyncio.gather(
+        _q(text("""
         SELECT * FROM leads 
         WHERE client_id = :id 
            OR (phone IS NOT NULL AND :phone != '__NONE__' AND (phone = :phone OR phone = :norm))
            OR (email IS NOT NULL AND :email != '__NONE__' AND LOWER(email) = :email)
         ORDER BY created_at DESC
-    """), {"id": client_id, "phone": clean_phone, "norm": clean_norm, "email": clean_email})
-    leads = [dict(r._mapping) for r in leads_res.fetchall()]
-
-    inspections_res = await db.execute(text("""
+    """), {"id": client_id, "phone": clean_phone, "norm": clean_norm, "email": clean_email}),
+        _q(text("""
         SELECT ins.*, j.job_number 
         FROM inspections ins
         LEFT JOIN jobs j ON ins.job_id = j.id
@@ -285,20 +869,16 @@ async def get_client_360(
            OR ins.lead_id IN (SELECT id FROM leads WHERE client_id = :id)
            OR ins.job_id IN (SELECT id FROM jobs WHERE client_id = :id)
         ORDER BY ins.inspection_date DESC, ins.created_at DESC
-    """), {"id": client_id})
-    inspections = [dict(r._mapping) for r in inspections_res.fetchall()]
-
-    estimates_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT e.*, l.status as lead_status
         FROM estimates e
         LEFT JOIN leads l ON e.lead_id = l.id
         WHERE e.client_id = :id 
            OR e.lead_id IN (SELECT id FROM leads WHERE client_id = :id)
         ORDER BY e.created_at DESC
-    """), {"id": client_id})
-    estimates = [dict(r._mapping) for r in estimates_res.fetchall()]
-
-    jobs_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT j.*, e.estimate_number, u1.name as pm_name, u2.name as foreman_name
         FROM jobs j
         LEFT JOIN estimates e ON j.estimate_id = e.id
@@ -307,10 +887,8 @@ async def get_client_360(
         WHERE j.client_id = :id 
            OR j.lead_id IN (SELECT id FROM leads WHERE client_id = :id)
         ORDER BY j.created_at DESC
-    """), {"id": client_id})
-    jobs = [dict(r._mapping) for r in jobs_res.fetchall()]
-
-    invoices_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT i.*, j.job_number, j.status as job_status
         FROM invoices i
         LEFT JOIN jobs j ON i.job_id = j.id
@@ -318,20 +896,16 @@ async def get_client_360(
            OR i.job_id IN (SELECT id FROM jobs WHERE client_id = :id)
            OR i.estimate_id IN (SELECT id FROM estimates WHERE client_id = :id)
         ORDER BY i.due_date ASC, i.created_at DESC
-    """), {"id": client_id})
-    invoices = [dict(r._mapping) for r in invoices_res.fetchall()]
-
-    warranties_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT w.*, j.job_number, j.service_type as job_service_type
         FROM warranties w
         LEFT JOIN jobs j ON w.job_id = j.id
         WHERE w.client_id = :id 
            OR w.job_id IN (SELECT id FROM jobs WHERE client_id = :id)
         ORDER BY w.created_at DESC
-    """), {"id": client_id})
-    warranties = [dict(r._mapping) for r in warranties_res.fetchall()]
-
-    reviews_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT r.*, j.job_number 
         FROM reviews r
         LEFT JOIN jobs j ON r.job_id = j.id
@@ -339,10 +913,8 @@ async def get_client_360(
            OR r.lead_id IN (SELECT id FROM leads WHERE client_id = :id)
            OR r.job_id IN (SELECT id FROM jobs WHERE client_id = :id)
         ORDER BY r.created_at DESC
-    """), {"id": client_id})
-    reviews = [dict(r._mapping) for r in reviews_res.fetchall()]
-
-    activities_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT DISTINCT ON (a.id) a.*
         FROM activities a
         WHERE a.client_id = :id
@@ -351,11 +923,8 @@ async def get_client_360(
            OR (a.entity_type = 'job' AND a.entity_id IN (SELECT id FROM jobs WHERE client_id = :id))
         ORDER BY a.id, a.created_at DESC
         LIMIT 100
-    """), {"id": client_id})
-    activities = [dict(r._mapping) for r in activities_res.fetchall()]
-    activities.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
-
-    tasks_res = await db.execute(text("""
+    """), {"id": client_id}),
+        _q(text("""
         SELECT DISTINCT ON (t.id) t.*
         FROM tasks t
         WHERE t.client_id = :id
@@ -363,8 +932,13 @@ async def get_client_360(
            OR (t.entity_type = 'lead' AND t.entity_id IN (SELECT id FROM leads WHERE client_id = :id))
            OR (t.entity_type = 'job' AND t.entity_id IN (SELECT id FROM jobs WHERE client_id = :id))
         ORDER BY t.id, t.completed_at NULLS FIRST, t.due_at ASC
+    """), {"id": client_id}),
+        _q(text("""
+        SELECT * FROM client_documents WHERE client_id = :id ORDER BY created_at DESC
     """), {"id": client_id})
-    tasks = [dict(r._mapping) for r in tasks_res.fetchall()]
+    )
+
+    activities.sort(key=lambda x: str(x.get("created_at") or ""), reverse=True)
 
     # Extract inspection & drone photos from inspections findings or attached data
     inspection_photos = []
@@ -390,10 +964,7 @@ async def get_client_360(
             })
 
     # Fetch client documents
-    docs_res = await db.execute(text("""
-        SELECT * FROM client_documents WHERE client_id = :id ORDER BY created_at DESC
-    """), {"id": client_id})
-    documents = [dict(r._mapping) for r in docs_res.fetchall()]
+    # docs_res handled in gather
 
     total_billed = sum(float(inv.get("amount") or 0) for inv in invoices)
     total_paid = sum(float(inv.get("amount") or 0) for inv in invoices if inv.get("status") == "paid")
@@ -422,40 +993,93 @@ async def get_client_360(
 @router.patch("/clients/{client_id}")
 async def update_client(
     client_id: int,
-    payload: Dict[str, Any],
+    payload: UpdateClientPayload,
     user: Dict[str, Any] = Depends(require_permission("clients:edit")),
     db: AsyncSession = Depends(get_db)
 ):
+    payload_dict = payload.model_dump(exclude_unset=True)
+    existing = (await db.execute(text("SELECT id, acquired_by_user_id, assigned_to_user_id FROM clients WHERE id = :id"), {"id": client_id})).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if not check_resource_access(user, "clients.edit", creator_id=existing.get("acquired_by_user_id"), assigned_id=existing.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to edit this client")
+
     allowed_fields = [
         "full_name", "phone", "email", "secondary_phone", "address", "city",
         "zip", "property_type", "roof_type", "roof_sqf", "roof_age", "stories",
-        "hoa", "status", "tags", "notes", "assigned_to_user_id", "source_type",
+        "hoa", "status", "client_category", "lost_reason", "tags", "notes", "assigned_to_user_id", "source_type",
         "acquired_by_user_id", "lead_source_detail", "client_since"
     ]
 
     int_fields = ["roof_sqf", "roof_age", "stories", "assigned_to_user_id", "acquired_by_user_id"]
     bool_fields = ["hoa"]
 
+    # Parse address components if any address field is provided
+    if any(k in payload_dict for k in ["address", "city", "zip"]):
+        parsed_addr = parse_address_components(
+            payload_dict.get("address"),
+            payload_dict.get("city"),
+            payload_dict.get("zip")
+        )
+        if "address" in payload_dict:
+            payload_dict["address"] = parsed_addr["address"]
+        if "city" in payload_dict:
+            payload_dict["city"] = parsed_addr["city"]
+        if "zip" in payload_dict:
+            payload_dict["zip"] = parsed_addr["zip"]
+
     updates = []
     params: Dict[str, Any] = {"id": client_id}
 
     for key in allowed_fields:
-        if key in payload:
-            val = payload[key]
+        if key in payload_dict:
+            val = payload_dict[key]
             if key in int_fields:
                 val = int(val) if val not in (None, "", "null") else None
             elif key in bool_fields:
                 val = bool(val)
-            elif isinstance(val, str) and val.strip() == "" and key in ["secondary_phone", "notes", "roof_type"]:
+            elif isinstance(val, str) and val.strip() == "":
                 val = None
+            elif isinstance(val, str):
+                val = val.strip()
+                if key == "email":
+                    val = val.lower()
+                    if val:
+                        existing_email_match = (await db.execute(
+                            text("SELECT id, full_name FROM clients WHERE LOWER(email) = :email AND id != :id LIMIT 1"),
+                            {"email": val, "id": client_id}
+                        )).first()
+                        if existing_email_match:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"A client with this email already exists: '{existing_email_match[1]}' (Client #{existing_email_match[0]}). Please use a unique email."
+                            )
 
             params[key] = val
             updates.append(f"{key} = :{key}")
 
-            if key == "phone":
+            if key in ("phone", "secondary_phone"):
                 norm = normalize_phone(val)
-                params["norm_phone"] = norm
-                updates.append("phone_normalized = :norm_phone")
+                if norm:
+                    existing_phone_match = (await db.execute(
+                        text("""
+                            SELECT id, full_name FROM clients
+                            WHERE (
+                                phone_normalized = :norm
+                                OR (phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(phone, '\\D', '', 'g'), 10) = :norm)
+                                OR (secondary_phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(secondary_phone, '\\D', '', 'g'), 10) = :norm)
+                            ) AND id != :id LIMIT 1
+                        """),
+                        {"norm": norm, "id": client_id}
+                    )).first()
+                    if existing_phone_match:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"A client with this phone number already exists: '{existing_phone_match[1]}' (Client #{existing_phone_match[0]}). Please use a unique phone number."
+                        )
+                if key == "phone":
+                    params["norm_phone"] = norm
+                    updates.append("phone_normalized = :norm_phone")
 
     if not updates:
         raise HTTPException(status_code=400, detail="No valid fields to update")
@@ -468,6 +1092,22 @@ async def update_client(
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
 
+    # Synchronize contact details & address updates back to associated leads so Client 360 is the source of truth
+    contact_fields = ["full_name", "email", "phone", "address", "city", "zip"]
+    if any(k in payload_dict for k in contact_fields):
+        lead_sync_updates = []
+        lead_sync_params = {"cid": client_id}
+        for k in contact_fields:
+            if k in params and k in payload_dict:
+                lead_sync_updates.append(f"{k} = :{k}")
+                lead_sync_params[k] = params[k]
+        if lead_sync_updates:
+            lead_sync_updates.append("updated_at = NOW()")
+            await db.execute(
+                text(f"UPDATE leads SET {', '.join(lead_sync_updates)} WHERE client_id = :cid"),
+                lead_sync_params
+            )
+
     try:
         await db.execute(
             text("""
@@ -476,7 +1116,7 @@ async def update_client(
             """),
             {
                 "id": client_id,
-                "desc": f"Updated: {', '.join(payload.keys())}",
+                "desc": f"Updated: {', '.join(payload_dict.keys())}",
                 "performer": user.get("name") or "Staff"
             }
         )
@@ -493,6 +1133,12 @@ async def archive_client(
     user: Dict[str, Any] = Depends(require_permission("clients:delete")),
     db: AsyncSession = Depends(get_db)
 ):
+    existing = (await db.execute(text("SELECT id, acquired_by_user_id, assigned_to_user_id FROM clients WHERE id = :id"), {"id": client_id})).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if not check_resource_access(user, "clients.delete", creator_id=existing.get("acquired_by_user_id"), assigned_id=existing.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to delete this client")
+
     await db.execute(
         text("UPDATE clients SET status = 'inactive', updated_at = NOW() WHERE id = :id"),
         {"id": client_id}
@@ -507,20 +1153,119 @@ async def archive_client(
     await db.commit()
     return {"ok": True, "message": "Client archived"}
 
-@router.post("/clients/{client_id}/activities")
-async def add_client_activity(
+@router.post("/clients/{client_id}/mark-lost")
+async def mark_client_as_lost(
     client_id: int,
-    payload: Dict[str, Any],
+    payload: MarkClientLostPayload,
     user: Dict[str, Any] = Depends(require_permission("clients:edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    title = payload.get("title")
+    """
+    Mark a client as a lost opportunity.
+    Atomically:
+      1. Sets client_category = 'lost_lead' on the clients row
+      2. Marks all linked active leads as lost with the provided reason/notes
+      3. Logs an activity entry
+    """
+    payload_dict = payload.model_dump(exclude_unset=True)
+    lost_reason = payload_dict.get("lost_reason") or payload_dict.get("lostReason")
+    lost_notes  = payload_dict.get("lost_notes")  or payload_dict.get("lostNotes")
+
+    if not lost_reason:
+        raise HTTPException(status_code=400, detail="lost_reason is required")
+
+    performer = user.get("name") or "Staff"
+
+    # 1. Update client category
+    client_row = (await db.execute(
+        text("SELECT id, full_name, acquired_by_user_id, assigned_to_user_id FROM clients WHERE id = :id"),
+        {"id": client_id}
+    )).mappings().first()
+    if not client_row:
+        raise HTTPException(status_code=404, detail="Client not found")
+    if not check_resource_access(user, "clients.edit", creator_id=client_row.get("acquired_by_user_id"), assigned_id=client_row.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to edit this client")
+
+    await db.execute(
+        text("""
+            UPDATE clients
+            SET client_category = 'lost_lead',
+                status = 'closed_lost',
+                lost_reason = :reason,
+                notes = COALESCE(CAST(:notes AS TEXT), notes),
+                updated_at = NOW()
+            WHERE id = :id
+        """),
+        {"id": client_id, "reason": lost_reason, "notes": (lost_notes.strip() if lost_notes and lost_notes.strip() else None)}
+    )
+
+    # 2. Mark all linked active leads as lost
+    leads_result = await db.execute(
+        text("SELECT id FROM leads WHERE client_id = :cid AND status != 'lost'"),
+        {"cid": client_id}
+    )
+    lead_ids = [r["id"] for r in leads_result.mappings()]
+
+    for lead_id in lead_ids:
+        await db.execute(
+            text("""
+                UPDATE leads
+                SET status       = 'lost',
+                    lost_reason  = :reason,
+                    lost_notes   = :notes,
+                    lost_at      = COALESCE(lost_at, NOW()),
+                    updated_at   = NOW()
+                WHERE id = :id
+            """),
+            {"id": lead_id, "reason": lost_reason, "notes": lost_notes}
+        )
+
+    # 3. Log activity on the client
+    await db.execute(
+        text("""
+            INSERT INTO activities (
+                entity_type, entity_id, client_id, activity_type,
+                title, description, performed_by, user_id, user_name
+            ) VALUES (
+                'client', :id, :id, 'status_change',
+                :title, :desc, :performer, :uid, :uname
+            )
+        """),
+        {
+            "id":        client_id,
+            "title":     f"Opportunity Marked as Lost: {lost_reason}",
+            "desc":      lost_notes or "Client marked as lost opportunity.",
+            "performer": performer,
+            "uid":       user.get("id"),
+            "uname":     performer,
+        }
+    )
+
+    await db.commit()
+    return {
+        "ok": True,
+        "client_id": client_id,
+        "leads_updated": len(lead_ids),
+        "lost_reason": lost_reason,
+    }
+
+
+
+@router.post("/clients/{client_id}/activities")
+async def add_client_activity(
+    client_id: int,
+    payload: AddClientActivityPayload,
+    user: Dict[str, Any] = Depends(require_permission("clients:edit")),
+    db: AsyncSession = Depends(get_db)
+):
+    payload_dict = payload.model_dump(exclude_unset=True)
+    title = payload_dict.get("title")
     if not title:
         raise HTTPException(status_code=400, detail="Activity title is required")
 
-    activity_type = payload.get("activityType", "note")
-    desc = payload.get("description")
-    call_dur = int(payload["callDuration"]) if payload.get("callDuration") else None
+    activity_type = payload_dict.get("activityType", "note")
+    desc = payload_dict.get("description")
+    call_dur = int(payload_dict["callDuration"]) if payload_dict.get("callDuration") else None
 
     stmt = text("""
         INSERT INTO activities (
@@ -570,15 +1315,16 @@ async def get_client_tasks(
 @router.post("/clients/{client_id}/tasks")
 async def create_client_task(
     client_id: int,
-    payload: Dict[str, Any],
+    payload: CreateClientTaskPayload,
     user: Dict[str, Any] = Depends(require_permission("clients:edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    title = payload.get("title")
+    payload_dict = payload.model_dump(exclude_unset=True)
+    title = payload_dict.get("title")
     if not title:
         raise HTTPException(status_code=400, detail="Task title is required")
 
-    due_at_raw = payload.get("dueAt") or payload.get("dueDate")
+    due_at_raw = payload_dict.get("dueAt") or payload_dict.get("dueDate")
     if due_at_raw:
         if isinstance(due_at_raw, datetime):
             due_at = due_at_raw
@@ -590,10 +1336,10 @@ async def create_client_task(
     else:
         due_at = datetime.now(timezone.utc)
 
-    priority = payload.get("priority", "normal")
-    desc = payload.get("description", "")
-    assigned_to_uid = int(payload["assignedToUserId"]) if payload.get("assignedToUserId") else user["id"]
-    assigned_name = payload.get("assignedTo") or user.get("name") or "Staff"
+    priority = payload_dict.get("priority", "normal")
+    desc = payload_dict.get("description", "")
+    assigned_to_uid = int(payload_dict["assignedToUserId"]) if payload_dict.get("assignedToUserId") else user["id"]
+    assigned_name = payload_dict.get("assignedTo") or user.get("name") or "Staff"
 
     stmt = text("""
         INSERT INTO tasks (
@@ -661,17 +1407,18 @@ async def get_client_documents(
 @router.post("/clients/{client_id}/documents")
 async def add_client_document(
     client_id: int,
-    payload: Dict[str, Any],
+    payload: AddClientDocumentPayload,
     user: Dict[str, Any] = Depends(require_permission("clients:edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    name = payload.get("name") or "Document"
-    file_url = payload.get("fileUrl") or payload.get("url")
+    payload_dict = payload.model_dump(exclude_unset=True)
+    name = payload_dict.get("name") or "Document"
+    file_url = payload_dict.get("fileUrl") or payload_dict.get("url")
     if not file_url:
         raise HTTPException(status_code=400, detail="File URL is required")
 
-    file_type = payload.get("fileType", "document")
-    raw_size = payload.get("fileSize") or payload.get("file_size") or ""
+    file_type = payload_dict.get("fileType", "document")
+    raw_size = payload_dict.get("fileSize") or payload_dict.get("file_size") or ""
     file_size = str(raw_size)
 
     stmt = text("""

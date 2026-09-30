@@ -48,7 +48,7 @@ export function EstimateLiveSummary({
   const marginPct = Math.round((grossProfit / (estimatedTotal || 1)) * 100);
 
   return (
-    <div className="light-glass-panel rounded-3xl p-5 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 space-y-4 sticky top-6">
+    <div className="light-glass-panel rounded-3xl p-5 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 dark:border-white/10 space-y-4 sticky top-6">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-200/70">
         <div className="flex items-center gap-2">

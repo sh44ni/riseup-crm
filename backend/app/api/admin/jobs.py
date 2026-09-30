@@ -1,3 +1,4 @@
+from app.core.logger import get_logger
 import json
 import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -7,8 +8,22 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 
 from app.core.database import get_db
+from pydantic import BaseModel, Field
+
+class CompleteJobPayload(BaseModel):
+    notes: Optional[str] = ""
+    authorName: Optional[str] = None
+    authorRole: Optional[str] = None
+
+class CreateJobActivityPayload(BaseModel):
+    note: str = Field(..., min_length=1)
+    authorName: Optional[str] = None
+    authorRole: Optional[str] = None
 from app.core.permissions import require_permission, require_any_permission, build_scope_filter
 from app.services.sync import find_or_create_client, recalculate_client_stats
+from app.schemas.jobs import JobCreate, JobUpdate, JobResponse
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -92,7 +107,7 @@ async def get_jobs(
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
     jobs_query = text(f"SELECT * FROM jobs {where_clause} ORDER BY created_at DESC")
-    stats_query = text("""
+    stats_query = text(f"""
         SELECT 
             COUNT(*) as total_count,
             COUNT(CASE WHEN status != 'complete' AND status != 'cancelled' THEN 1 END) as active_count,
@@ -100,13 +115,14 @@ async def get_jobs(
             COALESCE(SUM(contract_value), 0) as total_value,
             COALESCE(SUM(CASE WHEN status != 'complete' AND status != 'cancelled' THEN contract_value ELSE 0 END), 0) as active_value
         FROM jobs
+        {where_clause}
     """)
 
     res = await db.execute(jobs_query, params)
     raw_jobs = [dict(r._mapping) for r in res.fetchall()]
     parsed_jobs = [_parse_job_record(j) for j in raw_jobs]
 
-    stats_res = await db.execute(stats_query)
+    stats_res = await db.execute(stats_query, params)
     s_row = stats_res.first()
 
     # Calculate overall milestone progress across active jobs
@@ -135,29 +151,29 @@ async def get_jobs(
 
 @router.post("/jobs")
 async def create_job(
-    payload: Dict[str, Any],
+    payload: JobCreate,
     user: Dict[str, Any] = Depends(require_any_permission(["jobs:change_stage", "estimates:create"])),
     db: AsyncSession = Depends(get_db)
 ):
-    lead_id = payload.get("leadId") or payload.get("lead_id")
-    client_id = payload.get("clientId") or payload.get("client_id")
-    customer_name = payload.get("customerName") or payload.get("customer_name")
-    customer_phone = payload.get("customerPhone") or payload.get("customer_phone")
-    customer_email = payload.get("customerEmail") or payload.get("customer_email")
-    address = payload.get("address")
-    city = payload.get("city")
-    zip_code = payload.get("zip")
-    service_type = payload.get("serviceType") or payload.get("service_type") or "Residential Roofing"
-    contract_value = float(payload.get("contractValue") or payload.get("contract_value") or 0.0)
-    scheduled_start = payload.get("scheduledStart") or payload.get("scheduled_start")
-    estimated_days = int(payload.get("estimatedDays") or payload.get("estimated_days") or 3)
-    crew_lead = payload.get("crewLead") or payload.get("crew_lead")
-    crew_members = payload.get("crewMembers") or payload.get("crew_members") or []
-    notes = payload.get("notes")
-    status_val = payload.get("status") or "scheduled"
+    lead_id = payload.lead_id
+    client_id = payload.client_id
+    customer_name = payload.customer_name
+    customer_phone = payload.customer_phone
+    customer_email = payload.customer_email
+    address = payload.address
+    city = payload.city
+    zip_code = payload.zip
+    service_type = payload.service_type or "Residential Roofing"
+    contract_value = float(payload.contract_value or 0.0)
+    scheduled_start = payload.scheduled_start
+    estimated_days = int(payload.estimated_days or 3)
+    crew_lead = payload.crew_lead
+    crew_members = payload.crew_members or []
+    notes = payload.notes
+    status_val = payload.status or "scheduled"
 
     # Custom milestones start empty [] by default unless explicitly provided
-    milestones_payload = payload.get("milestones", [])
+    milestones_payload = payload.milestones or []
     if isinstance(milestones_payload, str):
         try:
             milestones_payload = json.loads(milestones_payload)
@@ -330,10 +346,11 @@ async def get_job(
 @router.patch("/jobs/{job_id}")
 async def update_job(
     job_id: int,
-    payload: Dict[str, Any],
+    payload: JobUpdate,
     user: Dict[str, Any] = Depends(require_any_permission(["jobs:change_stage", "jobs:manage_permits"])),
     db: AsyncSession = Depends(get_db)
 ):
+    payload_dict = payload.model_dump(exclude_unset=True)
     allowed_fields = [
         "status", "customer_name", "customer_phone", "customer_email",
         "address", "city", "zip", "service_type", "contract_value",
@@ -349,13 +366,13 @@ async def update_job(
     for f in allowed_fields:
         # Check snake_case and camelCase
         camel_f = re.sub(r'_([a-z])', lambda m: m.group(1).upper(), f)
-        val = payload.get(f) if f in payload else payload.get(camel_f)
-        if val is not None or f in payload or camel_f in payload:
+        val = payload_dict.get(f) if f in payload_dict else payload_dict.get(camel_f)
+        if val is not None or f in payload_dict or camel_f in payload_dict:
             params[f] = val
             updates.append(f"{f} = :{f}")
 
-    if "milestones" in payload:
-        ms_val = payload["milestones"]
+    if "milestones" in payload_dict:
+        ms_val = payload_dict["milestones"]
         if isinstance(ms_val, (list, dict)):
             ms_json = json.dumps(ms_val)
         elif isinstance(ms_val, str):
@@ -379,7 +396,7 @@ async def update_job(
     updated_job = _parse_job_record(dict(row._mapping))
 
     # If status transitioned to complete
-    if payload.get("status") == "complete":
+    if payload_dict.get("status") == "complete":
         if updated_job.get("lead_id"):
             await db.execute(
                 text("UPDATE leads SET job_completed_at = COALESCE(job_completed_at, NOW()), status = 'completed', updated_at = NOW() WHERE id = :id"),
@@ -410,7 +427,7 @@ async def update_job(
                 }
             )
         except Exception as e:
-            print(f"Failed to record job_completed activity: {e}")
+            logger.error(f"Failed to record job_completed activity: {e}")
 
         try:
             from app.core.redis import cache_delete
@@ -427,20 +444,21 @@ async def update_job(
 @router.post("/jobs/{job_id}/complete")
 async def complete_job(
     job_id: int,
-    payload: Dict[str, Any] = {},
+    payload: CompleteJobPayload,
     user: Dict[str, Any] = Depends(require_any_permission(["jobs:change_stage", "jobs:manage_permits"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Explicit endpoint to mark a job completed, log notes, and update client & lead stats."""
+    payload_dict = payload.model_dump(exclude_unset=True)
     res = await db.execute(text("SELECT * FROM jobs WHERE id = :id"), {"id": job_id})
     row = res.first()
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
 
     job = dict(row._mapping)
-    notes = payload.get("notes", "").strip()
-    author_name = payload.get("authorName") or user.get("name") or "Staff"
-    author_role = payload.get("authorRole") or user.get("role") or "Field Manager"
+    notes = payload_dict.get("notes", "").strip()
+    author_name = payload_dict.get("authorName") or user.get("name") or "Staff"
+    author_role = payload_dict.get("authorRole") or user.get("role") or "Field Manager"
 
     # Append completion note to job notes if provided
     updated_notes = job.get("notes") or ""
@@ -528,12 +546,13 @@ async def get_job_activities(
 @router.post("/jobs/{job_id}/activities")
 async def create_job_activity(
     job_id: int,
-    payload: Dict[str, Any],
+    payload: CreateJobActivityPayload,
     user: Dict[str, Any] = Depends(require_any_permission(["jobs:change_stage", "jobs:manage_permits"])),
     db: AsyncSession = Depends(get_db)
 ):
     """Log a field note or progress update to the job activity timeline."""
-    note = payload.get("note", "").strip()
+    payload_dict = payload.model_dump(exclude_unset=True)
+    note = payload_dict.get("note", "").strip()
     if not note:
         raise HTTPException(status_code=400, detail="Activity note is required")
 
@@ -543,8 +562,8 @@ async def create_job_activity(
         raise HTTPException(status_code=404, detail="Job not found")
 
     client_id = job_row.client_id
-    author_name = payload.get("authorName") or user.get("name") or "Staff"
-    author_role = payload.get("authorRole") or user.get("role") or "Field Manager"
+    author_name = payload_dict.get("authorName") or user.get("name") or "Staff"
+    author_role = payload_dict.get("authorRole") or user.get("role") or "Field Manager"
 
     now_str = datetime.now().strftime("%b %d, %Y • %I:%M %p")
     note_entry = f"[{now_str} — {author_name} ({author_role})]\n{note}"

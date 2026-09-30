@@ -54,7 +54,6 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [themeMode, setThemeMode] = useState<'coastal' | 'obsidian'>('coastal');
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [activeQuoteIndex, setActiveQuoteIndex] = useState(0);
 

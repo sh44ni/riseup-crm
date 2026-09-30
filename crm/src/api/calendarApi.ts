@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 /**
  * Rise Up CRM — Unified Team Operations & Task Calendar API Client
  * 
@@ -22,26 +23,7 @@ export interface SingleCalendarEventApiResponse {
   message?: string;
 }
 
-const BACKEND_BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
-const CALENDAR_ENDPOINT = `${BACKEND_BASE_URL}/api/admin/calendar`;
-const TASKS_ENDPOINT = `${BACKEND_BASE_URL}/api/admin/tasks`;
 
-function getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
-  const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_auth_token') || localStorage.getItem('access_token')) : null;
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    'X-Client-Platform': 'crm-web',
-    ...extra,
-  };
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
 
 /**
  * Fetch unified team operations and calendar schedule from backend
@@ -54,9 +36,6 @@ export async function fetchCalendarEventsFromBackend(params?: {
   status?: string;
 }): Promise<TeamOperationEvent[] | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-
     const query = new URLSearchParams();
     if (params?.startDate) query.append('startDate', params.startDate);
     if (params?.endDate) query.append('endDate', params.endDate);
@@ -69,25 +48,13 @@ export async function fetchCalendarEventsFromBackend(params?: {
     if (params?.status && params.status !== 'all') {
       query.append('status', params.status);
     }
-
-    const url = query.toString() ? `${CALENDAR_ENDPOINT}?${query.toString()}` : CALENDAR_ENDPOINT;
-
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      // Fallback to /events endpoint if primary is unreachable
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    try {
+      const json = await apiFetch<CalendarEventsApiResponse>(`/admin/calendar${qs}`);
+      return Array.isArray(json.data) ? json.data : (Array.isArray(json.events) ? json.events : null);
+    } catch {
       return await fetchLegacyCalendarEvents(params);
     }
-
-    const json = await res.json();
-    const rawList = Array.isArray(json.data) ? json.data : (Array.isArray(json.events) ? json.events : null);
-    return rawList;
   } catch {
     return null;
   }
@@ -99,13 +66,7 @@ export const fetchCalendarOperations = fetchCalendarEventsFromBackend;
  * Fallback to legacy events endpoint
  */
 async function fetchLegacyCalendarEvents(params?: any): Promise<TeamOperationEvent[] | null> {
-  try {
-    const res = await fetch(`${BACKEND_BASE_URL}/api/admin/calendar/events`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
+  try {    const json = await apiFetch<CalendarEventsApiResponse>('/admin/calendar/events');
     return json.success && Array.isArray(json.data) ? json.data : null;
   } catch {
     return null;
@@ -116,20 +77,7 @@ async function fetchLegacyCalendarEvents(params?: any): Promise<TeamOperationEve
  * Fetch registered CRM user accounts from backend
  */
 export async function fetchRegisteredUsers(): Promise<any[]> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const res = await fetch(`${BACKEND_BASE_URL}/api/admin/users`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return [];
-    const json = await res.json();
+  try {    const json = await apiFetch<any>('/admin/users');
     return json.users || [];
   } catch {
     return [];
@@ -140,20 +88,7 @@ export async function fetchRegisteredUsers(): Promise<any[]> {
  * Fetch active pipeline leads from backend for entity linking
  */
 export async function fetchPipelineJobs(): Promise<any[]> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const res = await fetch(`${BACKEND_BASE_URL}/api/admin/leads`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return [];
-    const json = await res.json();
+  try {    const json = await apiFetch<any>('/admin/leads');
     return json.leads || [];
   } catch {
     return [];
@@ -164,20 +99,7 @@ export async function fetchPipelineJobs(): Promise<any[]> {
  * Fetch active signed jobs from backend for entity linking
  */
 export async function fetchRealJobs(): Promise<any[]> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const res = await fetch(`${BACKEND_BASE_URL}/api/admin/jobs`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return [];
-    const json = await res.json();
+  try {    const json = await apiFetch<any>('/admin/jobs');
     return json.jobs || json.data || [];
   } catch {
     return [];
@@ -188,20 +110,7 @@ export async function fetchRealJobs(): Promise<any[]> {
  * Fetch dynamic operations and workload stats
  */
 export async function fetchCalendarStats(): Promise<CalendarStats | null> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(`${BACKEND_BASE_URL}/api/admin/calendar/stats`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return null;
-    const json = await res.json();
+  try {    const json = await apiFetch<any>('/admin/calendar/stats');
     return json.success && json.data ? json.data : null;
   } catch {
     return null;
@@ -212,20 +121,7 @@ export async function fetchCalendarStats(): Promise<CalendarStats | null> {
  * Fetch live North County weather & OSHA wind safety
  */
 export async function fetchCalendarWeather(): Promise<CalendarWeather | null> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(`${BACKEND_BASE_URL}/api/admin/calendar/weather`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return null;
-    const json = await res.json();
+  try {    const json = await apiFetch<any>('/admin/calendar/weather');
     return json.success && json.data ? json.data : null;
   } catch {
     return null;
@@ -239,9 +135,6 @@ export async function createCalendarEventOnBackend(
   event: TeamOperationEvent
 ): Promise<TeamOperationEvent | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
     const payload = {
       title: event.title,
       description: event.description || event.notes,
@@ -257,19 +150,10 @@ export async function createCalendarEventOnBackend(
       priority: event.priority,
       entityType: event.entityType,
       entityId: event.entityId,
-    };
-
-    const res = await fetch(TASKS_ENDPOINT, {
+    };    const json = await apiFetch<any>('/admin/tasks', {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
-      signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) return null;
-    const json = await res.json();
     const createdTask = json.task || json.data;
     if (createdTask) {
       return {
@@ -294,9 +178,6 @@ export async function updateCalendarEventOnBackend(
   updates: Partial<TeamOperationEvent>
 ): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
     const payload: Record<string, any> = { id };
     if (updates.title !== undefined) payload.title = updates.title;
     if (updates.description !== undefined || updates.notes !== undefined) {
@@ -317,17 +198,11 @@ export async function updateCalendarEventOnBackend(
     if (updates.completed !== undefined) payload.completed = updates.completed;
     if (updates.status !== undefined) {
       payload.completed = updates.status === 'completed';
-    }
-
-    const res = await fetch(TASKS_ENDPOINT, {
+    }    await apiFetch<any>('/admin/tasks', {
       method: 'PATCH',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
-      signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
-    return res.ok;
+    return true;
   } catch {
     return false;
   }
@@ -346,18 +221,10 @@ export async function toggleTaskComplete(id: string, completed: boolean): Promis
  * Delete an operation or task on the backend
  */
 export async function deleteCalendarEventOnBackend(id: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const res = await fetch(`${TASKS_ENDPOINT}?id=${encodeURIComponent(id)}`, {
+  try {    await apiFetch<any>(`/admin/tasks?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
-    return res.ok;
+    return true;
   } catch {
     return false;
   }

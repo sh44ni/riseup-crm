@@ -242,24 +242,24 @@ export function StatCardPopover({
       style={posStyle}
       onMouseEnter={onPopoverEnter}
       onMouseLeave={onLeave}
-      className="animate-in fade-in zoom-in-95 duration-150 rounded-2xl bg-white/98 backdrop-blur-2xl border border-white/95 shadow-[0_20px_50px_rgba(15,23,42,0.16),0_0_0_1px_rgba(255,255,255,0.95)_inset] overflow-hidden text-slate-900"
+      className="animate-in fade-in zoom-in-95 duration-150 rounded-2xl bg-white/98 dark:bg-[#0B1320]/98 backdrop-blur-2xl border border-white/95 dark:border-white/12 shadow-[0_20px_50px_rgba(15,23,42,0.16),0_0_0_1px_rgba(255,255,255,0.95)_inset] dark:shadow-[0_20px_50px_rgba(0,0,0,0.85)] overflow-hidden text-slate-900 dark:text-slate-100"
     >
       {/* Accent gradient top rim */}
       <div className="h-[3px]" style={{ background: `linear-gradient(to right, ${color}70, ${color})` }} />
 
       {/* Header */}
-      <div className="px-4 pt-3.5 pb-2 flex items-center justify-between border-b border-slate-100/90">
+      <div className="px-4 pt-3.5 pb-2 flex items-center justify-between border-b border-slate-100/90 dark:border-white/10">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-3.5 rounded-full" style={{ background: color }} />
-          <span className="text-[12px] font-black text-slate-900 tracking-tight">{label}</span>
+          <span className="text-[12px] font-black text-slate-900 dark:text-white tracking-tight">{label}</span>
         </div>
         <span
           className={`text-[9.5px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${
             deltaPos
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
               : deltaNeg
-              ? 'bg-rose-50 text-rose-600 border-rose-200'
-              : 'bg-slate-100 text-slate-600 border-slate-200'
+              ? 'bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-500/30'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
           }`}
         >
           {deltaText}
@@ -293,19 +293,19 @@ export function StatCardPopover({
       </div>
 
       {/* Divider */}
-      <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent mx-3" />
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-white/15 to-transparent mx-3" />
 
       {/* Breakdown Metrics */}
       <div className="px-4 py-3 space-y-2.5">
         {/* Row 1: This period vs Prior */}
         <div className="flex items-center justify-between">
-          <span className="text-[10px] text-slate-500 font-semibold">This period</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">This period</span>
           <div className="flex items-center gap-2">
-            <span className="text-[14px] font-black text-slate-900">
+            <span className="text-[14px] font-black text-slate-900 dark:text-white">
               {thisPeriodText !== undefined ? thisPeriodText : value}
             </span>
             <span className="text-[9px] text-slate-400">vs</span>
-            <span className="text-[11px] font-bold text-slate-500">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
               {computedPrior} prior
             </span>
           </div>
@@ -313,10 +313,10 @@ export function StatCardPopover({
 
         {/* Row 2: Pipeline share / conversion progress bar */}
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[10px] text-slate-500 font-semibold shrink-0">{shareLabel}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold shrink-0">{shareLabel}</span>
           <div className="flex items-center gap-2 flex-1 justify-end">
-            <span className="text-[10px] font-black text-slate-800">{Math.round(sharePct)}%</span>
-            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0 border border-slate-200/50">
+            <span className="text-[10px] font-black text-slate-800 dark:text-slate-200">{Math.round(sharePct)}%</span>
+            <div className="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shrink-0 border border-slate-200/50 dark:border-white/10">
               <div
                 className="h-full rounded-full"
                 style={{ width: `${Math.min(100, Math.max(0, sharePct))}%`, background: color, transition: 'width 0.7s ease' }}
@@ -328,7 +328,7 @@ export function StatCardPopover({
         {/* Row 3: Stage / Context Badge */}
         {stageLabel && (
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-500 font-semibold">Stage</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Stage</span>
             <span
               className="text-[9.5px] font-black px-2 py-0.5 rounded-full border"
               style={{ color: badgeColor, borderColor: `${badgeColor}40`, background: `${badgeColor}15` }}
@@ -341,8 +341,8 @@ export function StatCardPopover({
 
       {/* Footer */}
       <div className="px-4 pb-3.5">
-        <div className="rounded-xl bg-slate-50/90 border border-slate-200/70 px-3 py-1.5 flex items-center justify-between">
-          <span className="text-[9px] text-slate-500 font-medium">{autoRefreshText}</span>
+        <div className="rounded-xl bg-slate-50/90 dark:bg-slate-900/80 border border-slate-200/70 dark:border-white/10 px-3 py-1.5 flex items-center justify-between">
+          <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">{autoRefreshText}</span>
           <span className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color }}>
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: color }} />
             Live
@@ -436,7 +436,7 @@ export function UniversalStatCard({
         onMouseEnter={hover.onEnter}
         onMouseLeave={hover.onLeave}
         onClick={onClick}
-        className={`light-glass-card glossy-sheen rounded-xl p-2.5 flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-all duration-200 cursor-default ${hoverBorderColor} text-slate-900 ${className}`}
+        className={`light-glass-card glossy-sheen rounded-xl p-2.5 flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition-all duration-200 cursor-default ${hoverBorderColor} text-slate-900 dark:text-slate-100 ${className}`}
       >
         {/* Glow orb */}
         <div className={`absolute -top-6 -right-6 w-20 h-20 rounded-full blur-xl pointer-events-none transition-colors ${blurColor}`} />
@@ -452,10 +452,10 @@ export function UniversalStatCard({
         {/* Middle row: Big Metric + Mini Sparkline */}
         <div className="flex items-end justify-between mt-1.5 relative z-10">
           <div>
-            <div className="text-2xl font-black text-slate-900 tracking-tight leading-none">
+            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">
               {isLoading ? <StatSkeleton /> : value}
             </div>
-            <div className="text-[10.5px] font-bold text-slate-700 mt-0.5 leading-tight">
+            <div className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mt-0.5 leading-tight">
               {label}
             </div>
           </div>
@@ -476,8 +476,8 @@ export function UniversalStatCard({
 
         {/* Bottom row: Footnotes / progress */}
         {(footnoteLeft || footnoteRight) && (
-          <div className="mt-1.5 pt-1.5 border-t border-slate-200/60 relative z-10 flex items-center justify-between text-[8.5px]">
-            <span className="text-slate-500 font-semibold truncate max-w-[55%]">
+          <div className="mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-white/10 relative z-10 flex items-center justify-between text-[8.5px]">
+            <span className="text-slate-500 dark:text-slate-400 font-semibold truncate max-w-[55%]">
               {footnoteLeft}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">

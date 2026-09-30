@@ -1,0 +1,46 @@
+# Dependabot configuration — automatically opens PRs for dependency updates
+version: 2
+updates:
+  # Python backend dependencies
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "backend"
+    open-pull-requests-limit: 5
+
+  # CRM frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/crm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "crm"
+    open-pull-requests-limit: 5
+
+  # Website dependencies
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "website"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions version updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    open-pull-requests-limit: 3

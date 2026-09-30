@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
 import { ESTIMATE_FIELD_CAPS } from '@/data/estimateConstants';
 import { FieldWithCap } from '../FieldWithCap';
+import { PhotoFrameEditor } from '../PhotoFrameEditor';
 import { Calendar, Search, Upload, Lock, User, MapPin, Phone, Mail, Image, Check } from 'lucide-react';
 import { api, API_ORIGIN } from '@/lib/api';
 
@@ -34,14 +35,19 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Pipeline stages where estimate creation is appropriate
-  const ESTIMATE_READY_STAGES = [
-    'est_scheduled',
-    'inspection_scheduled',
-    'inspection_completed',
-    'estimate_building',
-    'stage_3_site_visit_estimate',
-  ].join(',');
+  // Pipeline stages where estimate creation is prioritized
+  const STAGE_PRIORITY: Record<string, number> = {
+    est_scheduled: 1,
+    estimate_scheduled: 1,
+    inspection_scheduled: 1,
+    inspection_completed: 1,
+    estimate_building: 1,
+    stage_3_site_visit_estimate: 1,
+    estimate_sent: 2,
+    follow_up: 2,
+    initial_call: 3,
+    cold_lead: 4,
+  };
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -52,14 +58,23 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
       setIsSearching(true);
       try {
         const res = await api.request(
-          `/admin/leads?search=${encodeURIComponent(searchQuery)}&limit=15`
+          `/admin/leads?search=${encodeURIComponent(searchQuery)}&limit=25`
         );
-        // Filter client-side for estimate-ready pipeline stages
         const all = (res as any).leads || [];
-        const filtered = all.filter((l: any) =>
-          ESTIMATE_READY_STAGES.split(',').includes(l.pipeline_stage)
-        );
-        setLeads(filtered);
+        // Filter out explicitly lost leads
+        const eligible = all.filter((l: any) => {
+          const status = (l.status || '').toLowerCase();
+          const stage = (l.pipeline_stage || '').toLowerCase();
+          return status !== 'lost' && stage !== 'closed_lost';
+        });
+
+        eligible.sort((a: any, b: any) => {
+          const pA = STAGE_PRIORITY[a.pipeline_stage] ?? 10;
+          const pB = STAGE_PRIORITY[b.pipeline_stage] ?? 10;
+          return pA - pB;
+        });
+
+        setLeads(eligible);
       } catch (e) {
         console.error(e);
       } finally {
@@ -69,18 +84,68 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleSelectLead = (lead: any) => {
+  const [addressError, setAddressError] = useState<string | null>(null);
+
+  const handleSelectLead = async (lead: any) => {
+    setAddressError(null);
+
+    // 1-Draft-Per-Lead: Check if this lead already has an unexecuted draft estimate
+    try {
+      const res: any = await api.request(`/admin/estimates/draft-by-lead/${lead.id}`);
+      if (res?.exists && res.estimate) {
+        const est = res.estimate;
+        if (est.proposal_data) {
+          const pd = typeof est.proposal_data === 'string' ? JSON.parse(est.proposal_data) : est.proposal_data;
+          onDataChange({
+            ...pd,
+            id: est.id,
+            estimateNumber: est.estimate_number,
+          });
+        } else {
+          onDataChange({
+            id: est.id,
+            estimateNumber: est.estimate_number,
+          });
+        }
+        setSearchQuery('');
+        setShowDropdown(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Failed checking draft estimate for lead:', err);
+    }
+
     const name = lead.full_name || lead.name || '';
-    const address = lead.address || '';
-    const city = lead.city || '';
-    const zip = lead.zip || '';
+
+    // Prefer verified Client 360 profile address over lead-entry data
+    const c360Address = lead.client_360_address || '';
+    const c360City = lead.client_360_city || '';
+    const c360Zip = lead.client_360_zip || '';
+
+    const leadAddress = lead.address || '';
+    const leadCity = lead.city || '';
+    const leadZip = lead.zip || '';
+
+    // Use Client 360 address if it exists, otherwise fall back to lead address
+    const address = c360Address || leadAddress;
+    const city = c360City || leadCity;
+    const zip = c360Zip || leadZip;
     const property = [address, city, zip].filter(Boolean).join(', ');
-    
+
+    // Block if no property address at all — it's required for the estimate
+    if (!address.trim()) {
+      setAddressError(
+        `No property address on file for ${name}. Please add a verified address to their Client 360 profile before creating an estimate.`
+      );
+      return;
+    }
+
     onDataChange({
       client: {
         leadId: String(lead.id),
         name,
         property,
+        addressSource: c360Address ? 'client_360' : 'lead',
         phone: lead.phone || '',
         email: lead.email || '',
       }
@@ -113,7 +178,15 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
       });
       if (res.url) {
         onDataChange({
-          photo1: { url: res.url, filename: file.name, focalPoint: { x: 0.5, y: 0.5 } }
+          photo1: {
+            url: res.url,
+            filename: file.name,
+            x: 0,
+            y: 0,
+            zoom: 1.0,
+            position: { x: 0, y: 0 },
+            focalPoint: { x: 0.5, y: 0.5 },
+          }
         });
       }
     } catch (error) {
@@ -121,17 +194,6 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const handleFocalPointClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!data.photo1) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    
-    onDataChange({
-      photo1: { ...data.photo1, focalPoint: { x, y } }
-    });
   };
 
   return (
@@ -145,7 +207,7 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
           type="date"
           value={formattedDate}
           onChange={handleDateChange}
-          className="w-full px-4 py-2.5 liquid-glass-input rounded-xl text-sm font-medium text-slate-800"
+          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:border-[#1a5ba5] focus:ring-2 focus:ring-[#1a5ba5]/20 transition-all"
         />
       </div>
 
@@ -155,17 +217,17 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
         
         <div className="relative" ref={dropdownRef}>
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text"
-              placeholder="Search estimate-ready leads by name, phone, address..."
+              placeholder="Search leads by name, phone, address..."
               value={searchQuery}
               onChange={e => {
                 setSearchQuery(e.target.value);
                 setShowDropdown(true);
               }}
               onFocus={() => setShowDropdown(true)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#1a5ba5] transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#1a5ba5] focus:ring-2 focus:ring-[#1a5ba5]/20 transition-all"
             />
           </div>
           
@@ -202,6 +264,19 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
           )}
         </div>
 
+        {/* Address missing error */}
+        {addressError && (
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200">
+            <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <div>
+              <p className="text-xs font-bold text-red-700">Property address required</p>
+              <p className="text-xs text-red-600 mt-0.5 leading-relaxed">{addressError}</p>
+            </div>
+          </div>
+        )}
+
         {data.client.leadId && (
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -225,7 +300,19 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
             
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center justify-between">
-                Property <Lock size={10} />
+                <span className="flex items-center gap-1.5">
+                  Property
+                  {data.client.addressSource === 'client_360' ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase tracking-wide">
+                      Client 360 ✓
+                    </span>
+                  ) : data.client.addressSource === 'lead' ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black uppercase tracking-wide">
+                      Lead entry
+                    </span>
+                  ) : null}
+                </span>
+                <Lock size={10} />
               </label>
               <div className="text-sm font-medium text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg mt-1 truncate">
                 {data.client.property}
@@ -263,33 +350,16 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
             )}
           </label>
         ) : (
-          <div className="space-y-3">
-            <div 
-              className="relative w-full h-48 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-crosshair group"
-              onClick={handleFocalPointClick}
-            >
-              <img src={getImgSrc(data.photo1.url)} alt="Cover" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                <span className="text-white text-xs font-bold bg-black/50 px-3 py-1 rounded-full">Click to set focal point</span>
-              </div>
-              
-              {data.photo1.focalPoint && (
-                <div 
-                  className="absolute w-4 h-4 bg-amber-400 rounded-full border-2 border-white shadow-md transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ left: `${data.photo1.focalPoint.x * 100}%`, top: `${data.photo1.focalPoint.y * 100}%` }}
-                />
-              )}
-            </div>
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-500 font-medium truncate max-w-[200px]">{data.photo1.filename}</span>
-              <button 
-                onClick={() => onDataChange({ photo1: undefined })}
-                className="text-red-500 hover:text-red-600 font-bold"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
+          <PhotoFrameEditor
+            photo={data.photo1}
+            onChange={(updated) => onDataChange({ photo1: updated })}
+            onRemove={() => onDataChange({ photo1: undefined })}
+            onReplace={handleFileUpload}
+            isReplacing={isUploading}
+            label="Cover Photo (Page 1)"
+            helperText="Drag to reposition and zoom to frame the roofline for the estimate cover."
+            aspectRatio={816 / 526}
+          />
         )}
       </div>
 

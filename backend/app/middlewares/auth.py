@@ -38,17 +38,6 @@ async def resolve_auth_user(token: str, db: AsyncSession) -> Optional[AuthUser]:
 
     result = await db.execute(stmt, {"token": token})
     row = result.mappings().first()
-
-    # Fallback to owner if session exists without user_id
-    if not row:
-        check_stmt = text("SELECT token FROM admin_sessions WHERE token = :token AND expires_at > NOW()")
-        session_exists = (await db.execute(check_stmt, {"token": token})).first()
-        if session_exists:
-            owner_stmt = text("SELECT id, name, email, phone, role, status, avatar_url FROM users WHERE role = 'owner' AND status = 'active' ORDER BY id ASC LIMIT 1")
-            row = (await db.execute(owner_stmt)).mappings().first()
-            if row:
-                await db.execute(text("UPDATE admin_sessions SET user_id = :uid WHERE token = :token"), {"uid": row["id"], "token": token})
-
     if not row:
         return None
 
@@ -90,8 +79,11 @@ async def verify_client_key(api_key: str, db: AsyncSession, request: Request) ->
     if cached:
         try:
             key_data = orjson.loads(cached)
+            if not key_data.get("is_active", True):
+                await cache_delete(redis_key)
+                return None
         except Exception:
-            pass
+            key_data = None
 
     if not key_data:
         stmt = text("""
@@ -120,8 +112,9 @@ async def verify_client_key(api_key: str, db: AsyncSession, request: Request) ->
             "scopes": row["scopes"] or [],
             "rate_limit_per_minute": row["rate_limit_per_minute"] or 120,
             "allowed_origins": row["allowed_origins"] or [],
+            "is_active": bool(row["is_active"]),
         }
-        await cache_set(redis_key, orjson.dumps(key_data).decode("utf-8"), ttl_seconds=600)
+        await cache_set(redis_key, orjson.dumps(key_data).decode("utf-8"), ttl_seconds=30)
 
     # Check Rate Limit per API Key
     rl_key = f"rl:apikey:{key_data['id']}"
@@ -197,66 +190,46 @@ async def get_optional_current_user(
         if user:
             return user
 
-    # 4. If client app is verified (via API key) OR in development mode,
-    # resolve to the active owner user profile (Marc Sarellano) instead of a synthetic robot account.
-    if client_key_data or settings.APP_ENV.lower() in ("development", "dev", "local"):
-        owner_stmt = text("""
-            SELECT id, name, email, phone, role, status, avatar_url
-            FROM users
-            WHERE role = 'owner' AND status = 'active'
-            ORDER BY id ASC LIMIT 1
-        """)
-        owner_row = (await db.execute(owner_stmt)).mappings().first()
-        if owner_row:
-            perms, is_protected = await get_user_effective_permissions(db, owner_row["id"])
-            return AuthUser(
-                id=owner_row["id"],
-                name=owner_row["name"],
-                email=owner_row["email"],
-                role=owner_row["role"],
-                status=owner_row["status"],
-                phone=owner_row.get("phone"),
-                avatar_url=owner_row.get("avatar_url"),
-                permissions=perms or {"*": "all"},
-                is_protected_owner=True,
-                is_api_key=False,
-                api_key_id=client_key_data["id"] if client_key_data else None,
-            )
+    # 4. If an API key was provided and verified, return an AuthUser scoped to its permissions
+    if client_key_data:
+        key_scopes = client_key_data.get("scopes") or []
+        perms_dict = {scope: "all" for scope in key_scopes}
+        return AuthUser(
+            id=client_key_data["id"],
+            name=f"API Key: {client_key_data['name']}",
+            email=f"api_{client_key_data['key_prefix']}@system.local",
+            role="service_account",
+            status="active",
+            permissions=perms_dict,
+            is_protected_owner=False,
+            is_api_key=True,
+            api_key_id=client_key_data["id"],
+        )
 
     return None
 
 
 async def resolve_api_key(api_key: str, db: AsyncSession, request: Request) -> Optional[AuthUser]:
     """
-    Backwards-compatibility alias: verifies the API key and returns the active owner AuthUser.
+    Verifies the API key and returns an AuthUser scoped strictly to its permissions.
     """
     key_data = await verify_client_key(api_key, db, request)
     if not key_data:
         return None
 
-    owner_stmt = text("""
-        SELECT id, name, email, phone, role, status, avatar_url
-        FROM users
-        WHERE role = 'owner' AND status = 'active'
-        ORDER BY id ASC LIMIT 1
-    """)
-    owner_row = (await db.execute(owner_stmt)).mappings().first()
-    if owner_row:
-        perms, is_protected = await get_user_effective_permissions(db, owner_row["id"])
-        return AuthUser(
-            id=owner_row["id"],
-            name=owner_row["name"],
-            email=owner_row["email"],
-            role=owner_row["role"],
-            status=owner_row["status"],
-            phone=owner_row.get("phone"),
-            avatar_url=owner_row.get("avatar_url"),
-            permissions=perms or {"*": "all"},
-            is_protected_owner=True,
-            is_api_key=False,
-            api_key_id=key_data["id"],
-        )
-    return None
+    key_scopes = key_data.get("scopes") or []
+    perms_dict = {scope: "all" for scope in key_scopes}
+    return AuthUser(
+        id=key_data["id"],
+        name=f"API Key: {key_data['name']}",
+        email=f"api_{key_data['key_prefix']}@system.local",
+        role="service_account",
+        status="active",
+        permissions=perms_dict,
+        is_protected_owner=False,
+        is_api_key=True,
+        api_key_id=key_data["id"],
+    )
 
 async def require_auth(
     user: Optional[AuthUser] = Depends(get_optional_current_user)
@@ -273,8 +246,6 @@ get_current_user = require_auth
 
 def require_permission(permission: str, required_scope: Optional[str] = None) -> Callable:
     async def dependency(user: AuthUser = Depends(require_auth)) -> AuthUser:
-        if user.is_api_key and user.is_protected_owner:
-            return user
         if not has_permission(user, permission, required_scope):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -285,8 +256,6 @@ def require_permission(permission: str, required_scope: Optional[str] = None) ->
 
 def require_any_permission(permissions: List[str]) -> Callable:
     async def dependency(user: AuthUser = Depends(require_auth)) -> AuthUser:
-        if user.is_api_key and user.is_protected_owner:
-            return user
         if not has_any_permission(user, permissions):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

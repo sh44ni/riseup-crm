@@ -88,7 +88,8 @@ def calculate_roof_estimate(data: Optional[Dict[str, Any]] = None, **kwargs) -> 
         merged.update(data)
     merged.update(kwargs)
 
-    squares = max(1.0, float(merged.get("roof_squares") or merged.get("roofSquares") or 20.0))
+    raw_sq = merged.get("roof_squares") if merged.get("roof_squares") is not None else merged.get("roofSquares")
+    squares = max(1.0, float(raw_sq if raw_sq is not None else 20.0))
     mat_id = str(merged.get("material_id") or merged.get("materialId") or "oc_duration")
     material = next((m for m in ROOFING_MATERIALS if m["id"] == mat_id), ROOFING_MATERIALS[0])
 
@@ -251,7 +252,7 @@ def calculate_lead_estimated_value(
       midpoint = (low + high) / 2
     Factors pitch and stories multipliers if specified.
     """
-    sqft = max(100.0, float(sqft or 2500.0))
+    sqft = max(100.0, float(sqft if sqft is not None else 2500.0))
     slug = resolve_service_slug(service_type)
     
     rule = db_rule or FALLBACK_SERVICE_RATES.get(slug, FALLBACK_SERVICE_RATES["residential"])

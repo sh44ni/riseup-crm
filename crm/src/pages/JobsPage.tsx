@@ -4,13 +4,16 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
+import { ViewToggle } from '@/components/common/ViewToggle';
 import { useJobs } from '@/hooks/useJobs';
 import { JobRecord } from '@/types/jobTypes';
 import { JobCard } from '@/components/jobs/JobCard';
+import { JobsTableView } from '@/components/jobs/JobsTableView';
 import { JobInspectorModal } from '@/components/jobs/JobInspectorModal';
 
 export function JobsPage() {
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -72,20 +75,43 @@ export function JobsPage() {
         searchRef={searchInputRef}
       />
 
+      {/* TOOLBAR: Summary count & View Mode Switcher */}
+      <div className="light-glass-panel rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            Showing <strong className="text-slate-900 dark:text-white">{activeJobs.length}</strong> active {activeJobs.length === 1 ? 'jobsite' : 'jobsites'}
+          </span>
+          {completedJobs.length > 0 && (
+            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+              • {completedJobs.length} completed
+            </span>
+          )}
+        </div>
+
+        <ViewToggle
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+      </div>
+
       {/* ACTIVE JOBS */}
       {activeJobs.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {activeJobs.map((job) => (
-            <JobCard key={job.id} job={job} onClick={() => handleOpenInspector(job)} />
-          ))}
-        </div>
+        viewMode === 'table' ? (
+          <JobsTableView jobs={activeJobs} onSelectJob={handleOpenInspector} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {activeJobs.map((job) => (
+              <JobCard key={job.id} job={job} onClick={() => handleOpenInspector(job)} />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="py-20 text-center rounded-2xl border-2 border-dashed border-slate-200 bg-white/30 space-y-2">
-          <Hammer size={32} className="mx-auto text-slate-300" />
-          <h5 className="font-bold text-sm text-slate-600">
+        <div className="py-20 text-center rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 bg-white/30 dark:bg-white/5 space-y-2">
+          <Hammer size={32} className="mx-auto text-slate-300 dark:text-slate-600" />
+          <h5 className="font-bold text-sm text-slate-600 dark:text-slate-300">
             {loading ? 'Loading jobs...' : 'No active jobs'}
           </h5>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+          <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm mx-auto">
             {loading
               ? 'Fetching your work orders...'
               : 'Jobs appear here automatically when leads move to Active Jobs in your pipeline.'}
@@ -97,15 +123,21 @@ export function JobsPage() {
       {completedJobs.length > 0 && (
         <>
           <div className="flex items-center gap-2 pt-4">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Completed ({completedJobs.length})</span>
-            <div className="h-px flex-1 bg-slate-200" />
+            <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2">Completed ({completedJobs.length})</span>
+            <div className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 opacity-70">
-            {completedJobs.map((job) => (
-              <JobCard key={job.id} job={job} onClick={() => handleOpenInspector(job)} />
-            ))}
-          </div>
+          {viewMode === 'table' ? (
+            <div className="opacity-80">
+              <JobsTableView jobs={completedJobs} onSelectJob={handleOpenInspector} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 opacity-70">
+              {completedJobs.map((job) => (
+                <JobCard key={job.id} job={job} onClick={() => handleOpenInspector(job)} />
+              ))}
+            </div>
+          )}
         </>
       )}
 

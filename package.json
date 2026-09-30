@@ -1,6 +1,6 @@
 {
   "name": "rise-up-roofing-platform",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Rise Up Roofing & Construction - Monorepo (Website, CRM & FastAPI Backend)",
   "workspaces": [

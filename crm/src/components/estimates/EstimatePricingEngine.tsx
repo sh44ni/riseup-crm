@@ -38,35 +38,39 @@ export function EstimatePricingEngine({
   } = costInputs;
 
   // 1. Calculate True Job Cost
-  const trueJobCost =
-    (subcontractorLabor || 0) +
-    (roofingMaterials || 0) +
-    (disposalFees || 0) +
-    (permitFees || 0) +
-    (plywoodAllowance || 0) +
-    (otherCosts || 0);
+  // All intermediate calculations in integer CENTS to avoid float rounding
+  const trueJobCostCents = Math.round(
+    ((subcontractorLabor || 0) +
+     (roofingMaterials || 0) +
+     (disposalFees || 0) +
+     (permitFees || 0) +
+     (plywoodAllowance || 0) +
+     (otherCosts || 0)) * 100
+  );
+  const trueJobCost = trueJobCostCents / 100; // dollars, for display only
 
   // 2. Margin tiers calculations: 15%, 20%, 25%, 30%, 35%, 50%
   const marginTiers = [15, 20, 25, 30, 35, 50];
 
   const calculateTierPrice = (marginPct: number) => {
     const m = marginPct / 100.0;
-    const baseSell = m < 1.0 ? trueJobCost / (1.0 - m) : trueJobCost * 2;
-    const comm = commissionIsPct
-      ? baseSell * ((salesCommission || 0) / 100.0)
-      : salesCommission || 0;
-    const finalPrice = Math.round(baseSell + comm);
-    const profit = Math.round(finalPrice - trueJobCost);
+    const baseSellCents = m < 1.0
+      ? Math.round(trueJobCostCents / (1.0 - m))
+      : trueJobCostCents * 2;
+    const commCents = commissionIsPct
+      ? Math.round(baseSellCents * ((salesCommission || 0) / 100.0))
+      : Math.round((salesCommission || 0) * 100);
+    const finalPriceCents = baseSellCents + commCents;
     return {
-      finalPrice,
-      profit,
-      comm: Math.round(comm),
+      finalPrice: finalPriceCents / 100,
+      profit: (finalPriceCents - trueJobCostCents) / 100,
+      comm: commCents / 100,
     };
   };
 
   const activeCalc = calculateTierPrice(selectedMarginPct);
-  const costPerSq = roofSquares > 0 ? Math.round(trueJobCost / roofSquares) : 0;
-  const sellPerSq = roofSquares > 0 ? Math.round(activeCalc.finalPrice / roofSquares) : 0;
+  const costPerSq = roofSquares > 0 ? Math.round(trueJobCostCents / roofSquares) / 100 : 0;
+  const sellPerSq = roofSquares > 0 ? Math.round(activeCalc.finalPrice * 100 / roofSquares) / 100 : 0;
 
   const updateField = <K extends keyof UniversalCostInputs>(key: K, val: UniversalCostInputs[K]) => {
     onChangeCostInputs({
@@ -76,7 +80,7 @@ export function EstimatePricingEngine({
   };
 
   return (
-    <div className="light-glass-panel rounded-3xl p-5 md:p-7 shadow-xs border border-white/85 space-y-6">
+    <div className="light-glass-panel rounded-3xl p-5 md:p-7 shadow-xs border border-white/85 dark:border-white/10 space-y-6">
       {/* Title & Live Summary Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-4">
         <div className="flex items-center gap-3">

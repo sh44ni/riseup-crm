@@ -1,30 +1,29 @@
 // Rise Up CRM — Dashboard Stats Store
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchDashboardStats, type DashboardStats } from '../api/dashboardApi';
 
 export function useDashboardStats() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
+  const { data: stats = null, isLoading, refetch } = useQuery<DashboardStats | null>({
+    queryKey: ['dashboard-stats'],
+    queryFn: () => fetchDashboardStats(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    const data = await fetchDashboardStats();
-    if (data) setStats(data);
-    setIsLoading(false);
-  }, []);
+  const refresh = useCallback(async (_silent = true) => {
+    await refetch();
+  }, [refetch]);
 
-  useEffect(() => {
-    load(false);
-    intervalRef.current = setInterval(() => load(true), 60_000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [load]);
-
-  const refresh = useCallback((silent = true) => {
-    return load(silent);
-  }, [load]);
+  const setStats = useCallback((newStats: DashboardStats | null | ((prev: DashboardStats | null) => DashboardStats | null)) => {
+    queryClient.setQueryData<DashboardStats | null>(['dashboard-stats'], (old) => {
+      if (typeof newStats === 'function') {
+        return newStats(old ?? null);
+      }
+      return newStats;
+    });
+  }, [queryClient]);
 
   return { stats, setStats, isLoading, refresh };
 }

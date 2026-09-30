@@ -14,7 +14,6 @@ import {
   Sliders,
   Bell,
   Cpu,
-  Lock,
 } from 'lucide-react';
 import { SettingsTab } from '@/types/settingsTypes';
 import { useHeroBanner, DefaultBannerText } from '@/lib/heroBannerStore';
@@ -35,7 +34,7 @@ interface SettingsHeroProps {
 const DEFAULT_SETTINGS_TEXT: DefaultBannerText = {
   eyebrow: 'Operations & Infrastructure',
   title: 'Business Settings & Team Suite',
-  subtitle: 'Centralized operations, contractor licensing, estimator pitch multipliers, team user roles, and security policies',
+  subtitle: 'Centralized operations, contractor licensing, estimator pitch multipliers, and team user roles',
 };
 
 export function SettingsHero({
@@ -70,12 +69,11 @@ export function SettingsHero({
     { tab: 'users', label: 'Team & Users', icon: Users },
     { tab: 'company', label: 'Company & CSLB', icon: Building2 },
     { tab: 'pricing', label: 'Roofing Pricing', icon: Calculator },
-    { tab: 'security', label: 'Security & Cloud', icon: Lock },
   ];
 
   return (
     <>
-      <div className="relative rounded-2xl overflow-hidden light-glass-panel border border-white/85 shadow-[0_12px_36px_rgba(15,23,42,0.06)] h-[220px] min-h-[220px] max-h-[220px] flex flex-col justify-between p-5 lg:p-6 select-none group/hero glossy-sheen">
+      <div className="relative rounded-2xl overflow-hidden light-glass-panel border border-white/85 dark:border-white/10 shadow-[0_12px_36px_rgba(15,23,42,0.06)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] h-[220px] min-h-[220px] max-h-[220px] flex flex-col justify-between p-5 lg:p-6 select-none group/hero glossy-sheen">
         {/* 1. Dynamic Cropped Panorama Background Image */}
         <div
           className="absolute inset-0 bg-no-repeat transition-all duration-700 pointer-events-none group-hover/hero:scale-[1.01]"

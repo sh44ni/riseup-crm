@@ -1,9 +1,11 @@
+from app.core.logger import get_logger
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.middlewares.rate_limit import rate_limit
-from app.services.sync import find_or_create_client
+from app.services.sync import find_or_create_client, parse_address_components
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Public"])
 
@@ -19,10 +21,22 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
     if not full_name:
         raise HTTPException(status_code=400, detail="Name is required")
 
-    phone = body.get("phone")
-    email = body.get("email")
-    subject = body.get("subject")
-    message = body.get("message") or ""
+    phone = (body.get("phone") or "").strip() or None
+    raw_email = (body.get("email") or "").strip().lower()
+    email = raw_email if raw_email else None
+    subject = (body.get("subject") or "").strip() or None
+    message = (body.get("message") or "").strip()
+    service_type = body.get("serviceType") or body.get("service_type") or subject
+
+    # Parse and normalize address components
+    parsed_addr = parse_address_components(
+        body.get("address"),
+        body.get("city"),
+        body.get("zip") or body.get("zipCode")
+    )
+    address = parsed_addr["address"]
+    city = parsed_addr["city"]
+    zip_code = parsed_addr["zip"]
 
     referer = request.headers.get("referer", "/")
     source_page = referer.split("?")[0] if referer else "/"
@@ -32,6 +46,9 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
         "fullName": full_name,
         "phone": phone,
         "email": email,
+        "address": address,
+        "city": city,
+        "zip": zip_code,
         "leadSource": "website_contact",
         "sourceType": "website",
         "leadSourceDetail": "Website Contact Form",
@@ -41,11 +58,13 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
     # Insert lead record
     insert_sql = text("""
         INSERT INTO leads (
-            form_type, full_name, phone, email, subject, message, source_page,
-            status, client_id, source_type, lead_source, lead_source_detail, created_at
+            form_type, full_name, phone, email, address, city, zip, service_type,
+            subject, message, source_page, status, client_id, source_type,
+            lead_source, lead_source_detail, created_at
         ) VALUES (
-            'contact', :full_name, :phone, :email, :subject, :message, :source_page,
-            'new', :client_id, 'website', 'website_contact', 'Website Contact Form', NOW()
+            'contact', :full_name, :phone, :email, :address, :city, :zip, :service_type,
+            :subject, :message, :source_page, 'new', :client_id, 'website',
+            'website_contact', 'Website Contact Form', NOW()
         ) RETURNING id
     """)
 
@@ -53,6 +72,10 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
         "full_name": full_name,
         "phone": phone,
         "email": email,
+        "address": address,
+        "city": city,
+        "zip": zip_code,
+        "service_type": service_type,
         "subject": subject,
         "message": message,
         "source_page": source_page,
@@ -100,6 +123,6 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
             priority="high",
         )
     except Exception as e:
-        print(f"Automated inquiry email dispatch notice: {e}")
+        logger.warning(f"Automated inquiry email dispatch notice: {e}")
 
     return {"ok": True, "leadId": lead_id}

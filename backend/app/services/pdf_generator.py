@@ -1,3 +1,4 @@
+from app.core.logger import get_logger
 import os
 import base64
 from typing import Dict, Any
@@ -36,6 +37,7 @@ def _to_data_uri(path_or_url: str) -> str:
         return path_or_url
     
     clean = path_or_url.lstrip("/")
+    real_static_dir = os.path.realpath(STATIC_DIR)
     # Check possible relative locations
     candidate_paths = [
         os.path.join(STATIC_DIR, clean.replace("static/", "", 1) if clean.startswith("static/") else clean),
@@ -43,11 +45,12 @@ def _to_data_uri(path_or_url: str) -> str:
         os.path.join(STATIC_DIR, clean),
     ]
     for p in candidate_paths:
-        if os.path.exists(p) and os.path.isfile(p):
-            mime, _ = mimetypes.guess_type(p)
+        resolved_p = os.path.realpath(p)
+        if resolved_p.startswith(real_static_dir) and os.path.exists(resolved_p) and os.path.isfile(resolved_p):
+            mime, _ = mimetypes.guess_type(resolved_p)
             mime = mime or "image/jpeg"
             try:
-                with open(p, "rb") as f:
+                with open(resolved_p, "rb") as f:
                     b64 = base64.b64encode(f.read()).decode("utf-8")
                 return f"data:{mime};base64,{b64}"
             except Exception:
@@ -61,9 +64,9 @@ DEFAULT_PRESSURE_WASHER_IMAGE = "/static/images/estimates/pressure_washer.jpg"
 
 DEFAULT_PROPOSAL_DATA = {
     "proposal_date": datetime.now().strftime("%m/%d/%Y"),
-    "customer_name": "David Martinez",
-    "customer_address": "742 Evergreen Terrace",
-    "customer_city": "Escondido, CA 92025",
+    "customer_name": "",
+    "customer_address": "",
+    "customer_city": "",
     "roof_squares": 25.0,
     "roof_pitch": "4:12 Pitch",
     "stories": "1 Story",
@@ -265,15 +268,43 @@ def build_two_options_context(proposal_data: dict, db_settings: dict) -> dict:
         
     # 3. Client Details
     client = proposal_data.get("client") or {}
-    raw_client_addr = client.get("property") or proposal_data.get("customer_address") or "16543 Paulina Ter, Poway, CA 92064"
-    client_addr1, client_addr2 = _split_address(raw_client_addr)
-    client_phone = client.get("phone") or proposal_data.get("customer_phone") or "(858) 336-9321"
-    client_email = client.get("email") or proposal_data.get("customer_email") or "Ryanmiles2002@yahoo.com"
+    raw_client_addr = (
+        client.get("property")
+        or client.get("address")
+        or proposal_data.get("customer_address")
+        or ""
+    ).strip()
+    cust_city = (client.get("city") or proposal_data.get("customer_city") or "").strip()
+    if raw_client_addr and cust_city and cust_city.lower() not in raw_client_addr.lower():
+        full_addr_str = f"{raw_client_addr}, {cust_city}"
+    else:
+        full_addr_str = raw_client_addr or cust_city
+
+    if full_addr_str:
+        client_addr1, client_addr2 = _split_address(full_addr_str)
+    else:
+        client_addr1, client_addr2 = ("[Address Pending]", "")
+
+    raw_phone = client.get("phone") or proposal_data.get("customer_phone")
+    client_phone = str(raw_phone).strip() if raw_phone else "[Phone Pending]"
+
+    raw_email = client.get("email") or proposal_data.get("customer_email")
+    client_email = str(raw_email).strip() if raw_email else "[Email Pending]"
     
     # 4. Photos
     photo1_raw = proposal_data.get("photo1")
+    photo1_x = 0
+    photo1_y = 0
+    photo1_zoom = 1.0
     if isinstance(photo1_raw, dict):
         photo1_url = photo1_raw.get("url") or DEFAULT_HOUSE_IMAGE
+        photo1_x = photo1_raw.get("x")
+        if photo1_x is None:
+            photo1_x = photo1_raw.get("position", {}).get("x", 0)
+        photo1_y = photo1_raw.get("y")
+        if photo1_y is None:
+            photo1_y = photo1_raw.get("position", {}).get("y", 0)
+        photo1_zoom = photo1_raw.get("zoom") or 1.0
     elif isinstance(photo1_raw, str) and photo1_raw:
         photo1_url = photo1_raw
     else:
@@ -281,12 +312,26 @@ def build_two_options_context(proposal_data: dict, db_settings: dict) -> dict:
     hero_photo_url = _to_data_uri(photo1_url)
     
     photo2_raw = proposal_data.get("photo2") or {}
+    photo2_x = 0
+    photo2_y = 0
+    photo2_zoom = 1.0
     if isinstance(photo2_raw, dict) and photo2_raw.get("mode") == "upload" and photo2_raw.get("asset", {}).get("url"):
-        page2_photo_url = _to_data_uri(photo2_raw["asset"]["url"])
+        asset = photo2_raw.get("asset") or {}
+        page2_photo_url = _to_data_uri(asset.get("url"))
+        photo2_x = asset.get("x")
+        if photo2_x is None:
+            photo2_x = asset.get("position", {}).get("x", 0)
+        photo2_y = asset.get("y")
+        if photo2_y is None:
+            photo2_y = asset.get("position", {}).get("y", 0)
+        photo2_zoom = asset.get("zoom") or 1.0
     elif isinstance(photo2_raw, str) and photo2_raw:
         page2_photo_url = _to_data_uri(photo2_raw)
     else:
         page2_photo_url = hero_photo_url
+        photo2_x = photo1_x
+        photo2_y = photo1_y
+        photo2_zoom = photo1_zoom
         
     # 5. Plans A & B
     plans_list = proposal_data.get("plans") or []
@@ -381,7 +426,13 @@ def build_two_options_context(proposal_data: dict, db_settings: dict) -> dict:
         "client_phone": client_phone,
         "client_email": client_email,
         "hero_photo_url": hero_photo_url,
+        "hero_photo_x": round(float(photo1_x or 0), 2),
+        "hero_photo_y": round(float(photo1_y or 0), 2),
+        "hero_photo_zoom": round(float(photo1_zoom or 1.0), 2),
         "page2_photo_url": page2_photo_url,
+        "page2_photo_x": round(float(photo2_x or 0), 2),
+        "page2_photo_y": round(float(photo2_y or 0), 2),
+        "page2_photo_zoom": round(float(photo2_zoom or 1.0), 2),
         "plan_a": plan_a,
         "plan_b": plan_b,
         "addon_1": addon_1,
@@ -400,9 +451,22 @@ async def render_two_options_html(proposal_data: dict, settings: dict, for_previ
 
 import sys
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 from playwright.sync_api import sync_playwright
 
-def _generate_pdf_worker(html_content: str) -> bytes:
+logger = get_logger(__name__)
+
+_PDF_SEMAPHORE: Optional[asyncio.Semaphore] = None
+_PDF_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pdf_worker")
+
+def _get_pdf_semaphore() -> asyncio.Semaphore:
+    global _PDF_SEMAPHORE
+    if _PDF_SEMAPHORE is None:
+        _PDF_SEMAPHORE = asyncio.Semaphore(2)
+    return _PDF_SEMAPHORE
+
+def _sync_generate_pdf_worker(html_content: str) -> bytes:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     with sync_playwright() as p:
@@ -425,7 +489,7 @@ def _generate_pdf_worker(html_content: str) -> bytes:
             margin={"top": "0mm", "right": "0mm", "bottom": "0mm", "left": "0mm"},
             prefer_css_page_size=True,
         )
-        print(f"[PDF] Rendered in {time.time() - start:.2f}s")
+        logger.error(f"Rendered in {time.time() - start:.2f}s")
         browser.close()
         return pdf_bytes
 
@@ -435,7 +499,13 @@ async def generate_estimate_proposal_pdf(proposal_data: Dict[str, Any], template
     executed in a worker thread for 100% Windows event-loop compatibility.
     """
     html_content = await render_proposal_html(proposal_data, template_key=template_key)
-    return await asyncio.to_thread(_generate_pdf_worker, html_content)
+    sem = _get_pdf_semaphore()
+    async with sem:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            _PDF_EXECUTOR,
+            lambda: _sync_generate_pdf_worker(html_content)
+        )
 
 def save_estimate_pdf_file(estimate_identifier: str, pdf_bytes: bytes) -> str:
     """

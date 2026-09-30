@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
 import { 
   DEFAULT_PLAN_A, 
@@ -62,6 +63,7 @@ export function WizardShell({ estimateId, initialData, onBack, prefill }: Wizard
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [dbEstimateId, setDbEstimateId] = useState<string | null>(estimateId || null);
+  const [initError, setInitError] = useState<string | null>(null);
   const creatingRef = useRef(false);
   
   const stepDef = WIZARD_STEPS[currentStep] || WIZARD_STEPS[0];
@@ -80,6 +82,13 @@ export function WizardShell({ estimateId, initialData, onBack, prefill }: Wizard
       setData(initialData);
     }
   }, [initialData]);
+
+  // Keep dbEstimateId in sync if data.id gets populated
+  useEffect(() => {
+    if (data.id && String(data.id) !== dbEstimateId) {
+      setDbEstimateId(String(data.id));
+    }
+  }, [data.id, dbEstimateId]);
 
   // Apply prefill from pipeline/client navigation
   useEffect(() => {
@@ -101,29 +110,98 @@ export function WizardShell({ estimateId, initialData, onBack, prefill }: Wizard
     }
   }, [prefill]);
 
-  // Auto-create draft estimate on mount if no ID exists
+  // Auto-restore or initialize draft estimate for prefilled lead
   useEffect(() => {
-    if (dbEstimateId || creatingRef.current) return;
-    creatingRef.current = true;
-    
+    if (estimateId || !prefill?.leadId) return;
+    setInitError(null);
     (async () => {
       try {
-        const res = await api.request('/admin/estimates/two-options', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
-        const est = (res as any).estimate;
-        if (est?.id) {
+        const res: any = await api.request(`/admin/estimates/draft-by-lead/${prefill.leadId}`);
+        if (res?.exists && res.estimate) {
+          const est = res.estimate;
+          if (est.proposal_data) {
+            const pd = typeof est.proposal_data === 'string' ? JSON.parse(est.proposal_data) : est.proposal_data;
+            setData(prev => ({ ...prev, ...pd, id: est.id, estimateNumber: est.estimate_number }));
+          } else {
+            setData(prev => ({ ...prev, id: est.id, estimateNumber: est.estimate_number }));
+          }
           setDbEstimateId(String(est.id));
-          setData(prev => ({ ...prev, id: est.id, estimateNumber: est.estimate_number }));
           window.history.replaceState(null, '', `?mode=studio&id=${est.id}`);
+        } else if (!dbEstimateId && prefill.leadId) {
+          // Immediately initialize draft in DB so PreviewPanel and autosave activate without waiting
+          const initRes: any = await api.request('/admin/estimates/two-options', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...data,
+              client: {
+                ...data.client,
+                leadId: prefill.leadId,
+                name: prefill.clientName || data.client.name,
+                phone: prefill.phone || data.client.phone,
+                email: prefill.email || data.client.email,
+                property: prefill.address ? `${prefill.address}${prefill.city ? `, ${prefill.city}` : ''}` : data.client.property,
+              }
+            }),
+          });
+          const est = initRes?.estimate;
+          if (est?.id) {
+            setDbEstimateId(String(est.id));
+            setData(prev => ({ ...prev, id: est.id, estimateNumber: est.estimate_number }));
+            window.history.replaceState(null, '', `?mode=studio&id=${est.id}`);
+          } else {
+            setInitError('Failed to create draft — the server returned an unexpected response.');
+          }
         }
-      } catch (err) {
-        console.error('Failed to create draft estimate', err);
+      } catch (err: any) {
+        console.warn('Failed checking/initializing draft estimate by lead:', err);
+        setInitError(err?.message || 'Could not connect to the estimate service. Please try again.');
+      }
+    })();
+  }, [prefill?.leadId, estimateId]);
+
+  // Auto-initialize draft when a client is manually selected from search
+  // (covers the case where there's no prefill.leadId but the user picks a lead on the Details step)
+  useEffect(() => {
+    const leadId = data.client.leadId;
+    if (!leadId || dbEstimateId || estimateId || creatingRef.current) return;
+    creatingRef.current = true;
+    setInitError(null);
+    (async () => {
+      try {
+        // First check if a draft already exists for this lead
+        const check: any = await api.request(`/admin/estimates/draft-by-lead/${leadId}`);
+        if (check?.exists && check.estimate) {
+          const est = check.estimate;
+          if (est.proposal_data) {
+            const pd = typeof est.proposal_data === 'string' ? JSON.parse(est.proposal_data) : est.proposal_data;
+            setData(prev => ({ ...prev, ...pd, id: est.id, estimateNumber: est.estimate_number }));
+          } else {
+            setData(prev => ({ ...prev, id: est.id, estimateNumber: est.estimate_number }));
+          }
+          setDbEstimateId(String(est.id));
+          window.history.replaceState(null, '', `?mode=studio&id=${est.id}`);
+        } else {
+          const initRes: any = await api.request('/admin/estimates/two-options', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          });
+          const est = initRes?.estimate;
+          if (est?.id) {
+            setDbEstimateId(String(est.id));
+            setData(prev => ({ ...prev, id: est.id, estimateNumber: est.estimate_number }));
+            window.history.replaceState(null, '', `?mode=studio&id=${est.id}`);
+          } else {
+            setInitError('Failed to create draft — the server returned an unexpected response.');
+          }
+        }
+      } catch (err: any) {
+        console.warn('Failed auto-initializing draft on client select:', err);
+        setInitError(err?.message || 'Could not create estimate draft. Please try again.');
+      } finally {
         creatingRef.current = false;
       }
     })();
-  }, []);
+  }, [data.client.leadId]);
 
   // Load existing estimate if editing
   useEffect(() => {
@@ -179,8 +257,30 @@ export function WizardShell({ estimateId, initialData, onBack, prefill }: Wizard
     return true;
   })();
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!canProceed) return;
+
+    // If stepping forward and no DB draft exists yet, initialize it
+    if (!dbEstimateId && data.client?.leadId) {
+      setIsSaving(true);
+      try {
+        const res: any = await api.request('/admin/estimates/two-options', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        const est = res?.estimate;
+        if (est?.id) {
+          setDbEstimateId(String(est.id));
+          setData(prev => ({ ...prev, id: est.id, estimateNumber: est.estimate_number }));
+          window.history.replaceState(null, '', `?mode=studio&id=${est.id}`);
+        }
+      } catch (err) {
+        console.error('Failed to initialize draft estimate:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
     if (currentStep < totalSteps - 1) {
       setCurrentStep(prev => prev + 1);
     }
@@ -192,8 +292,8 @@ export function WizardShell({ estimateId, initialData, onBack, prefill }: Wizard
     }
   };
 
-  return (
-    <div className="fixed top-0 right-0 bottom-0 left-64 z-40 flex bg-slate-50 overflow-hidden">
+  return createPortal(
+    <div className="fixed top-0 right-0 bottom-0 left-64 z-50 flex bg-slate-50 overflow-hidden">
       {/* Left Panel: Wizard Content */}
       <div className="w-1/2 flex flex-col min-h-0 bg-white border-r border-slate-200">
         
@@ -276,8 +376,10 @@ export function WizardShell({ estimateId, initialData, onBack, prefill }: Wizard
           currentStep={currentStep} 
           previewPage={stepDef.previewPage} 
           lastSaved={lastSaved}
+          initError={initError}
         />
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

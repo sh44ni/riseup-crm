@@ -12,7 +12,7 @@ class Inspection(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     lead_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
-    job_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
+    job_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True)
     client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     inspection_number: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
     inspector_name: Mapped[str] = mapped_column(Text, nullable=False)
@@ -31,7 +31,7 @@ class Warranty(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     job_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
-    lead_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    lead_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
     client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     warranty_number: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
     warranty_type: Mapped[str] = mapped_column(Text, nullable=False)
@@ -51,8 +51,8 @@ class Review(Base):
     __tablename__ = "reviews"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    lead_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
-    job_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
+    lead_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
+    job_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True)
     client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     customer_name: Mapped[str] = mapped_column(Text, nullable=False)
     customer_city: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -62,6 +62,12 @@ class Review(Base):
     source: Mapped[str] = mapped_column(Text, server_default="direct", nullable=False)
     status: Mapped[str] = mapped_column(Text, server_default="pending", nullable=False, index=True)
     review_token: Mapped[Optional[str]] = mapped_column(Text, unique=True, nullable=True, index=True)
+    google_review_id: Mapped[Optional[str]] = mapped_column(Text, unique=True, nullable=True, index=True)
+    author_photo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    original_time: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    owner_reply: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    yelp_review_id: Mapped[Optional[str]] = mapped_column(Text, unique=True, nullable=True, index=True)
+    yelp_review_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     google_clicked: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -41,9 +41,9 @@ export function InspectionsPage() {
         description="This field inspection module is currently undergoing active engineering. Drone photo AI analysis, customer PDF report dispatch, and storm condition scoring are arriving shortly."
       />
 
-      <div className="bg-[#0B1E33] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+      <div className="light-glass-panel border border-white/80 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl">
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900/60 border-b border-slate-800 text-slate-400 font-semibold">
+          <thead className="bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 font-bold">
             <tr>
               <th className="px-6 py-3.5">Report #</th>
               <th className="px-6 py-3.5">Homeowner & Property</th>
@@ -53,22 +53,22 @@ export function InspectionsPage() {
               <th className="px-6 py-3.5 text-right">Date</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {INSPECTIONS.map((insp) => (
-              <tr key={insp.id} className="hover:bg-slate-800/30 transition-colors">
-                <td className="px-6 py-4 font-bold text-[#2F9FE3]">{insp.id}</td>
+              <tr key={insp.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors">
+                <td className="px-6 py-4 font-bold text-[#0284C7] dark:text-sky-400">{insp.id}</td>
                 <td className="px-6 py-4">
-                  <div className="font-semibold text-white">{insp.homeowner}</div>
-                  <div className="text-[10px] text-slate-400">{insp.address}</div>
+                  <div className="font-semibold text-slate-900 dark:text-white">{insp.homeowner}</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">{insp.address}</div>
                 </td>
                 <td className="px-6 py-4">
                   <span
                     className={`font-black text-xs px-2.5 py-1 rounded-full ${
                       insp.score >= 80
-                        ? 'bg-emerald-500/15 text-emerald-400'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
                         : insp.score >= 60
-                        ? 'bg-amber-500/15 text-amber-400'
-                        : 'bg-rose-500/15 text-rose-400'
+                        ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
+                        : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60'
                     }`}
                   >
                     {insp.score} / 100
@@ -76,19 +76,19 @@ export function InspectionsPage() {
                 </td>
                 <td className="px-6 py-4">
                   {insp.urgent ? (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-rose-400">
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-rose-600 dark:text-rose-400">
                       <AlertTriangle size={13} />
                       <span>Urgent Replacement</span>
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 size={13} />
                       <span>Maintenance OK</span>
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-slate-300">{insp.inspector}</td>
-                <td className="px-6 py-4 text-right text-slate-400 text-[11px]">{insp.date}</td>
+                <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{insp.inspector}</td>
+                <td className="px-6 py-4 text-right text-slate-400 dark:text-slate-500 text-[11px]">{insp.date}</td>
               </tr>
             ))}
           </tbody>

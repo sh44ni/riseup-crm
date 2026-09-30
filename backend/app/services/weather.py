@@ -1,8 +1,11 @@
+from app.core.logger import get_logger
 import httpx
 import orjson
 from typing import Dict, Any
 from app.core.config import settings
 from app.core.redis import cache_get, cache_set
+
+logger = get_logger(__name__)
 
 FALLBACK_WEATHER = {
     "location": "Oceanside, CA",
@@ -129,7 +132,7 @@ async def get_weather_forecast(*args, **kwargs) -> Dict[str, Any]:
             await cache_set(cache_key, orjson.dumps(shaped).decode("utf-8"), ttl_seconds=1800)
             return shaped
     except Exception as e:
-        print(f"[WeatherService Error] {e}")
+        logger.error(f"{e}")
         return FALLBACK_WEATHER
 
 get_weather = get_weather_forecast

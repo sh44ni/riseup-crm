@@ -28,6 +28,33 @@ in_memory_counters: Dict[str, int] = {
 in_memory_latencies: deque = deque([4.2, 3.8, 5.1, 4.6, 3.9], maxlen=1000)
 in_memory_rpm: Dict[int, int] = {}
 
+async def _flush_telemetry_to_redis(
+    log_entry: dict,
+    cat: str,
+    epoch_min: int,
+    duration_ms: float,
+    status_code: int,
+) -> None:
+    """Fire-and-forget Redis telemetry flush. Runs as a background task."""
+    if not await is_redis_available():
+        return
+    try:
+        r = get_redis()
+        pipe = r.pipeline()
+        pipe.lpush(RING_BUFFER_KEY, orjson.dumps(log_entry).decode("utf-8"))
+        pipe.ltrim(RING_BUFFER_KEY, 0, RING_BUFFER_LIMIT - 1)
+        pipe.incr(f"telemetry:status:{cat}")
+        pipe.incr("telemetry:total_requests")
+        if status_code >= 400:
+            pipe.incr("telemetry:total_errors")
+        pipe.incr(f"telemetry:rpm:{epoch_min}")
+        pipe.expire(f"telemetry:rpm:{epoch_min}", 7200)
+        pipe.zadd("telemetry:latencies", {f"{log_entry['id']}:{duration_ms}": duration_ms})
+        pipe.zremrangebyrank("telemetry:latencies", 0, -1001)
+        await asyncio.wait_for(pipe.execute(), timeout=0.15)
+    except Exception:
+        pass
+
 class TelemetryMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         req_id = str(uuid.uuid4())
@@ -70,8 +97,14 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
             status_code = 500
             response = JSONResponse(
                 status_code=500,
-                content={"ok": False, "error": "Internal server error", "detail": error_msg},
+                content={"ok": False, "error": error_msg, "detail": error_msg},
             )
+            origin = request.headers.get("origin")
+            if origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = "*"
 
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
         response.headers["X-Process-Time"] = f"{duration_ms}ms"
@@ -105,30 +138,15 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
             epoch_min = int(time.time() // 60)
             in_memory_rpm[epoch_min] = in_memory_rpm.get(epoch_min, 0) + 1
 
-            # Clean old RPM entries (> 2 hours old)
-            cutoff_min = epoch_min - 120
-            for old_m in list(in_memory_rpm.keys()):
-                if old_m < cutoff_min:
-                    in_memory_rpm.pop(old_m, None)
+            # Clean old RPM entries — only when dict exceeds max expected size
+            if len(in_memory_rpm) > 125:  # 2 hours of minutes + buffer
+                cutoff_min = epoch_min - 120
+                for k in [k for k in list(in_memory_rpm.keys()) if k < cutoff_min]:
+                    in_memory_rpm.pop(k, None)
 
-            # 2. Best-effort Redis sync (guarded by fast availability check)
-            if await is_redis_available():
-                try:
-                    redis = get_redis()
-                    pipe = redis.pipeline()
-                    pipe.lpush(RING_BUFFER_KEY, orjson.dumps(log_entry).decode("utf-8"))
-                    pipe.ltrim(RING_BUFFER_KEY, 0, RING_BUFFER_LIMIT - 1)
-                    pipe.incr(f"telemetry:status:{cat}")
-                    pipe.incr("telemetry:total_requests")
-                    if status_code >= 400:
-                        pipe.incr("telemetry:total_errors")
-                    pipe.incr(f"telemetry:rpm:{epoch_min}")
-                    pipe.expire(f"telemetry:rpm:{epoch_min}", 7200)
-                    pipe.zadd("telemetry:latencies", {f"{req_id}:{duration_ms}": duration_ms})
-                    pipe.zremrangebyrank("telemetry:latencies", 0, -1001)
-                    await asyncio.wait_for(pipe.execute(), timeout=0.08)
-                except Exception:
-                    # Telemetry failure should never break request flow
-                    pass
+            # 2. Fire-and-forget Redis write (never delays the response)
+            asyncio.create_task(
+                _flush_telemetry_to_redis(log_entry, cat, epoch_min, duration_ms, status_code)
+            )
 
         return response

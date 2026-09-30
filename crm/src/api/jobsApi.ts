@@ -1,3 +1,4 @@
+import type { BackendJob } from '@/types/backendTypes';
 // Rise Up CRM — Production Jobs API Client
 // Interfaces with FastAPI backend at /api/admin/jobs
 
@@ -192,7 +193,7 @@ export async function logJobActivity(
   return await res.json();
 }
 
-function normalizeJob(raw: any): JobRecord {
+function normalizeJob(raw: BackendJob): JobRecord {
   const ms = Array.isArray(raw.milestones) ? raw.milestones : [];
   const completedCount = ms.filter((m: any) => m.status === 'completed').length;
   const totalCount = ms.length;
@@ -201,7 +202,7 @@ function normalizeJob(raw: any): JobRecord {
   return {
     id: Number(raw.id),
     job_number: raw.job_number || `JOB-${raw.id}`,
-    status: raw.status || 'scheduled',
+    status: (raw.status || 'scheduled') as JobRecord['status'],
     customer_name: raw.customer_name || 'Homeowner',
     customer_phone: raw.customer_phone || '',
     customer_email: raw.customer_email || '',
@@ -231,3 +232,5 @@ function normalizeJob(raw: any): JobRecord {
     updated_at: raw.updated_at || new Date().toISOString(),
   };
 }
+
+

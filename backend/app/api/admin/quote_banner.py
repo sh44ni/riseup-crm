@@ -8,7 +8,7 @@ import orjson
 
 from app.core.database import get_db
 from app.core.redis import cache_get, cache_set, cache_delete
-from app.core.permissions import require_auth_user
+from app.core.permissions import require_auth_user, require_permission
 from app.models.quote_banner import QuoteBanner, QuoteBannerSlide
 from app.schemas.quote_banner import (
     QuoteBannerConfigPayload,
@@ -88,7 +88,7 @@ async def get_quote_banner(
 @router.put("", response_model=QuoteBannerResponse, response_model_by_alias=True)
 async def update_quote_banner(
     payload: QuoteBannerConfigPayload,
-    user: Any = Depends(require_auth_user()),
+    user: Any = Depends(require_permission("settings:edit")),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(QuoteBanner).where(QuoteBanner.id == "default")
@@ -131,7 +131,7 @@ async def update_quote_banner(
 @router.post("/upload", response_model=Dict[str, Any])
 async def upload_quote_banner_image(
     file: UploadFile = File(...),
-    user: Any = Depends(require_auth_user()),
+    user: Any = Depends(require_permission("settings:edit")),
 ):
     allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"]
     if file.content_type not in allowed:
@@ -140,7 +140,8 @@ async def upload_quote_banner_image(
             detail=f"Unsupported format {file.content_type}."
         )
 
-    ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "webp"
+    mime_to_ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif"}
+    ext = mime_to_ext.get((file.content_type or "").lower(), "webp")
     unique_name = f"quote_{uuid.uuid4().hex[:10]}.{ext}"
     upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "static", "uploads", "quotes")
     os.makedirs(upload_dir, exist_ok=True)

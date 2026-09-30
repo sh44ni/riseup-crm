@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Globe,
   Calendar,
@@ -131,27 +132,27 @@ export const MarketingPage: React.FC = () => {
         onSearchChange={setSearchQuery}
         onSearchClear={() => setSearchQuery('')}
         bottomRightBadges={
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 border border-emerald-200/90 text-[10px] font-bold text-emerald-800 shadow-2xs shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-200/90 dark:border-emerald-800/60 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               <span>100% Live Telemetry</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 border border-sky-200/90 text-[10px] font-bold text-sky-800 shadow-2xs shrink-0">
-              <TrendingUp size={11} className="text-sky-600" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 dark:bg-sky-950/60 border border-sky-200/90 dark:border-sky-800/60 text-[10px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs shrink-0">
+              <TrendingUp size={11} className="text-sky-600 dark:text-sky-400" />
               <span>{data?.totalPageviews?.toLocaleString() ?? 0} Views</span>
             </span>
-            <a
-              href="/leads"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/90 text-[10px] font-bold text-amber-800 shadow-2xs shrink-0 transition-colors"
+            <Link
+              to="/leads"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/90 hover:bg-amber-100/90 dark:bg-amber-950/60 hover:dark:bg-amber-900/60 border border-amber-200/90 dark:border-amber-800/60 text-[10px] font-bold text-amber-800 dark:text-amber-300 shadow-2xs shrink-0 transition-colors"
             >
               <span>{data?.websiteLeadsCount ?? 0} Website Leads</span>
               <ArrowUpRight size={10} />
-            </a>
+            </Link>
             <a
               href="https://riseuprac.com"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white border border-slate-200/80 text-[10px] font-bold text-slate-700 shadow-2xs shrink-0 transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/90 hover:bg-white dark:bg-slate-800/80 hover:dark:bg-slate-800 border border-slate-200/80 dark:border-white/10 text-[10px] font-bold text-slate-700 dark:text-slate-200 shadow-2xs shrink-0 transition-colors"
             >
               <Globe size={11} className="text-[#1878B8]" />
               <span>riseuprac.com</span>
@@ -161,7 +162,7 @@ export const MarketingPage: React.FC = () => {
       />
 
       {/* 2. TIMEFRAME PRESETS & STATUS TOOLBAR */}
-      <div className="light-glass-card glossy-sheen rounded-xl p-1.5 flex flex-col md:flex-row md:items-center justify-between gap-2 shadow-2xs">
+      <div className="light-glass-card dark:bg-slate-900/60 dark:border dark:border-white/10 glossy-sheen rounded-xl p-1.5 flex flex-col md:flex-row md:items-center justify-between gap-2 shadow-2xs">
         {/* Presets */}
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
           {TIMEFRAME_OPTIONS.map((opt) => {
@@ -181,7 +182,7 @@ export const MarketingPage: React.FC = () => {
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
                   active
                     ? 'bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 hover:dark:text-white hover:bg-white/60 hover:dark:bg-slate-800/60'
                 }`}
               >
                 {opt.label}
@@ -191,14 +192,14 @@ export const MarketingPage: React.FC = () => {
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-2 self-end md:self-auto text-xs text-slate-500 pr-1">
+        <div className="flex items-center gap-2 self-end md:self-auto text-xs text-slate-500 dark:text-slate-400 pr-1">
           <button
             type="button"
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10.5px] font-bold border transition-all cursor-pointer ${
               autoRefresh
-                ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200/90 shadow-2xs'
-                : 'bg-white/60 text-slate-500 border-slate-200'
+                ? 'bg-emerald-50/90 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200/90 dark:border-emerald-800/60 shadow-2xs'
+                : 'bg-white/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/10'
             }`}
           >
             <span
@@ -206,14 +207,14 @@ export const MarketingPage: React.FC = () => {
             />
             <span>Live Stream</span>
           </button>
-          <span className="text-[10px] text-slate-400 font-mono">
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
             {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
           <button
             type="button"
             onClick={() => loadAnalytics(false)}
             disabled={loading}
-            className="p-1 rounded-lg bg-white/70 hover:bg-white text-slate-600 border border-slate-200/70 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            className="p-1 rounded-lg bg-white/70 dark:bg-slate-800/70 hover:bg-white hover:dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-white/10 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="Refresh now"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin text-[#1878B8]' : ''} />
@@ -223,29 +224,29 @@ export const MarketingPage: React.FC = () => {
 
       {/* Custom Date Range Picker Modal */}
       {showCustomPicker && (
-        <div className="light-glass-card glossy-sheen rounded-xl p-3 border border-sky-300/80 shadow-md animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="light-glass-card dark:bg-slate-900/90 glossy-sheen rounded-xl p-3 border border-sky-300/80 dark:border-sky-700/80 shadow-md animate-in fade-in slide-in-from-top-1 duration-150">
           <form onSubmit={handleApplyCustom} className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white">
               <Calendar size={14} className="text-[#1878B8]" />
               <span>Custom Date Window:</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-slate-500 font-semibold">From:</span>
+              <span className="text-slate-500 dark:text-slate-400 font-semibold">From:</span>
               <input
                 type="date"
                 value={customFrom}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                className="text-xs px-2 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-sky-500"
+                className="text-xs px-2 py-1 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:border-sky-500"
                 required
               />
             </div>
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-slate-500 font-semibold">To:</span>
+              <span className="text-slate-500 dark:text-slate-400 font-semibold">To:</span>
               <input
                 type="date"
                 value={customTo}
                 onChange={(e) => setCustomTo(e.target.value)}
-                className="text-xs px-2 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-sky-500"
+                className="text-xs px-2 py-1 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:border-sky-500"
                 required
               />
             </div>
@@ -259,7 +260,7 @@ export const MarketingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowCustomPicker(false)}
-                className="px-2.5 py-1 rounded-lg bg-white/70 hover:bg-white text-slate-600 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-white/70 dark:bg-slate-800/70 hover:bg-white hover:dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/10 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -270,7 +271,7 @@ export const MarketingPage: React.FC = () => {
 
       {/* Error Alert */}
       {error && (
-        <div className="p-3 rounded-xl bg-rose-50/90 border border-rose-200 text-rose-900 text-xs font-medium flex items-center justify-between shadow-2xs">
+        <div className="p-3 rounded-xl bg-rose-50/90 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200 text-xs font-medium flex items-center justify-between shadow-2xs">
           <div className="flex items-center gap-2">
             <AlertCircle size={15} className="text-rose-600 shrink-0" />
             <span>{error}</span>
@@ -278,7 +279,7 @@ export const MarketingPage: React.FC = () => {
           <button
             type="button"
             onClick={() => loadAnalytics(false)}
-            className="text-rose-700 font-bold underline hover:text-rose-900"
+            className="text-rose-700 dark:text-rose-300 font-bold underline hover:text-rose-900 hover:dark:text-rose-100"
           >
             Retry
           </button>

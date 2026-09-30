@@ -140,7 +140,7 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
   return (
     <div
       ref={containerRef}
-      className="light-glass-panel rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 select-none relative overflow-hidden"
+      className="light-glass-panel dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs p-4 sm:p-5 select-none relative overflow-hidden"
     >
       {/* Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4 relative z-10">
@@ -151,21 +151,21 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-slate-900 tracking-tight">
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                   Website Traffic Velocity
                 </h3>
                 {isHourly && (
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300/80">
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-300/80 dark:border-sky-800/80">
                     Hourly Scan
                   </span>
                 )}
                 {isMonthly && (
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-300/80">
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border border-purple-300/80 dark:border-purple-800/80">
                     Monthly Horizon
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Full-spectrum telemetry showing raw pageviews, visitor sessions, and interaction density
               </p>
             </div>
@@ -176,25 +176,25 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
         <div className="flex items-center gap-3 flex-wrap">
           {/* Peak Callout Badge */}
           {peakPoint && (
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200/90 dark:border-amber-800/60 text-xs">
               <Zap size={13} className="text-amber-500 fill-amber-500" />
-              <span className="text-slate-500 font-semibold">Peak:</span>
-              <span className="font-black text-slate-900 font-mono">
+              <span className="text-slate-500 dark:text-slate-400 font-semibold">Peak:</span>
+              <span className="font-black text-slate-900 dark:text-white font-mono">
                 {peakPoint.pageviews} pv
               </span>
-              <span className="text-[11px] text-amber-800 font-medium">({peakPoint.label})</span>
+              <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">({peakPoint.label})</span>
             </div>
           )}
 
           {/* Metric Segmented Control */}
-          <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/90">
+          <div className="flex items-center gap-1 bg-slate-100/90 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/90 dark:border-white/10">
             <button
               type="button"
               onClick={() => setMetric('both')}
               className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 metric === 'both'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-white dark:bg-slate-700/90 text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-white/10'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-white/60 hover:dark:bg-slate-700/60'
               }`}
             >
               <div className="flex items-center -space-x-1">
@@ -208,8 +208,8 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
               onClick={() => setMetric('pageviews')}
               className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 metric === 'pageviews'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-white dark:bg-slate-700/90 text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-white/10'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-white/60 hover:dark:bg-slate-700/60'
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 inline-block" />
@@ -220,8 +220,8 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
               onClick={() => setMetric('sessions')}
               className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 metric === 'sessions'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-white dark:bg-slate-700/90 text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-white/10'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-white/60 hover:dark:bg-slate-700/60'
               }`}
             >
               <span className="w-2 h-2 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 inline-block" />
@@ -233,14 +233,14 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
 
       {/* Main Full-Width Clean Vector Canvas */}
       {loading ? (
-        <div className="h-64 w-full bg-slate-50/60 rounded-xl flex items-center justify-center text-slate-400 text-xs font-semibold">
+        <div className="h-64 w-full bg-slate-50/60 dark:bg-slate-800/40 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 text-xs font-semibold">
           Loading telemetry stream...
         </div>
       ) : points.length === 0 ? (
-        <div className="h-64 w-full bg-slate-50/40 rounded-xl flex flex-col items-center justify-center text-slate-400">
-          <Calendar size={32} className="mb-2 text-slate-300" />
-          <p className="text-sm font-bold text-slate-600">No telemetry records in this timeframe</p>
-          <p className="text-xs text-slate-400 mt-0.5">Select a wider date preset from above</p>
+        <div className="h-64 w-full bg-slate-50/40 dark:bg-slate-800/30 rounded-xl flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
+          <Calendar size={32} className="mb-2 text-slate-300 dark:text-slate-600" />
+          <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No telemetry records in this timeframe</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Select a wider date preset from above</p>
         </div>
       ) : (
         <div className="relative w-full">
@@ -293,7 +293,7 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
                     y1={yPos}
                     x2={containerWidth - padX}
                     y2={yPos}
-                    stroke="#e2e8f0"
+                    className="stroke-slate-200 dark:stroke-slate-800"
                     strokeDasharray={pct === 0 ? undefined : '4 4'}
                     strokeWidth={pct === 0 ? 1.5 : 1}
                   />
@@ -303,8 +303,8 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
                     textAnchor="end"
                     fontSize="10"
                     fontWeight="600"
-                    fill="#64748b"
-                    className="font-mono"
+                    fill="currentColor"
+                    className="font-mono text-slate-400 dark:text-slate-500"
                   >
                     {tickVal}
                   </text>
@@ -441,7 +441,7 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
                     fill="#b45309"
                     className="font-mono"
                   >
-                    {peakPoint.pageviews} PV
+                    {peakCoordPoint.pageviews} PV
                   </text>
                 </g>
               </g>
@@ -532,14 +532,14 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
                 )}px`,
                 top: `${Math.max(6, Math.min(activePoint.yPv - 95, height - 110))}px`,
               }}
-              className="pointer-events-none absolute z-30 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md p-3 text-slate-800 transition-all duration-75 min-w-[185px]"
+              className="pointer-events-none absolute z-30 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-white/10 shadow-md p-3 text-slate-800 dark:text-slate-200 transition-all duration-75 min-w-[185px]"
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-2">
-                <span className="text-xs font-black text-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/5 pb-1.5 mb-2">
+                <span className="text-xs font-black text-slate-900 dark:text-white">
                   {activePoint.label}
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono font-medium">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-medium">
                   {activePoint.day}
                 </span>
               </div>
@@ -547,28 +547,28 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
               {/* Metric Breakdown */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-bold flex items-center gap-1.5 text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5 text-[11px]">
                     <span className="w-2.5 h-2 rounded-sm bg-gradient-to-r from-blue-600 to-cyan-400 inline-block" />
                     Pageviews:
                   </span>
-                  <span className="font-black text-slate-900 font-mono text-sm">
+                  <span className="font-black text-slate-900 dark:text-white font-mono text-sm">
                     {activePoint.pageviews.toLocaleString()}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-bold flex items-center gap-1.5 text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-400 font-bold flex items-center gap-1.5 text-[11px]">
                     <span className="w-2.5 h-2 rounded-sm bg-gradient-to-r from-violet-600 to-pink-500 inline-block" />
                     Sessions:
                   </span>
-                  <span className="font-black text-slate-900 font-mono text-sm">
+                  <span className="font-black text-slate-900 dark:text-white font-mono text-sm">
                     {activePoint.sessions.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="pt-1.5 border-t border-slate-100/80 flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                <div className="pt-1.5 border-t border-slate-100/80 dark:border-white/5 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   <span>Engagement:</span>
-                  <span className="font-bold text-emerald-700">
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">
                     {activePoint.sessions > 0
                       ? (activePoint.pageviews / activePoint.sessions).toFixed(1)
                       : '1.0'}{' '}
@@ -582,35 +582,35 @@ export const MarketingTrafficChart: React.FC<MarketingTrafficChartProps> = ({
       )}
 
       {/* Dynamic Summary Strip at bottom of graph */}
-      <div className="mt-3 pt-3 border-t border-slate-200/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-5 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 inline-block" />
-            <span className="text-slate-500 font-semibold">Total Pageviews:</span>
-            <span className="font-black text-slate-900 font-mono">{totalPv.toLocaleString()}</span>
+            <span className="text-slate-500 dark:text-slate-400 font-semibold">Total Pageviews:</span>
+            <span className="font-black text-slate-900 dark:text-white font-mono">{totalPv.toLocaleString()}</span>
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 inline-block" />
-            <span className="text-slate-500 font-semibold">Total Sessions:</span>
-            <span className="font-black text-slate-900 font-mono">{totalSess.toLocaleString()}</span>
+            <span className="text-slate-500 dark:text-slate-400 font-semibold">Total Sessions:</span>
+            <span className="font-black text-slate-900 dark:text-white font-mono">{totalSess.toLocaleString()}</span>
           </div>
 
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-            <span className="text-slate-500 font-semibold">Daily Average:</span>
-            <span className="font-black text-slate-900 font-mono">{avgDailyPv} views/day</span>
+            <span className="text-slate-500 dark:text-slate-400 font-semibold">Daily Average:</span>
+            <span className="font-black text-slate-900 dark:text-white font-mono">{avgDailyPv} views/day</span>
           </div>
         </div>
 
         {peakPoint && (
-          <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-white/80 border border-slate-200/70 px-3 py-1 rounded-xl">
+          <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-800/80 border border-slate-200/70 dark:border-white/10 px-3 py-1 rounded-xl">
             <Sparkles size={13} className="text-amber-500" />
             <span className="font-bold">Peak Traffic Spike:</span>
-            <span className="font-black text-[#1878B8] font-mono">
+            <span className="font-black text-[#1878B8] dark:text-sky-400 font-mono">
               {peakPoint.pageviews.toLocaleString()} views
             </span>
-            <span className="text-slate-400">on {peakPoint.label}</span>
+            <span className="text-slate-400 dark:text-slate-500">on {peakPoint.label}</span>
           </div>
         )}
       </div>

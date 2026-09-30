@@ -15,8 +15,11 @@ import { CoastalWeatherWidget } from '@/components/common/CoastalWeatherWidget';
 import { QuoteBannerWidget } from '@/components/common/QuoteBannerWidget';
 import { SidebarScheduleWidget } from '@/components/common/SidebarScheduleWidget';
 import { SidebarTasksWidget } from '@/components/common/SidebarTasksWidget';
-import { ProfileSettingsModal } from '@/components/profile/ProfileSettingsModal';
 import { api, API_ORIGIN } from '@/lib/api';
+
+const ProfileSettingsModal = React.lazy(() =>
+  import('@/components/profile/ProfileSettingsModal').then((m) => ({ default: m.ProfileSettingsModal }))
+);
 
 interface Performer {
   rank: number;
@@ -137,14 +140,14 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
   const thirdPlace = activePerformers[2] || null;
 
   return (
-    <aside className="w-76 h-screen flex flex-col light-glass-canvas border-l border-slate-200/80 shrink-0 select-none overflow-y-auto no-scrollbar px-3.5 py-3 space-y-2.5 sticky top-0 z-20 text-slate-800 relative">
+    <aside className="w-76 h-screen flex flex-col light-glass-canvas border-l border-slate-200/80 dark:border-white/10 shrink-0 select-none overflow-y-auto no-scrollbar px-3.5 py-3 space-y-2.5 sticky top-0 z-20 text-slate-800 dark:text-slate-100 relative">
       {/* Background Architectural Dot Texture & Coastal Sunlight Diffusion */}
       <div
         className="absolute inset-0 pointer-events-none opacity-30 [background-image:radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px]"
         aria-hidden="true"
       />
       <div
-        className="absolute top-0 right-0 w-64 h-64 bg-amber-200/20 rounded-full blur-3xl pointer-events-none"
+        className="absolute top-0 right-0 w-64 h-64 bg-amber-200/20 dark:bg-sky-500/10 rounded-full blur-3xl pointer-events-none"
         aria-hidden="true"
       />
 
@@ -157,26 +160,26 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
           aria-haspopup="true"
           className={`w-full flex items-center justify-between p-2 rounded-xl light-glass-card glossy-sheen border transition-all cursor-pointer text-left ${
             isUserMenuOpen
-              ? 'border-[#1878B8]/60 shadow-[0_0_15px_rgba(24,120,184,0.18)] ring-2 ring-[#1878B8]/15 bg-white/90'
-              : 'border-white/85 shadow-2xs hover:shadow-xs hover:border-[#1878B8]/40'
+              ? 'border-[#1878B8]/60 shadow-[0_0_15px_rgba(24,120,184,0.18)] ring-2 ring-[#1878B8]/15 bg-white/90 dark:bg-slate-900/90'
+              : 'border-white/85 dark:border-white/10 shadow-2xs hover:shadow-xs hover:border-[#1878B8]/40'
           }`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative shrink-0">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] flex items-center justify-center font-black text-white text-xs shadow-xs overflow-hidden border border-white">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] flex items-center justify-center font-black text-white text-xs shadow-xs overflow-hidden border border-white dark:border-white/20">
                 {avatarSrc ? (
                   <img src={avatarSrc} alt={displayName} className="w-full h-full object-cover" />
                 ) : (
                   <span>{initials}</span>
                 )}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white bg-emerald-500" />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-slate-900 bg-emerald-500" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-[#1F1F1F] group-hover:text-[#1878B8] transition-colors leading-tight truncate">
+              <div className="text-xs font-bold text-[#1F1F1F] dark:text-slate-100 group-hover:text-[#1878B8] transition-colors leading-tight truncate">
                 {displayName}
               </div>
-              <div className="text-[10px] text-slate-500 font-medium truncate flex items-center gap-1">
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate flex items-center gap-1">
                 <span>{currentRoleLabel}</span>
               </div>
             </div>
@@ -191,10 +194,10 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
 
         {/* Floating Liquid Glass Dropdown Menu */}
         {isUserMenuOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-2xl bg-white/95 backdrop-blur-2xl border border-white/90 shadow-[0_20px_50px_rgba(15,23,42,0.18)] p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150 text-slate-800">
+          <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-2xl bg-white/95 dark:bg-[#0B1320]/95 backdrop-blur-2xl border border-white/90 dark:border-white/12 shadow-[0_20px_50px_rgba(15,23,42,0.18)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.85)] p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150 text-slate-800 dark:text-slate-100">
             {/* Header: Clean User Identity Card */}
-            <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60 flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] flex items-center justify-center font-black text-white text-xs shadow-xs shrink-0 overflow-hidden border border-white">
+            <div className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-white/10 flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] flex items-center justify-center font-black text-white text-xs shadow-xs shrink-0 overflow-hidden border border-white dark:border-white/20">
                 {avatarSrc ? (
                   <img src={avatarSrc} alt={displayName} className="w-full h-full object-cover" />
                 ) : (
@@ -202,14 +205,14 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-black text-slate-900 truncate leading-tight">{displayName}</div>
-                <div className="text-[10px] text-slate-500 font-medium truncate leading-tight mt-0.5">{displayEmail}</div>
+                <div className="text-xs font-black text-slate-900 dark:text-white truncate leading-tight">{displayName}</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate leading-tight mt-0.5">{displayEmail}</div>
                 <div className="mt-1 flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[9px] font-bold">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40 text-[9px] font-bold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     Active
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium truncate">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium truncate">
                     {currentRoleLabel}
                   </span>
                 </div>
@@ -225,9 +228,9 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                   setIsUserMenuOpen(false);
                   setIsProfileModalOpen(true);
                 }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100/90 transition-all text-left cursor-pointer group"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/90 dark:hover:bg-slate-800/80 transition-all text-left cursor-pointer group"
               >
-                <div className="w-6 h-6 rounded-lg bg-sky-50 text-[#1878B8] border border-sky-100/80 flex items-center justify-center group-hover:bg-[#1878B8] group-hover:text-white transition-colors shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-[#1878B8] dark:text-sky-400 border border-sky-100/80 dark:border-sky-800/40 flex items-center justify-center group-hover:bg-[#1878B8] group-hover:text-white transition-colors shrink-0">
                   <User size={13} />
                 </div>
                 <span className="flex-1 truncate">Profile Settings</span>
@@ -240,9 +243,9 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                   setIsUserMenuOpen(false);
                   navigate('/settings');
                 }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100/90 transition-all text-left cursor-pointer group"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/90 dark:hover:bg-slate-800/80 transition-all text-left cursor-pointer group"
               >
-                <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 border border-slate-200/80 flex items-center justify-center group-hover:bg-slate-800 group-hover:text-white transition-colors shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/10 flex items-center justify-center group-hover:bg-slate-800 dark:group-hover:bg-slate-700 group-hover:text-white transition-colors shrink-0">
                   <Settings size={13} />
                 </div>
                 <span className="flex-1 truncate">Settings</span>
@@ -255,9 +258,9 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                   setIsUserMenuOpen(false);
                   await logout();
                 }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200/60 transition-all text-left group cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-transparent hover:border-rose-200/60 dark:hover:border-rose-900/30 transition-all text-left group cursor-pointer"
               >
-                <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-500 border border-rose-100 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-colors shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-500 border border-rose-100 dark:border-rose-900/40 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition-colors shrink-0">
                   <LogOut size={13} />
                 </div>
                 <span className="flex-1 truncate">Log Out</span>
@@ -265,13 +268,13 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
             </div>
 
             {/* System Info & Version Footer */}
-            <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between px-1.5 text-[10px]">
-              <div className="flex items-center gap-1.5 font-semibold text-slate-600">
+            <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between px-1.5 text-[10px]">
+              <div className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Rise Up CRM v2.0.0</span>
+                <span>Rise Up CRM v3.1.2</span>
               </div>
-              <span className="text-[9px] font-mono font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/60">
-                Active
+              <span className="text-[9px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200/60 dark:border-emerald-800/50">
+                Stable
               </span>
             </div>
           </div>
@@ -279,10 +282,14 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
       </div>
 
       {/* Render Profile Settings Studio Modal */}
-      <ProfileSettingsModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-      />
+      {isProfileModalOpen && (
+        <React.Suspense fallback={null}>
+          <ProfileSettingsModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* 2. Coastal Weather Widget (Customizable, Glowing Standalone Icons, High Visibility) */}
       <CoastalWeatherWidget />
@@ -297,14 +304,14 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
       <SidebarTasksWidget />
 
       {/* 6. Top Performers (Podium View & Full Leaderboard) */}
-      <div className="relative z-10 rounded-2xl light-glass-panel glossy-sheen border border-white/85 shadow-xs p-3 space-y-2">
+      <div className="relative z-10 rounded-2xl light-glass-panel glossy-sheen border border-white/85 dark:border-white/10 shadow-xs p-3 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Trophy size={13} className="text-amber-500" />
-            <h3 className="text-xs font-bold text-[#1F1F1F]">Top Performers</h3>
+            <h3 className="text-xs font-bold text-[#1F1F1F] dark:text-white">Top Performers</h3>
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-[9.5px] text-slate-500 font-medium">This Month</span>
+            <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium">This Month</span>
             <Crown size={11} className="text-amber-500" />
           </div>
         </div>
@@ -317,11 +324,11 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
         ) : !hasCompletedJobs ? (
           /* Clean Authentic Zero State */
           <div className="py-5 px-2 flex flex-col items-center justify-center text-center">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50/80 border border-amber-200/60 flex items-center justify-center text-amber-500 shadow-2xs mb-2">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/40 flex items-center justify-center text-amber-500 shadow-2xs mb-2">
               <Trophy size={18} className="stroke-[2.2]" />
             </div>
-            <h4 className="text-[11px] font-bold text-slate-800 leading-tight">No completed jobs yet</h4>
-            <p className="text-[9.5px] text-slate-400 font-medium mt-1 leading-relaxed max-w-[190px]">
+            <h4 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-tight">No completed jobs yet</h4>
+            <p className="text-[9.5px] text-slate-400 dark:text-slate-400 font-medium mt-1 leading-relaxed max-w-[190px]">
               Jobs completed in the Active Jobs column will rank staff members here in real-time.
             </p>
           </div>
@@ -334,7 +341,7 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                 {secondPlace ? (
                   <>
                     <div className="relative mb-1">
-                      <div className="w-8 h-8 rounded-full bg-white/90 border-2 border-slate-300 flex items-center justify-center text-[10px] font-bold text-slate-700 shadow-2xs backdrop-blur-xs overflow-hidden">
+                      <div className="w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-700 dark:text-slate-200 shadow-2xs backdrop-blur-xs overflow-hidden">
                         {secondPlace.avatarUrl ? (
                           <img
                             src={
@@ -349,28 +356,28 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                           secondPlace.initials
                         )}
                       </div>
-                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-slate-400 text-white text-[8px] font-black flex items-center justify-center border border-white">
+                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-slate-400 text-white text-[8px] font-black flex items-center justify-center border border-white dark:border-slate-800">
                         2
                       </span>
                     </div>
-                    <span className="font-bold text-[#1F1F1F] text-[10px] truncate max-w-full text-center">
+                    <span className="font-bold text-[#1F1F1F] dark:text-slate-100 text-[10px] truncate max-w-full text-center">
                       {secondPlace.name}
                     </span>
-                    <span className="text-[9px] font-semibold text-slate-500">
+                    <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400">
                       {secondPlace.jobs} job{secondPlace.jobs === 1 ? '' : 's'}
                     </span>
                   </>
                 ) : (
                   <div className="h-14 flex flex-col items-center justify-center opacity-40">
-                    <div className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-[9px] text-slate-400">
+                    <div className="w-7 h-7 rounded-full border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-[9px] text-slate-400">
                       —
                     </div>
                     <span className="text-[9px] text-slate-400 mt-1">Open</span>
                   </div>
                 )}
                 {/* Pedestal */}
-                <div className="w-full h-10 mt-1 rounded-t-lg bg-gradient-to-b from-slate-100/90 to-slate-200/80 border-t-2 border-x border-slate-300/80 flex items-center justify-center shadow-2xs backdrop-blur-xs">
-                  <span className="text-xs font-black text-slate-500">2nd</span>
+                <div className="w-full h-10 mt-1 rounded-t-lg bg-gradient-to-b from-slate-100/90 to-slate-200/80 dark:from-slate-800/90 dark:to-slate-900/80 border-t-2 border-x border-slate-300/80 dark:border-white/10 flex items-center justify-center shadow-2xs backdrop-blur-xs">
+                  <span className="text-xs font-black text-slate-500 dark:text-slate-400">2nd</span>
                 </div>
               </div>
 
@@ -397,22 +404,22 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                           )}
                         </div>
                       </div>
-                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[8.5px] font-black flex items-center justify-center border-2 border-white shadow-xs">
+                      <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[8.5px] font-black flex items-center justify-center border-2 border-white dark:border-slate-800 shadow-xs">
                         1
                       </span>
                     </div>
-                    <span className="font-black text-[#1F1F1F] text-[10.5px] truncate max-w-full text-center">
+                    <span className="font-black text-[#1F1F1F] dark:text-white text-[10.5px] truncate max-w-full text-center">
                       {firstPlace.name}
                     </span>
-                    <span className="text-[9px] font-bold text-amber-600">
+                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400">
                       {firstPlace.jobs} job{firstPlace.jobs === 1 ? '' : 's'}
                     </span>
                   </>
                 ) : null}
                 {/* Pedestal */}
-                <div className="w-full h-14 mt-1 rounded-t-lg bg-gradient-to-b from-amber-100/90 via-amber-50/80 to-amber-100/50 border-t-2 border-x border-amber-300/90 flex flex-col items-center justify-center shadow-xs backdrop-blur-xs">
-                  <span className="text-[13px] font-black text-amber-700 leading-none">1st</span>
-                  <span className="text-[7.5px] font-extrabold uppercase tracking-wider text-amber-600 mt-0.5">Top</span>
+                <div className="w-full h-14 mt-1 rounded-t-lg bg-gradient-to-b from-amber-100/90 via-amber-50/80 to-amber-100/50 dark:from-amber-950/60 dark:via-amber-900/40 dark:to-amber-950/30 border-t-2 border-x border-amber-300/90 dark:border-amber-600/50 flex flex-col items-center justify-center shadow-xs backdrop-blur-xs">
+                  <span className="text-[13px] font-black text-amber-700 dark:text-amber-400 leading-none">1st</span>
+                  <span className="text-[7.5px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 mt-0.5">Top</span>
                 </div>
               </div>
 
@@ -421,7 +428,7 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                 {thirdPlace ? (
                   <>
                     <div className="relative mb-1">
-                      <div className="w-8 h-8 rounded-full bg-amber-50/90 border-2 border-amber-200/80 flex items-center justify-center text-[10px] font-bold text-amber-800 shadow-2xs backdrop-blur-xs overflow-hidden">
+                      <div className="w-8 h-8 rounded-full bg-amber-50/90 dark:bg-amber-950/60 border-2 border-amber-200/80 dark:border-amber-800/60 flex items-center justify-center text-[10px] font-bold text-amber-800 dark:text-amber-300 shadow-2xs backdrop-blur-xs overflow-hidden">
                         {thirdPlace.avatarUrl ? (
                           <img
                             src={
@@ -436,28 +443,28 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                           thirdPlace.initials
                         )}
                       </div>
-                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-600/80 text-white text-[8px] font-black flex items-center justify-center border border-white">
+                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-600/80 text-white text-[8px] font-black flex items-center justify-center border border-white dark:border-slate-800">
                         3
                       </span>
                     </div>
-                    <span className="font-bold text-[#1F1F1F] text-[10px] truncate max-w-full text-center">
+                    <span className="font-bold text-[#1F1F1F] dark:text-slate-100 text-[10px] truncate max-w-full text-center">
                       {thirdPlace.name}
                     </span>
-                    <span className="text-[9px] font-semibold text-slate-500">
+                    <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400">
                       {thirdPlace.jobs} job{thirdPlace.jobs === 1 ? '' : 's'}
                     </span>
                   </>
                 ) : (
                   <div className="h-14 flex flex-col items-center justify-center opacity-40">
-                    <div className="w-7 h-7 rounded-full border border-dashed border-slate-300 flex items-center justify-center text-[9px] text-slate-400">
+                    <div className="w-7 h-7 rounded-full border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-[9px] text-slate-400">
                       —
                     </div>
                     <span className="text-[9px] text-slate-400 mt-1">Open</span>
                   </div>
                 )}
                 {/* Pedestal */}
-                <div className="w-full h-8 mt-1 rounded-t-lg bg-gradient-to-b from-amber-50/80 to-amber-100/40 border-t-2 border-x border-amber-200/70 flex items-center justify-center shadow-2xs backdrop-blur-xs">
-                  <span className="text-xs font-black text-amber-700/80">3rd</span>
+                <div className="w-full h-8 mt-1 rounded-t-lg bg-gradient-to-b from-amber-50/80 to-amber-100/40 dark:from-amber-950/50 dark:to-slate-900/80 border-t-2 border-x border-amber-200/70 dark:border-amber-800/40 flex items-center justify-center shadow-2xs backdrop-blur-xs">
+                  <span className="text-xs font-black text-amber-700/80 dark:text-amber-400/90">3rd</span>
                 </div>
               </div>
             </div>
@@ -478,25 +485,25 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                   key={perf.userId || perf.name || idx}
                   className={`flex items-center justify-between py-1 px-2 rounded-lg transition-colors ${
                     isFirst
-                      ? 'bg-amber-50/90 border border-amber-200/90 shadow-2xs backdrop-blur-xs'
-                      : 'liquid-glass-tile border-white/80 hover:bg-white/90'
+                      ? 'bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/40 shadow-2xs backdrop-blur-xs'
+                      : 'liquid-glass-tile border-white/80 dark:border-white/5 hover:bg-white/90 dark:hover:bg-slate-800/50'
                   }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={`font-black text-[11px] w-2.5 ${
                         isFirst
-                          ? 'text-amber-700'
+                          ? 'text-amber-700 dark:text-amber-400'
                           : isTopThree
-                          ? 'text-slate-600'
-                          : 'text-slate-400'
+                          ? 'text-slate-600 dark:text-slate-300'
+                          : 'text-slate-400 dark:text-slate-500'
                       }`}
                     >
                       {idx + 1}
                     </span>
                     <div
                       className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden ${
-                        perf.avatarBg || 'bg-slate-200 text-slate-700'
+                        perf.avatarBg || 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
                       } ${isFirst ? 'text-white shadow-xs' : ''}`}
                     >
                       {pAvatarSrc ? (
@@ -507,19 +514,19 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
                     </div>
                     <span
                       className={`text-[10.5px] truncate ${
-                        isFirst ? 'font-bold text-[#1F1F1F]' : 'font-medium text-slate-800'
+                        isFirst ? 'font-bold text-[#1F1F1F] dark:text-white' : 'font-medium text-slate-800 dark:text-slate-200'
                       }`}
                     >
                       {perf.name}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[9.5px] font-semibold text-slate-400">
+                    <span className="text-[9.5px] font-semibold text-slate-400 dark:text-slate-400">
                       {perf.revenue}
                     </span>
                     <span
                       className={`text-[10.5px] font-bold ${
-                        isFirst ? 'text-amber-700' : 'text-slate-600'
+                        isFirst ? 'text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-300'
                       }`}
                     >
                       {perf.jobs} job{perf.jobs === 1 ? '' : 's'}
@@ -536,7 +543,7 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
           <button
             type="button"
             onClick={() => setShowAllPerformers((prev) => !prev)}
-            className="w-full py-1.5 px-3 rounded-xl liquid-glass-btn text-[10px] font-bold text-slate-600 hover:text-[#0284c7] flex items-center justify-center gap-1.5 transition-all cursor-pointer group shadow-2xs"
+            className="w-full py-1.5 px-3 rounded-xl liquid-glass-btn text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:text-[#0284c7] dark:hover:text-sky-400 flex items-center justify-center gap-1.5 transition-all cursor-pointer group shadow-2xs"
           >
             <span>{showAllPerformers ? 'Podium View' : `Full Leaderboard (${activePerformers.length})`}</span>
             <ChevronDown

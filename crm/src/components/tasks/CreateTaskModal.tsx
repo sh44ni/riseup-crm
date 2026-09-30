@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Plus,
@@ -125,6 +126,24 @@ export function CreateTaskModal({
     };
   }, [isOpen]);
 
+  // Lock body scroll and listen for Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   // Filtered leads for quick selection
   const filteredLeads = useMemo(() => {
     if (!leadSearch.trim()) return leads;
@@ -218,20 +237,26 @@ export function CreateTaskModal({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-md overflow-y-auto animate-in fade-in duration-150"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#0B1320] rounded-3xl border border-slate-200 dark:border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.35)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.85)] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] my-auto"
+      >
         {/* Header */}
-        <div className="p-5 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/70">
+        <div className="shrink-0 p-5 border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between bg-slate-50/70 dark:bg-white/5">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center shadow-xs">
               <Plus size={20} className="stroke-[3]" />
             </div>
             <div>
-              <h3 className="text-base font-black text-slate-900 tracking-tight">
+              <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                 Create New Task or Follow-Up
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 Operations checklist, client follow-up, or estimate tracking
               </p>
             </div>
@@ -240,26 +265,28 @@ export function CreateTaskModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-200/60 text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl hover:bg-slate-200/60 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
+        {/* Form Container */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+          {/* Form Scrollable Body */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* Dynamic Lead Presets & Search */}
-          <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-2">
+          <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40 space-y-2">
             <div className="flex items-center justify-between">
-              <label className="font-bold text-amber-900 flex items-center gap-1.5">
-                <Sparkles size={12} className="text-amber-600" />
+              <label className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                <Sparkles size={12} className="text-amber-600 dark:text-amber-400" />
                 <span>Link Live Lead / Customer</span>
               </label>
               {leads.length > 4 && (
                 <button
                   type="button"
                   onClick={() => setShowAllLeads(!showAllLeads)}
-                  className="text-[10.5px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                  className="text-[10.5px] font-bold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 underline cursor-pointer"
                 >
                   {showAllLeads ? 'Show Less' : `View All (${leads.length})`}
                 </button>
@@ -267,7 +294,7 @@ export function CreateTaskModal({
             </div>
 
             {isLoadingLeads ? (
-              <div className="flex items-center gap-2 py-2 text-amber-700 text-xs font-semibold">
+              <div className="flex items-center gap-2 py-2 text-amber-700 dark:text-amber-300 text-xs font-semibold">
                 <Loader2 size={13} className="animate-spin" />
                 <span>Fetching active pipeline leads...</span>
               </div>
@@ -282,7 +309,7 @@ export function CreateTaskModal({
                       value={leadSearch}
                       onChange={(e) => setLeadSearch(e.target.value)}
                       placeholder="Search active leads..."
-                      className="w-full pl-8 pr-2.5 py-1.5 rounded-lg bg-white border border-amber-300/80 text-[11px] font-medium text-slate-900 focus:outline-none focus:border-amber-500 placeholder-slate-400"
+                      className="w-full pl-8 pr-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-300/80 dark:border-amber-800/60 text-[11px] font-medium text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 placeholder-slate-400 dark:placeholder-slate-500"
                     />
                   </div>
                 )}
@@ -299,12 +326,12 @@ export function CreateTaskModal({
                         className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all shadow-2xs text-left cursor-pointer flex items-center gap-1.5 ${
                           isSelected
                             ? 'bg-amber-500 text-slate-950 border-amber-600 font-black shadow-xs'
-                            : 'bg-white border-amber-300 text-slate-800 hover:border-amber-500'
+                            : 'bg-white dark:bg-white/5 border-amber-300 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 hover:border-amber-500'
                         }`}
                       >
                         <span>{leadDisplayName}</span>
                         {lead.estimated_value && lead.estimated_value > 0 ? (
-                          <span className={`text-[9.5px] px-1 rounded ${isSelected ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                          <span className={`text-[9.5px] px-1 rounded ${isSelected ? 'bg-amber-600 text-white' : 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'}`}>
                             ${lead.estimated_value.toLocaleString()}
                           </span>
                         ) : null}
@@ -314,7 +341,7 @@ export function CreateTaskModal({
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-amber-800/80 italic">
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-400/80 italic">
                 No active leads found. You can enter homeowner name manually below.
               </p>
             )}
@@ -322,21 +349,21 @@ export function CreateTaskModal({
 
           {/* Title */}
           <div className="space-y-1">
-            <label className="font-bold text-slate-700 block">Task Title *</label>
+            <label className="font-bold text-slate-700 dark:text-slate-300 block">Task Title *</label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Schedule Drone Inspection or Follow-up on Proposal"
-              className="w-full p-2.5 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400"
+              className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-semibold focus:outline-none focus:border-amber-400"
             />
           </div>
 
           {/* Client & Estimate Amount */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Client / Homeowner</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">Client / Homeowner</label>
               <div className="relative">
                 <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
@@ -347,13 +374,13 @@ export function CreateTaskModal({
                     if (selectedLeadId) setSelectedLeadId(undefined);
                   }}
                   placeholder="Homeowner or Job Name"
-                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400"
+                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-semibold focus:outline-none focus:border-amber-400"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Linked Estimate $ (Optional)</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">Linked Estimate $ (Optional)</label>
               <div className="relative">
                 <DollarSign size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
@@ -361,7 +388,7 @@ export function CreateTaskModal({
                   value={estimateAmount}
                   onChange={(e) => setEstimateAmount(e.target.value)}
                   placeholder="24850"
-                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400"
+                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-semibold focus:outline-none focus:border-amber-400"
                 />
               </div>
             </div>
@@ -370,11 +397,11 @@ export function CreateTaskModal({
           {/* Category & Priority */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Category</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as TaskCategory)}
-                className="w-full p-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
+                className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
               >
                 <option value="rise_up">Rise Up Operations</option>
                 <option value="estimate_followup">Estimate Follow-up</option>
@@ -386,11 +413,11 @@ export function CreateTaskModal({
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Priority</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full p-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
+                className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
               >
                 <option value="urgent">🔴 Urgent</option>
                 <option value="high">🟡 High</option>
@@ -403,25 +430,25 @@ export function CreateTaskModal({
           {/* Due Date & Dynamic Assignee */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Due Date &amp; Time</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">Due Date &amp; Time</label>
               <div className="relative">
                 <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="datetime-local"
                   value={dueDateTime}
                   onChange={(e) => setDueDateTime(e.target.value)}
-                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400"
+                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-slate-700 block">Assignee</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block">Assignee</label>
               <select
                 value={assignedToUserId ? String(assignedToUserId) : assignedTo}
                 onChange={handleAssigneeChange}
                 disabled={isLoadingUsers}
-                className="w-full p-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-60"
+                className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-60"
               >
                 <option value="Unassigned">⚠️ Unassigned</option>
                 {users.map((u) => (
@@ -435,22 +462,24 @@ export function CreateTaskModal({
 
           {/* Description */}
           <div className="space-y-1">
-            <label className="font-bold text-slate-700 block">Notes &amp; Description</label>
+            <label className="font-bold text-slate-700 dark:text-slate-300 block">Notes &amp; Description</label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add operational notes, customer phone notes, or permit details..."
-              className="w-full p-2 rounded-xl border border-slate-300 text-slate-900 font-semibold focus:outline-none focus:border-amber-400 resize-none"
+              className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 font-semibold focus:outline-none focus:border-amber-400 resize-none"
             />
           </div>
 
-          {/* Footer Buttons */}
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+          </div>
+
+          {/* Sticky Footer Buttons */}
+          <div className="shrink-0 px-5 py-3.5 flex items-center justify-end gap-2 border-t border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-slate-900/60">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-300 font-bold transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -464,6 +493,7 @@ export function CreateTaskModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

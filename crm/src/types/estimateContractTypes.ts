@@ -9,6 +9,14 @@ export interface PhotoAsset {
   height?: number;
   /** 0-1 range, default {x: 0.5, y: 0.5} */
   focalPoint?: { x: number; y: number };
+  /** Horizontal pan offset percentage: -100 to 100 (default 0) */
+  x?: number;
+  /** Vertical pan offset percentage: -100 to 100 (default 0) */
+  y?: number;
+  /** Zoom scale factor (1.0 to 3.0, default 1.0) */
+  zoom?: number;
+  /** Optional nested position for flexibility */
+  position?: { x: number; y: number };
 }
 
 /**
@@ -53,6 +61,8 @@ export interface EstimateClient {
   name: string;
   /** read-only from lead (address) */
   property: string;
+  /** 'client_360' = verified from Client 360 profile, 'lead' = fallback from lead entry */
+  addressSource?: 'client_360' | 'lead';
   /** read-only from lead */
   phone: string;
   /** editable, defaults from lead */

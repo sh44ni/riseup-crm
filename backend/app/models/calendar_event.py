@@ -44,10 +44,10 @@ class CalendarEvent(Base):
     category: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), server_default="scheduled", nullable=False)
     assigned_to_user_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     crew_id: Mapped[Optional[str]] = mapped_column(
-        String(32), ForeignKey("crm_crews.id", ondelete="SET NULL"), nullable=True
+        String(32), ForeignKey("crm_crews.id", ondelete="SET NULL"), nullable=True, index=True
     )
     crew_name: Mapped[str] = mapped_column(String(128), nullable=False)
     foreman_name: Mapped[str] = mapped_column(String(64), nullable=False)

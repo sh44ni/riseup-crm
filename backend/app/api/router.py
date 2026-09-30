@@ -11,6 +11,7 @@ from app.api.public.track import router as track_router
 from app.api.public.cron import router as cron_router
 from app.api.public.invitations import router as invitations_router
 from app.api.public.reviews import router as public_reviews_router
+from app.api.public.contracts import router as public_contracts_router
 
 # Admin Routers
 from app.api.admin.auth import router as admin_auth_router
@@ -33,6 +34,8 @@ from app.api.admin.quote_banner import router as admin_quote_banner_router
 from app.api.admin.calendar_events import router as admin_calendar_events_router
 from app.api.admin.user_tasks import router as admin_user_tasks_router
 from app.api.admin.estimator import router as admin_estimator_router
+from app.api.admin.contracts import router as admin_contracts_router
+from app.api.admin.signatories import router as admin_signatories_router
 from app.api.developer import router as developer_router
 
 api_router = APIRouter()
@@ -51,6 +54,7 @@ api_router.include_router(track_router)
 api_router.include_router(cron_router)
 api_router.include_router(invitations_router)
 api_router.include_router(public_reviews_router)
+api_router.include_router(public_contracts_router)
 
 # ── Admin Endpoints ──
 api_router.include_router(admin_auth_router)
@@ -68,7 +72,6 @@ api_router.include_router(admin_finances_router, prefix="/api/admin", tags=["Adm
 api_router.include_router(admin_calendar_router, prefix="/api/admin", tags=["Admin Calendar & Tasks"])
 api_router.include_router(admin_field_router, prefix="/api/admin", tags=["Admin Field Operations"])
 api_router.include_router(admin_marketing_router, prefix="/api/admin", tags=["Admin Analytics & Marketing"])
-api_router.include_router(admin_marketing_router, prefix="/api/admin/marketing", tags=["Admin Analytics & Marketing"])
 api_router.include_router(admin_system_router, prefix="/api/admin", tags=["Admin System & Config"])
 api_router.include_router(admin_integrations_router, prefix="/api/admin", tags=["Admin Integrations"])
 
@@ -78,3 +81,5 @@ api_router.include_router(admin_quote_banner_router, prefix="/api/admin", tags=[
 api_router.include_router(admin_calendar_events_router, prefix="/api/admin", tags=["Admin Calendar Events"])
 api_router.include_router(admin_user_tasks_router, prefix="/api/admin", tags=["User Personal Sticky Notes"])
 api_router.include_router(admin_estimator_router, prefix="/api/admin", tags=["Admin Estimator Pricing"])
+api_router.include_router(admin_contracts_router, prefix="/api/admin", tags=["Admin Contracts"])
+api_router.include_router(admin_signatories_router)

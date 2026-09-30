@@ -1,3 +1,4 @@
+from app.core.logger import get_logger
 import os
 import uuid
 from datetime import datetime, timedelta
@@ -15,6 +16,8 @@ from app.middlewares.auth import (
     get_optional_current_user, require_auth, invalidate_session
 )
 from app.middlewares.rate_limit import rate_limit
+from app.schemas.auth import LoginRequest, LoginResponse, UserProfileResponse
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Auth"])
 
@@ -27,45 +30,28 @@ async def check_auth_session(user = Depends(get_optional_current_user)):
 
 @router.post("/auth", dependencies=[Depends(rate_limit("admin-login", 20, 300))])
 @router.post("/auth/login", dependencies=[Depends(rate_limit("admin-login", 20, 300))])
-async def login(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    body = await request.json()
-    email = body.get("email")
-    password = body.get("password")
+async def login(payload: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    email = payload.email
+    password = payload.password
 
     if not password:
         raise HTTPException(status_code=400, detail="Password is required")
 
+    if not email or not isinstance(email, str):
+        raise HTTPException(status_code=400, detail="Email is required")
+
     authenticated_user = None
 
-    # 1. Master password check (allows logging in as owner or requested user immediately)
-    expected_pass = settings.ADMIN_PASSWORD
-    is_master = bool(expected_pass and password == expected_pass)
-
-    if is_master:
-        if email and isinstance(email, str):
-            sql = text("SELECT id, name, email, phone, role, status, avatar_url FROM users WHERE LOWER(email) = LOWER(:email)")
-            row = (await db.execute(sql, {"email": email.strip()})).mappings().first()
-            if row and row["status"] == "active":
-                authenticated_user = dict(row)
-
-        if not authenticated_user:
-            # Fallback to the active owner
-            owner_sql = text("SELECT id, name, email, phone, role, status, avatar_url FROM users WHERE role = 'owner' AND status = 'active' ORDER BY id ASC LIMIT 1")
-            owner_row = (await db.execute(owner_sql)).mappings().first()
-            if owner_row:
-                authenticated_user = dict(owner_row)
-
-    # 2. Standard user credentials check
-    if not authenticated_user and email and isinstance(email, str):
-        sql = text("""
-            SELECT id, name, email, phone, role, status, avatar_url, password_hash, salt
-            FROM users
-            WHERE LOWER(email) = LOWER(:email)
-        """)
-        row = (await db.execute(sql, {"email": email.strip()})).mappings().first()
-        if row and row["status"] == "active":
-            if verify_password(password, row["password_hash"], row["salt"]):
-                authenticated_user = dict(row)
+    # Standard user credentials check
+    sql = text("""
+        SELECT id, name, email, phone, role, status, avatar_url, password_hash, salt
+        FROM users
+        WHERE LOWER(email) = LOWER(:email)
+    """)
+    row = (await db.execute(sql, {"email": email.strip()})).mappings().first()
+    if row and row["status"] == "active":
+        if verify_password(password, row["password_hash"], row["salt"]):
+            authenticated_user = dict(row)
 
     if not authenticated_user:
         raise HTTPException(status_code=401, detail="Invalid email or password. Please try again.")
@@ -110,7 +96,7 @@ async def login(request: Request, response: Response, db: AsyncSession = Depends
         )
         await db.commit()
     except Exception as e:
-        print(f"[Auth Audit Error] {e}")
+        logger.error(f"{e}")
 
     # Resolve dynamic permissions
     perms, is_protected = await get_user_effective_permissions(db, authenticated_user["id"])
@@ -146,8 +132,15 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
 @router.get("/profile")
 async def get_current_profile(db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
     sql = text("""
-        SELECT id, name, email, phone, role, status, avatar_url, last_login_at, created_at, permissions
-        FROM users WHERE id = :id
+        SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.avatar_url,
+               u.last_login_at, u.created_at, u.permissions,
+               u.signature_data, u.signature_type, u.signature_title,
+               COALESCE(bool_or(r.is_authorized_signatory), false) as is_authorized_signatory
+        FROM users u
+        LEFT JOIN user_roles ur ON u.id = ur.user_id
+        LEFT JOIN roles r ON ur.role_id = r.id AND r.is_authorized_signatory = true
+        WHERE u.id = :id
+        GROUP BY u.id
     """)
     row = (await db.execute(sql, {"id": user.id})).mappings().first()
     if not row:
@@ -161,6 +154,8 @@ async def get_current_profile(db: AsyncSession = Depends(get_db), user = Depends
     user_dict = dict(row)
     user_dict["permissions"] = perms
     user_dict["is_protected_owner"] = is_protected
+    user_dict["has_signature"] = bool(row.get("signature_data") and str(row.get("signature_data")).strip())
+    user_dict["is_authorized_signatory"] = bool(row.get("is_authorized_signatory"))
     if user_dict.get("created_at"):
         user_dict["created_at"] = user_dict["created_at"].isoformat()
     if user_dict.get("last_login_at"):
@@ -206,7 +201,7 @@ async def update_current_profile(request: Request, db: AsyncSession = Depends(ge
         )
         await db.commit()
     except Exception as e:
-        print(f"[Audit Error] {e}")
+        logger.error(f"{e}")
 
     perms, is_protected = await get_user_effective_permissions(db, user.id)
     if row["role"] == "owner":
@@ -275,7 +270,7 @@ async def update_current_password(request: Request, db: AsyncSession = Depends(g
         )
         await db.commit()
     except Exception as e:
-        print(f"[Audit Error] {e}")
+        logger.error(f"{e}")
 
     return {"ok": True, "message": "Password changed successfully"}
 
@@ -352,7 +347,7 @@ async def upload_current_avatar(
         )
         await db.commit()
     except Exception as e:
-        print(f"[Audit Error] {e}")
+        logger.error(f"{e}")
 
     return {"ok": True, "avatar_url": final_avatar_url, "message": "Avatar updated successfully"}
 
@@ -377,6 +372,6 @@ async def remove_current_avatar(request: Request, db: AsyncSession = Depends(get
         )
         await db.commit()
     except Exception as e:
-        print(f"[Audit Error] {e}")
+        logger.error(f"{e}")
 
     return {"ok": True, "avatar_url": None, "message": "Avatar removed successfully"}

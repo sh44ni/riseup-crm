@@ -346,9 +346,9 @@ export function InteractiveHeroEstimator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fullName: contactData.name,
-          phone: contactData.phone,
-          address: contactData.address,
+          fullName: contactData.name.trim(),
+          phone: contactData.phone.trim(),
+          address: contactData.address.trim() || undefined,
           serviceType: activeService.name,
           notes: `Dynamic Ballpark: $${rawEstimate.low.toLocaleString()} – $${rawEstimate.high.toLocaleString()} (${sqft} sq ft, ${activePresetIndex === -1 ? 'custom sq ft' : 'preset'})`,
         }),

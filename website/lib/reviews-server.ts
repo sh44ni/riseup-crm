@@ -45,16 +45,16 @@ export async function getPublicReviews(): Promise<EnrichedReview[]> {
 
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data.reviews) && data.reviews.length > 0) {
+      if (Array.isArray(data.reviews)) {
         return data.reviews;
       }
     }
   } catch (err) {
-    console.warn('[getPublicReviews] Backend fetch failed, using static reviews fallback:', err);
+    console.warn('[getPublicReviews] Backend fetch failed:', err);
   }
 
-  // Graceful fallback to static curated reviews
-  return reviews;
+  // Only return real published reviews (empty if none published yet)
+  return [];
 }
 
 /**

@@ -80,7 +80,7 @@ export function EstimateMultiOptionBuilder({
   return (
     <div className="space-y-6">
       {/* ── Section A: Proposal Metadata & Hero Photo ── */}
-      <div className="light-glass-panel rounded-3xl p-5 md:p-7 shadow-xs border border-white/85 space-y-4">
+      <div className="light-glass-panel rounded-3xl p-5 md:p-7 shadow-xs border border-white/85 dark:border-white/10 space-y-4">
         <div className="flex items-center gap-3 border-b border-slate-200/60 pb-3">
           <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-600">
             <Calendar size={16} />
@@ -425,7 +425,7 @@ export function EstimateMultiOptionBuilder({
       </div>
 
       {/* ── Section C: Add-On 1 & Add-On 2 Customization ── */}
-      <div className="light-glass-panel rounded-3xl p-5 md:p-7 shadow-xs border border-white/85 space-y-4">
+      <div className="light-glass-panel rounded-3xl p-5 md:p-7 shadow-xs border border-white/85 dark:border-white/10 space-y-4">
         <div className="flex items-center gap-3 border-b border-slate-200/60 pb-3">
           <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600">
             <Plus size={16} />

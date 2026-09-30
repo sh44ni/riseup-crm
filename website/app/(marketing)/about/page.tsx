@@ -30,7 +30,7 @@ const VALUES: Array<{
   },
   {
     icon: 'users',
-    title: 'Customer Focus',
+    title: 'Client Focus',
     desc: 'Every project starts with attentive communication. We tailor solutions to your property structure, timeline, and budget — treating your home with utmost care.',
     color: 'text-amber-400 bg-amber-500/10 border-amber-400/30',
   },
@@ -167,7 +167,7 @@ export default async function AboutPage() {
           {[
             { stat: '25+', label: 'Years Experience' },
             { stat: '1,000+', label: 'Roofs Protected' },
-            { stat: `${stats.averageRating ? stats.averageRating.toFixed(1) : '5.0'} / 5.0`, label: 'Customer Rating' },
+            { stat: `${stats.averageRating ? stats.averageRating.toFixed(1) : '5.0'} / 5.0`, label: 'Client Rating' },
             { stat: '100%', label: 'Licensed & Bonded' },
           ].map((item) => (
             <div key={item.label}>

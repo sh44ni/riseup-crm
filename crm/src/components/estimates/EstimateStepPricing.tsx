@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   DollarSign,
   ArrowLeft,
@@ -14,6 +15,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { HomeownerSpecs, MaterialSelection, ScopeItem } from '@/types/estimateTypes';
+import { useToast } from '@/context/ToastContext';
 
 interface EstimateStepPricingProps {
   specs: HomeownerSpecs;
@@ -30,6 +32,7 @@ export function EstimateStepPricing({
   onBack,
   onSaveEstimate,
 }: EstimateStepPricingProps) {
+  const { toast } = useToast();
   const [selectedTier, setSelectedTier] = useState<'good' | 'better' | 'best'>('better');
   const [clientSent, setClientSent] = useState(false);
 
@@ -81,7 +84,7 @@ export function EstimateStepPricing({
   };
 
   return (
-    <div className="light-glass-panel rounded-3xl p-6 md:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 space-y-6">
+    <div className="light-glass-panel rounded-3xl p-6 md:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 dark:border-white/10 space-y-6">
       {/* Title & Estimator Margin Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
@@ -326,7 +329,7 @@ export function EstimateStepPricing({
 
           <button
             type="button"
-            onClick={() => alert(`Generated Official PDF for ${specs.customerName} - $${currentSelectedPrice.toLocaleString()}`)}
+            onClick={() => toast.success(`Generated official PDF for ${specs.customerName} - $${currentSelectedPrice.toLocaleString()}`)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs transition-all cursor-pointer"
           >
             <FileDown size={13} className="text-slate-500" />
@@ -335,20 +338,20 @@ export function EstimateStepPricing({
 
           <button
             type="button"
-            onClick={() => alert(`DocuSign contract envelope generated for ${specs.customerName} (${selectedTier.toUpperCase()} Package)!`)}
+            onClick={() => toast.success(`DocuSign contract envelope generated for ${specs.customerName} (${selectedTier.toUpperCase()} Package)!`)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs transition-all cursor-pointer"
           >
             <FileCheck2 size={13} className="text-slate-500" />
             <span>DocuSign Envelope</span>
           </button>
 
-          <a
-            href="/tasks"
+          <Link
+            to="/tasks"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-xs font-black text-amber-900 shadow-2xs transition-all cursor-pointer"
           >
             <CheckSquare size={13} className="text-amber-700" />
             <span>Schedule Follow-Up Task</span>
-          </a>
+          </Link>
         </div>
 
         <div className="text-xs text-slate-500 font-semibold">

@@ -166,7 +166,7 @@ export default function HomeownerReviewPage({
               </p>
             ) : (
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto">
-                Thank you for your honesty. We take customer satisfaction very seriously. Our leadership team will review your notes and contact you directly to resolve any outstanding matters.
+                Thank you for your honesty. We take client satisfaction very seriously. Our leadership team will review your notes and contact you directly to resolve any outstanding matters.
               </p>
             )}
 
@@ -243,7 +243,7 @@ export default function HomeownerReviewPage({
             {is5Star ? (
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs space-y-1">
                 <span className="font-bold flex items-center gap-1.5 text-emerald-400">
-                  <Sparkles size={14} /> Thank you for being a 5-star customer!
+                  <Sparkles size={14} /> Thank you for being a 5-star client!
                 </span>
                 <p className="leading-relaxed opacity-90">
                   Your review directly supports our local roofing installers and foremen. Submitting will open Google Reviews where you can paste your thoughts.

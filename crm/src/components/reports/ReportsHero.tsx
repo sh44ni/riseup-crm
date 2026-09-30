@@ -17,6 +17,7 @@ import {
 import { DateRangeFilter } from '@/types/reportTypes';
 import { useHeroBanner, DefaultBannerText } from '@/lib/heroBannerStore';
 import { HeroBannerCustomizerModal } from '@/components/common/HeroBannerCustomizerModal';
+import { useToast } from '@/context/ToastContext';
 
 interface ReportsHeroProps {
   dateRange: DateRangeFilter;
@@ -41,6 +42,7 @@ export function ReportsHero({
   onRefresh,
   isRefreshing = false,
 }: ReportsHeroProps) {
+  const { toast } = useToast();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
 
@@ -71,15 +73,16 @@ export function ReportsHero({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      toast.success('Analytics report exported to CSV');
     } catch (e) {
       console.error(e);
-      alert('Failed to export CSV');
+      toast.error('Failed to export CSV');
     }
   };
 
   return (
     <>
-      <div className="relative rounded-2xl overflow-hidden light-glass-panel border border-white/85 shadow-[0_12px_36px_rgba(15,23,42,0.06)] h-[220px] min-h-[220px] max-h-[220px] flex flex-col justify-between p-5 lg:p-6 select-none group/hero glossy-sheen">
+      <div className="relative rounded-2xl overflow-hidden light-glass-panel border border-white/85 dark:border-white/10 shadow-[0_12px_36px_rgba(15,23,42,0.06)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] h-[220px] min-h-[220px] max-h-[220px] flex flex-col justify-between p-5 lg:p-6 select-none group/hero glossy-sheen">
         {/* Panoramic background image with subtle ambient gradients */}
         <div
           className="absolute inset-0 bg-no-repeat transition-all duration-700 pointer-events-none group-hover/hero:scale-[1.01]"

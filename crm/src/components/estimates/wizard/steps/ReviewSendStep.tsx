@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
 import { Download, Send, Check, FileText, Clock, User, MapPin } from 'lucide-react';
 import { api, API_ORIGIN } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
 
 interface StepProps {
   data: TwoOptionsEstimate;
@@ -9,19 +10,38 @@ interface StepProps {
 }
 
 export function ReviewSendStep({ data, onDataChange }: StepProps) {
+  const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [sendFeedback, setSendFeedback] = useState<string | null>(null);
 
-  const handleDownload = async () => {
-    if (!data.id) {
-      alert("Estimate must be saved first.");
-      return;
+  const ensureEstimateSaved = async (): Promise<string | number | null> => {
+    if (data.id) return data.id;
+    try {
+      const res: any = await api.request('/admin/estimates/two-options', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      if (res?.estimate?.id) {
+        onDataChange({ id: res.estimate.id, estimateNumber: res.estimate.estimate_number });
+        return res.estimate.id;
+      }
+    } catch (err) {
+      console.error('Failed to auto-save estimate before action:', err);
     }
+    return null;
+  };
+
+  const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      const res = await api.request(`/admin/estimates/${data.id}/render-pdf`, { method: 'POST' });
+      const currentId = await ensureEstimateSaved();
+      if (!currentId) {
+        toast.warning("Estimate must be saved first. Please ensure client details are filled.");
+        return;
+      }
+      const res = await api.request(`/admin/estimates/${currentId}/render-pdf`, { method: 'POST', timeoutMs: 60000 });
       const downloadPath = res.pdfUrl || res.url;
       if (downloadPath) {
         const fullUrl = downloadPath.startsWith('http') ? downloadPath : `${API_ORIGIN}${downloadPath}`;
@@ -32,26 +52,29 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        toast.success("Estimate proposal PDF downloading");
       } else {
-        alert("Failed to render PDF: No download link returned.");
+        toast.error("Failed to render PDF: No download link returned.");
       }
     } catch (e: any) {
       console.error('PDF download error:', e);
-      alert(`Failed to render PDF: ${e.message || e}`);
+      toast.error(`Failed to render PDF: ${e.message || e}`);
     } finally {
       setIsDownloading(false);
     }
   };
 
   const handleSend = async () => {
-    if (!data.id) {
-      alert("Estimate must be saved first.");
-      return;
-    }
     setIsSending(true);
     try {
-      const res = await api.request(`/admin/estimates/${data.id}/send-estimate`, { 
+      const currentId = await ensureEstimateSaved();
+      if (!currentId) {
+        toast.warning("Estimate must be saved first. Please ensure client details are filled.");
+        return;
+      }
+      const res = await api.request(`/admin/estimates/${currentId}/send-estimate`, { 
         method: 'POST',
+        timeoutMs: 60000, // PDF generation + email dispatch can take 20-40s
         body: JSON.stringify({
           customerEmail: data.client?.email || undefined,
           customerName: data.client?.name || undefined,
@@ -59,6 +82,7 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
         })
       });
       setSendSuccess(true);
+      toast.success("Estimate sent to client successfully.");
       if (res?.message) {
         setSendFeedback(res.message);
       }
@@ -66,7 +90,7 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
     } catch (e: any) {
       console.error('Send estimate failed:', e);
       const msg = e.message || String(e);
-      alert(`Failed to send estimate: ${msg}`);
+      toast.error(`Failed to send estimate: ${msg}`);
     } finally {
       setIsSending(false);
     }
@@ -95,7 +119,7 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
             <FileText size={16} className="text-[#1a5ba5]" /> 
             Proposal Summary
           </h3>
-          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/50">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
             <Clock size={12} /> {data.pricing.lockInDays} Day Lock-in
           </div>
         </div>
@@ -108,7 +132,7 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
               <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
                 <span>{data.client.email || 'No email provided'}</span>
                 {data.client?.email?.toLowerCase().includes('example.com') && (
-                  <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">Demo / Test</span>
+                  <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-semibold">Demo / Test</span>
                 )}
               </div>
               <div className="text-xs text-slate-500">{data.client.phone}</div>
@@ -163,7 +187,7 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
         <button
           onClick={handleDownload}
           disabled={isDownloading}
-          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-[#1a5ba5] text-[#1a5ba5] font-bold hover:bg-blue-50 transition-colors disabled:opacity-50"
+          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl border-2 border-[#1a5ba5] text-[#1a5ba5] font-bold hover:bg-blue-50 transition-colors disabled:opacity-50 cursor-pointer"
         >
           {isDownloading ? (
             <div className="animate-pulse flex items-center gap-2">Rendering PDF...</div>
@@ -174,10 +198,13 @@ export function ReviewSendStep({ data, onDataChange }: StepProps) {
         <button
           onClick={handleSend}
           disabled={isSending || sendSuccess || data.status === 'sent'}
-          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a5ba5] text-white font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed"
+          className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#1a5ba5] hover:bg-sky-600 text-white font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none disabled:shadow-none disabled:cursor-not-allowed cursor-pointer"
         >
           {isSending ? (
-            <div className="animate-pulse flex items-center gap-2">Sending...</div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Generating & Sending...
+            </div>
           ) : (
             <><Send size={18} /> Save & Send</>
           )}

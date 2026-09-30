@@ -38,7 +38,7 @@ export function TasksKpiCards({
         blurColor="bg-rose-400/15 group-hover:bg-rose-400/25"
         footnoteLeft="Action needed"
         footnoteRight={
-          <span className={overdueCount > 0 ? 'text-rose-600 font-bold' : 'text-emerald-700 font-bold'}>
+          <span className={overdueCount > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-emerald-700 dark:text-emerald-400 font-bold'}>
             {overdueCount > 0 ? `${overdueCount} Pending` : '0 Pending'}
           </span>
         }
@@ -59,7 +59,7 @@ export function TasksKpiCards({
         blurColor="bg-amber-400/15 group-hover:bg-amber-400/25"
         footnoteLeft="Daily follow-ups"
         footnoteRight={
-          <span className="text-amber-700 font-bold">
+          <span className="text-amber-700 dark:text-amber-400 font-bold">
             {dueTodayCount > 0 ? `${dueTodayCount} Scheduled` : 'All Clear'}
           </span>
         }
@@ -80,7 +80,7 @@ export function TasksKpiCards({
         blurColor="bg-sky-400/15 group-hover:bg-sky-400/25"
         footnoteLeft="Next 7 days"
         footnoteRight={
-          <span className="text-[#0284c7] font-bold">
+          <span className="text-[#0284c7] dark:text-sky-400 font-bold">
             {upcomingCount > 0 ? 'Active Pipeline' : 'Queue Clear'}
           </span>
         }
@@ -100,7 +100,7 @@ export function TasksKpiCards({
         hoverBorderColor="hover:border-emerald-400"
         blurColor="bg-emerald-400/15 group-hover:bg-emerald-400/25"
         footnoteLeft={`${completionRate}% completion rate`}
-        footnoteRight={<span className="text-emerald-700 font-bold">Resolved</span>}
+        footnoteRight={<span className="text-emerald-700 dark:text-emerald-400 font-bold">Resolved</span>}
         sharePct={completionRate}
         shareLabel="Completion"
         stageLabel="Resolved"

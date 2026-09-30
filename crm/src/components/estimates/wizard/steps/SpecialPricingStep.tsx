@@ -44,7 +44,7 @@ export function SpecialPricingStep({ data, onDataChange }: StepProps) {
             max={90}
             value={pricing.lockInDays}
             onChange={handleLockInDaysChange}
-            className="w-full px-4 py-2.5 mt-1.5 liquid-glass-input rounded-xl text-sm font-bold text-[#1a5ba5]"
+            className="w-full px-4 py-2.5 mt-1.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-[#1a5ba5] focus:outline-none focus:ring-2 focus:ring-[#1a5ba5]/20 focus:border-[#1a5ba5]"
           />
         </div>
 
@@ -59,7 +59,7 @@ export function SpecialPricingStep({ data, onDataChange }: StepProps) {
                 type="text"
                 value={pricing.standardPrices[0] === 0 ? '' : pricing.standardPrices[0].toLocaleString('en-US')}
                 onChange={(e) => handleStandardPriceChange(0, e.target.value)}
-                className="w-full pl-8 pr-4 py-2.5 liquid-glass-input rounded-xl text-sm font-medium text-slate-800"
+                className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a5ba5]/20 focus:border-[#1a5ba5]"
               />
             </div>
             <div className="text-[10px] font-bold text-amber-600 pl-1">
@@ -77,7 +77,7 @@ export function SpecialPricingStep({ data, onDataChange }: StepProps) {
                 type="text"
                 value={pricing.standardPrices[1] === 0 ? '' : pricing.standardPrices[1].toLocaleString('en-US')}
                 onChange={(e) => handleStandardPriceChange(1, e.target.value)}
-                className="w-full pl-8 pr-4 py-2.5 liquid-glass-input rounded-xl text-sm font-medium text-slate-800"
+                className="w-full pl-8 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a5ba5]/20 focus:border-[#1a5ba5]"
               />
             </div>
             <div className="text-[10px] font-bold text-amber-600 pl-1">

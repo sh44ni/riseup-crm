@@ -116,9 +116,9 @@ export function FinancesPage() {
         />
       </div>
 
-      <div className="bg-[#0B1E33] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+      <div className="light-glass-panel border border-white/80 dark:border-white/10 rounded-3xl overflow-hidden shadow-xl">
         <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900/60 border-b border-slate-800 text-slate-400 font-semibold">
+          <thead className="bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 font-bold">
             <tr>
               <th className="px-6 py-3.5">Invoice #</th>
               <th className="px-6 py-3.5">Client</th>
@@ -128,27 +128,27 @@ export function FinancesPage() {
               <th className="px-6 py-3.5 text-right">Date</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
+          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
             {INVOICES.map((inv) => (
-              <tr key={inv.id} className="hover:bg-slate-800/30 transition-colors">
-                <td className="px-6 py-4 font-bold text-[#2F9FE3]">{inv.id}</td>
-                <td className="px-6 py-4 font-semibold text-white">{inv.client}</td>
-                <td className="px-6 py-4 text-slate-300">{inv.type}</td>
-                <td className="px-6 py-4 font-bold text-white text-sm">
+              <tr key={inv.id} className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors">
+                <td className="px-6 py-4 font-bold text-[#0284C7] dark:text-sky-400">{inv.id}</td>
+                <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">{inv.client}</td>
+                <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{inv.type}</td>
+                <td className="px-6 py-4 font-bold text-slate-900 dark:text-white text-sm">
                   ${inv.amount.toLocaleString()}
                 </td>
                 <td className="px-6 py-4">
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                       inv.status === 'Paid'
-                        ? 'bg-emerald-500/15 text-emerald-400'
-                        : 'bg-amber-500/15 text-amber-400'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
+                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30'
                     }`}
                   >
                     {inv.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right text-slate-400 text-[11px]">{inv.date}</td>
+                <td className="px-6 py-4 text-right text-slate-400 dark:text-slate-500 text-[11px]">{inv.date}</td>
               </tr>
             ))}
           </tbody>

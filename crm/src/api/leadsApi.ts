@@ -3,47 +3,7 @@
 
 import { api } from '@/lib/api';
 
-export interface BackendLead {
-  id: number;
-  form_type?: string | null;
-  full_name: string;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  city: string | null;
-  zip: string | null;
-  service_type: string | null;
-  notes: string | null;
-  status: string;
-  priority: string;
-  lead_score: number | null;
-  lead_source: string | null;
-  property_type?: string | null;
-  roof_type?: string | null;
-  roof_sqf?: number | null;
-  pitch?: string | null;
-  stories?: string | null;
-  hoa?: boolean;
-  lost_reason?: string | null;
-  assigned_to_user_id?: number | null;
-  assigned_to_name?: string | null;
-  created_by_user_id?: number | null;
-  created_by_name?: string | null;
-  lead_source_detail?: string | null;
-  source_type?: string | null;
-  client_id?: number | null;
-  pipeline_stage?: string | null;
-  stage_entered_at?: string | null;
-  initial_contacted_at?: string | null;
-  site_visit_scheduled_at?: string | null;
-  site_visit_completed_at?: string | null;
-  proposal_sent_at?: string | null;
-  contract_signed_at?: string | null;
-  job_completed_at?: string | null;
-  estimated_value?: number | null;
-  created_at: string;
-  updated_at?: string | null;
-}
+import type { BackendLead } from '@/types/backendTypes';
 
 export interface Lead {
   id: string | number;
@@ -53,6 +13,8 @@ export interface Lead {
   address: string;
   city: string;
   zip: string;
+  clientId?: number | string;
+  client_id?: number | string;
   service: string;
   serviceColor: 'sky' | 'amber' | 'blue' | 'coral' | 'purple' | 'emerald';
   score?: number; // deprecated
@@ -277,6 +239,8 @@ export function backendLeadToLead(raw: BackendLead): Lead {
     address: raw.address || 'Address pending',
     city: raw.city || 'Oceanside',
     zip: raw.zip || '',
+    clientId: (raw as any).client_id ?? (raw as any).clientId,
+    client_id: (raw as any).client_id ?? (raw as any).clientId,
     service: raw.service_type || 'Residential Roofing',
     serviceColor: serviceToColor(raw.service_type),
     score,
@@ -296,8 +260,8 @@ export function backendLeadToLead(raw: BackendLead): Lead {
     createdDate: formatCalendarDate(raw.created_at),
     speedToCall,
     lossReason: (raw.lost_reason as any) || undefined,
-    lossNotes: raw.lost_reason ? (raw.notes || 'Marked as lost during follow-up') : undefined,
-    lostDate: raw.lost_reason ? formatRelativeDate(raw.updated_at || raw.created_at) : undefined,
+    lossNotes: raw.lost_notes || undefined,
+    lostDate: raw.lost_at ? formatCalendarDate(raw.lost_at) : (raw.lost_reason ? formatCalendarDate(raw.updated_at) : undefined),
     tags,
     notes: raw.notes || '',
   };
@@ -328,20 +292,22 @@ export function frontendStatusToBackend(status: Lead['status']): {
 
 export const leadsApi = {
   async listLeads(params?: {
-    status?: string;
-    priority?: string;
     search?: string;
+    status?: string;
+    category?: string;
+    priority?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ leads: Lead[]; rawLeads: BackendLead[]; total: number; counts: LeadsCounts }> {
     const query: Record<string, string> = {};
-    if (params?.status && params.status !== 'all') query.status = params.status;
-    if (params?.priority && params.priority !== 'all') query.priority = params.priority;
     if (params?.search && params.search.trim()) query.search = params.search.trim();
-    if (params?.limit) query.limit = String(params.limit);
-    if (params?.offset) query.offset = String(params.offset);
+    if (params?.status && params.status !== 'all') query.status = params.status;
+    if (params?.category && params.category !== 'all') query.category = params.category;
+    if (params?.priority && params.priority !== 'all') query.priority = params.priority;
+    if (params?.limit !== undefined && params?.limit !== null) query.limit = String(params.limit);
+    if (params?.offset !== undefined && params?.offset !== null) query.offset = String(params.offset);
 
-    const res = await api.getLeads(query);
+    const res = await api.getLeads(Object.keys(query).length > 0 ? query : undefined);
     const rawList: BackendLead[] = res?.leads || [];
     const leads = rawList.map(backendLeadToLead);
     const counts: LeadsCounts = res?.counts || {
@@ -393,17 +359,27 @@ export const leadsApi = {
     return api.updateLead(id, backendFields);
   },
 
+  async claimLead(id: number | string): Promise<any> {
+    return api.claimLead(id);
+  },
+
+  async reassignLead(id: number | string, newUserId: number, notes?: string): Promise<any> {
+    return api.reassignLead(id, newUserId, notes);
+  },
+
   async markLeadAsLost(
     id: number | string,
     reason: string,
     lossNotes?: string,
     authorInfo?: { authorName?: string; authorRole?: string }
   ): Promise<any> {
-    const payload = {
+    const payload: Record<string, any> = {
       status: 'lost',
       lost_reason: reason,
-      notes: lossNotes || `Lost: ${reason}`,
     };
+    if (lossNotes?.trim()) {
+      payload.lost_notes = lossNotes.trim();
+    }
     await api.updateLead(id, payload);
     try {
       await api.addLeadActivity(id, {
@@ -423,6 +399,8 @@ export const leadsApi = {
       status: 'contacted',
       pipeline_stage: 'stage_2_initial_contact',
       lost_reason: null,
+      lost_notes: null,
+      lost_at: null,
     };
     await api.updateLead(id, payload);
     try {

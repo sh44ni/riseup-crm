@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Calendar,
@@ -22,6 +23,13 @@ import {
 } from '@/types/calendarTypes';
 import { CATEGORY_CONFIG } from '@/data/calendarData';
 import { fetchRealJobs, fetchPipelineJobs } from '@/api/calendarApi';
+import { z } from 'zod';
+
+const ScheduleSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  scheduledDate: z.string().min(1, 'Date is required'),
+  assignedTo: z.string().optional(),
+});
 
 interface ScheduleOperationModalProps {
   isOpen: boolean;
@@ -79,6 +87,7 @@ export function ScheduleOperationModal({
   const [entitySearch, setEntitySearch] = useState<string>('');
   const [availableLeads, setAvailableLeads] = useState<any[]>([]);
   const [availableJobs, setAvailableJobs] = useState<any[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Fetch real leads and jobs for linking
   useEffect(() => {
@@ -95,6 +104,24 @@ export function ScheduleOperationModal({
       active = false;
     };
   }, [isOpen]);
+
+  // Lock body scroll and listen for Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   // Sync initial event for edit mode or reset on open
   useEffect(() => {
@@ -149,6 +176,25 @@ export function ScheduleOperationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const formData = {
+      title,
+      scheduledDate: dateStr,
+      assignedTo: String(assignedUserId),
+    };
+    const result = ScheduleSchema.safeParse(formData);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const [key, issues] of Object.entries(result.error.format())) {
+        if (key !== '_errors' && Array.isArray((issues as any)._errors)) {
+          fieldErrors[key] = (issues as any)._errors[0];
+        }
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+
     if (!title.trim()) return;
 
     const parts = dateStr.split('-');
@@ -238,9 +284,15 @@ export function ScheduleOperationModal({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-white/80 overflow-hidden flex flex-col max-h-[92vh]">
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl bg-white dark:bg-[#0B1320] rounded-3xl shadow-[0_25px_80px_rgba(0,0,0,0.35)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.85)] border border-white/80 dark:border-white/10 overflow-hidden flex flex-col max-h-[90vh] my-auto"
+      >
         {/* Header */}
         <div className="shrink-0 px-6 py-4.5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between border-b border-slate-700/50">
           <div>
@@ -266,11 +318,13 @@ export function ScheduleOperationModal({
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4.5">
+        {/* Form Container */}
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Scrollable Form Body */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4.5">
           {/* Quick Preset Buttons */}
           <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-1.5">
+            <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1.5">
               <Sparkles size={11} className="text-sky-500" />
               <span>Quick Presets</span>
             </label>
@@ -282,8 +336,8 @@ export function ScheduleOperationModal({
                   onClick={() => setTitle(preset)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                     title === preset
-                      ? 'bg-sky-50 text-[#0284c7] border-sky-300 font-bold'
-                      : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-white hover:border-slate-300'
+                      ? 'bg-sky-50 dark:bg-sky-950/40 text-[#0284c7] dark:text-sky-300 border-sky-300 dark:border-sky-700 font-bold'
+                      : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:border-slate-300 dark:hover:border-white/20'
                   }`}
                 >
                   {preset}
@@ -294,7 +348,7 @@ export function ScheduleOperationModal({
 
           {/* Operation Title */}
           <div>
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1 mb-1">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 mb-1">
               <span>Operation / Task Title</span>
               <span className="text-rose-500">*</span>
             </label>
@@ -304,21 +358,22 @@ export function ScheduleOperationModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Initial Roof Inspection & Consultation"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 transition-all placeholder:text-slate-400 shadow-2xs"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 dark:focus:ring-sky-900/30 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs"
             />
+            {errors.title && <p className="text-rose-500 text-xs mt-1">{errors.title}</p>}
           </div>
 
           {/* Category & Priority Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {/* Category */}
             <div>
-              <label className="text-xs font-bold text-slate-800 mb-1 block">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 block">
                 Operation Category
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as OperationCategory)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 transition-all bg-white cursor-pointer shadow-2xs"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 dark:focus:ring-sky-900/30 transition-all bg-white dark:bg-slate-900 cursor-pointer shadow-2xs"
               >
                 <option value="team_task">Team Task & Follow-up</option>
                 <option value="client_meeting">Client Visit & Meeting</option>
@@ -331,7 +386,7 @@ export function ScheduleOperationModal({
 
             {/* Priority */}
             <div>
-              <label className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1">
                 <Flag size={12} className="text-slate-400" />
                 <span>Priority Level</span>
               </label>
@@ -346,11 +401,11 @@ export function ScheduleOperationModal({
                       className={`py-2 rounded-xl text-xs font-bold uppercase tracking-wider border transition-all cursor-pointer text-center ${
                         isSelected
                           ? p === 'urgent'
-                            ? 'bg-rose-50 text-rose-700 border-rose-400 shadow-xs'
+                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-400 dark:border-rose-700 shadow-xs'
                             : p === 'high'
-                            ? 'bg-amber-50 text-amber-800 border-amber-400 shadow-xs'
-                            : 'bg-sky-50 text-sky-800 border-sky-400 shadow-xs'
-                          : 'bg-slate-50 text-slate-600 border-slate-200/80 hover:bg-white'
+                            ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-400 dark:border-amber-700 shadow-xs'
+                            : 'bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-400 dark:border-sky-700 shadow-xs'
+                          : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:bg-white dark:hover:bg-white/10'
                       }`}
                     >
                       {p}
@@ -363,8 +418,8 @@ export function ScheduleOperationModal({
 
           {/* Assignee Selection */}
           <div>
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1 mb-1">
-              <UserCheck size={13} className="text-sky-600" />
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 mb-1">
+              <UserCheck size={13} className="text-sky-600 dark:text-sky-400" />
               <span>Assign Team Member</span>
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -377,8 +432,8 @@ export function ScheduleOperationModal({
                     onClick={() => setAssignedUserId(member.id)}
                     className={`p-2.5 rounded-2xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
                       isSelected
-                        ? 'bg-sky-50/90 border-sky-400 shadow-xs'
-                        : 'bg-white border-slate-200/80 hover:bg-slate-50'
+                        ? 'bg-sky-50/90 dark:bg-sky-950/40 border-sky-400 dark:border-sky-700 shadow-xs'
+                        : 'bg-white dark:bg-white/5 border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                     }`}
                   >
                     <div
@@ -389,15 +444,15 @@ export function ScheduleOperationModal({
                       {member.initials || 'TM'}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-slate-900 truncate">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
                         {member.name}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-medium truncate">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
                         {member.roleLabel || member.role}
                       </div>
                     </div>
                     {isSelected && (
-                      <CheckCircle2 size={14} className="text-[#0284c7] shrink-0" />
+                      <CheckCircle2 size={14} className="text-[#0284c7] dark:text-sky-400 shrink-0" />
                     )}
                   </button>
                 );
@@ -408,7 +463,7 @@ export function ScheduleOperationModal({
           {/* Date and Time Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1">
                 <Calendar size={12} className="text-slate-400" />
                 <span>Due Date</span>
               </label>
@@ -417,19 +472,20 @@ export function ScheduleOperationModal({
                 required
                 value={dateStr}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-sky-500 shadow-2xs"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 shadow-2xs"
               />
+              {errors.scheduledDate && <p className="text-rose-500 text-xs mt-1">{errors.scheduledDate}</p>}
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1">
                 <Clock size={12} className="text-slate-400" />
                 <span>Start Time</span>
               </label>
               <select
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-sky-500 bg-white shadow-2xs cursor-pointer"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 bg-white dark:bg-slate-900 shadow-2xs cursor-pointer"
               >
                 {[
                   '07:00 AM',
@@ -461,14 +517,14 @@ export function ScheduleOperationModal({
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-800 mb-1 flex items-center gap-1">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1">
                 <Clock size={12} className="text-slate-400" />
                 <span>End Time</span>
               </label>
               <select
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-sky-500 bg-white shadow-2xs cursor-pointer"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 bg-white dark:bg-slate-900 shadow-2xs cursor-pointer"
               >
                 {[
                   '08:00 AM',
@@ -495,14 +551,14 @@ export function ScheduleOperationModal({
           </div>
 
           {/* Optional Link to CRM Record */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Briefcase size={13} className="text-[#0284c7]" />
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Briefcase size={13} className="text-[#0284c7] dark:text-sky-400" />
                 <span>Link to CRM Pipeline (Optional)</span>
               </label>
 
-              <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-1 bg-white dark:bg-white/10 p-0.5 rounded-xl border border-slate-200 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => {
@@ -510,7 +566,7 @@ export function ScheduleOperationModal({
                     setSelectedEntityId('');
                   }}
                   className={`px-2 py-0.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
-                    entityType === 'none' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+                    entityType === 'none' ? 'bg-slate-900 dark:bg-white dark:text-slate-900 text-white' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   None
@@ -519,7 +575,7 @@ export function ScheduleOperationModal({
                   type="button"
                   onClick={() => setEntityType('lead')}
                   className={`px-2 py-0.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
-                    entityType === 'lead' ? 'bg-[#0284c7] text-white' : 'text-slate-600 hover:text-slate-900'
+                    entityType === 'lead' ? 'bg-[#0284c7] text-white' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Lead
@@ -528,7 +584,7 @@ export function ScheduleOperationModal({
                   type="button"
                   onClick={() => setEntityType('job')}
                   className={`px-2 py-0.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
-                    entityType === 'job' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                    entityType === 'job' ? 'bg-amber-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Job
@@ -544,7 +600,7 @@ export function ScheduleOperationModal({
                     value={entitySearch}
                     onChange={(e) => setEntitySearch(e.target.value)}
                     placeholder={`Search ${entityType === 'lead' ? 'leads by client name or city' : 'jobs by customer or job #'}`}
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800 placeholder:text-slate-400 shadow-2xs focus:outline-none focus:border-sky-500"
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs focus:outline-none focus:border-sky-500"
                   />
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 </div>
@@ -563,12 +619,12 @@ export function ScheduleOperationModal({
                         onClick={() => setSelectedEntityId(idStr)}
                         className={`w-full text-left p-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-between cursor-pointer ${
                           isSelected
-                            ? 'bg-sky-50 text-[#0284c7] border-sky-300'
-                            : 'bg-white text-slate-700 border-slate-200/80 hover:bg-slate-50'
+                            ? 'bg-sky-50 dark:bg-sky-950/40 text-[#0284c7] dark:text-sky-300 border-sky-300 dark:border-sky-700'
+                            : 'bg-white dark:bg-white/5 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                         }`}
                       >
                         <span className="truncate">{displayName}</span>
-                        <span className="text-[10.5px] font-normal text-slate-500 shrink-0 ml-2">
+                        <span className="text-[10.5px] font-normal text-slate-500 dark:text-slate-400 shrink-0 ml-2">
                           {displaySub}
                         </span>
                       </button>
@@ -581,7 +637,7 @@ export function ScheduleOperationModal({
 
           {/* Notes & Scope */}
           <div>
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1 mb-1">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 mb-1">
               <FileText size={12} className="text-slate-400" />
               <span>Notes / Checklist / Instructions</span>
             </label>
@@ -590,16 +646,18 @@ export function ScheduleOperationModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add key notes, scope details, or checklist items for the team..."
-              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 transition-all placeholder:text-slate-400 shadow-2xs resize-none"
+              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 dark:focus:ring-sky-900/30 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs resize-none"
             />
           </div>
 
-          {/* Action Footer */}
-          <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-100">
+          </div>
+
+          {/* Sticky Action Footer */}
+          <div className="shrink-0 px-6 py-3.5 flex items-center justify-end gap-2.5 border-t border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-slate-900/60">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -612,7 +670,8 @@ export function ScheduleOperationModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

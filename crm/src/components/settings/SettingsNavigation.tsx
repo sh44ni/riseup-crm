@@ -6,7 +6,7 @@ import {
   Calculator,
   Sliders,
   Bell,
-  ShieldCheck,
+  PenTool,
 } from 'lucide-react';
 import { SettingsTab } from '@/types/settingsTypes';
 import { useCompany } from '@/context/CompanyContext';
@@ -36,7 +36,7 @@ export function SettingsNavigation({
   const TABS: TabItem[] = [
     {
       id: 'profile',
-      label: 'My Profile & Security',
+      label: 'My Profile',
       icon: User,
       badge: 'Active',
       color: 'from-sky-500 to-indigo-600',
@@ -47,6 +47,13 @@ export function SettingsNavigation({
       icon: Users,
       badge: `${userCount} Members`,
       color: 'from-sky-500 to-blue-600',
+    },
+    {
+      id: 'signatories',
+      label: 'Authorized Signatories',
+      icon: PenTool,
+      badge: 'CSLB Signatures',
+      color: 'from-purple-500 to-indigo-600',
     },
     {
       id: 'company',
@@ -62,16 +69,10 @@ export function SettingsNavigation({
       badge: 'Live Formula',
       color: 'from-amber-500 to-orange-600',
     },
-    {
-      id: 'security' as SettingsTab,
-      label: 'Security & Backups',
-      icon: ShieldCheck,
-      badge: 'Audit Active',
-    },
   ];
 
   return (
-    <div className="light-glass-card rounded-2xl p-1.5 border border-slate-200/80 bg-white/60 backdrop-blur-md shadow-2xs overflow-x-auto no-scrollbar select-none">
+    <div className="light-glass-card rounded-2xl p-1.5 border border-slate-200/80 dark:border-white/10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md shadow-2xs overflow-x-auto no-scrollbar select-none">
       <div className="flex items-center gap-1.5 min-w-max">
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -103,19 +104,19 @@ export function SettingsNavigation({
               className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2.5 relative cursor-pointer ${
                 isActive
                   ? 'bg-gradient-to-r from-[#1878B8] to-[#2F9FE3] text-white shadow-[0_4px_14px_rgba(47,159,227,0.35)] border border-sky-300/40'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/80 border border-transparent'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80 border border-transparent'
               }`}
             >
               <Icon
                 size={15}
-                className={isActive ? 'text-white' : 'text-slate-500'}
+                className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}
               />
               <span className="font-bold">{tab.label}</span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                   isActive
                     ? 'bg-white/20 text-white border border-white/30'
-                    : 'bg-slate-100 text-slate-500 border border-slate-200/80'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-white/10'
                 }`}
               >
                 {tab.badge}

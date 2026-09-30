@@ -105,48 +105,16 @@ export const FALLBACK_WEATHER_DATA: WeatherData = {
   is_fallback: true,
 };
 
-import { API_ORIGIN } from '@/lib/api';
-
-const API_BASE_URL = API_ORIGIN;
-
-const API_TIMEOUT_MS = 3000;
+import { apiFetch } from '@/lib/api';
 
 /**
  * Fetch current weather for a specific location from FastAPI backend
  */
 export async function fetchCurrentWeather(location: string = 'Oceanside, CA'): Promise<WeatherData | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-
   try {
-    const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_auth_token') || localStorage.getItem('access_token')) : null;
-    const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'X-Client-Platform': 'crm-web',
-    };
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey;
-    }
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const url = `${API_BASE_URL}/api/admin/weather?location=${encodeURIComponent(location)}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const json = await response.json();
-    const raw = json?.data ?? json;
+    const url = `/admin/weather?location=${encodeURIComponent(location)}`;
+    const rawData = await apiFetch<any>(url, { timeoutMs: 3000 });
+    const raw = rawData?.data ?? rawData;
     if (!raw) return null;
 
     // Support both shaped WeatherAPI response and direct attributes
@@ -186,7 +154,6 @@ export async function fetchCurrentWeather(location: string = 'Oceanside, CA'): P
 
     return shaped;
   } catch (err: any) {
-    clearTimeout(timeoutId);
     if (err.name !== 'AbortError') {
       console.debug('[WeatherApi] Backend weather service offline, using resilient cached fallback.');
     }
@@ -198,27 +165,10 @@ export async function fetchCurrentWeather(location: string = 'Oceanside, CA'): P
  * Check if backend weather service is accessible
  */
 export async function checkWeatherBackendOnline(): Promise<boolean> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1200);
-
   try {
-    const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_auth_token') || localStorage.getItem('access_token')) : null;
-    const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'X-Client-Platform': 'crm-web',
-    };
-    if (apiKey) headers['X-API-Key'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const response = await fetch(`${API_BASE_URL}/api/admin/weather?location=Oceanside,%20CA`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response.ok;
+    await apiFetch('/admin/weather?location=Oceanside,%20CA', { timeoutMs: 1200 });
+    return true;
   } catch {
-    clearTimeout(timeoutId);
     return false;
   }
 }

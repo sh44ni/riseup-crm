@@ -36,7 +36,7 @@ export function EstimateStepSpecs({ specs, onChange, onNext }: EstimateStepSpecs
   };
 
   return (
-    <div className="light-glass-panel rounded-3xl p-6 md:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 space-y-6">
+    <div className="light-glass-panel rounded-3xl p-6 md:p-8 shadow-[0_12px_36px_rgba(15,23,42,0.06)] border border-white/85 dark:border-white/10 space-y-6">
       {/* Title matching mockup */}
       <div className="flex items-start gap-3">
         <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shrink-0 mt-0.5">

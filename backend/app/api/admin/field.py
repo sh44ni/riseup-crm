@@ -4,12 +4,61 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 import secrets
 from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.permissions import require_permission, require_any_permission
 from app.core.storage import storage_service
 from app.core.config import settings
 import orjson
+
+class CreateCrewPayload(BaseModel):
+    name: str = Field(..., min_length=1)
+    role: str = Field(..., min_length=1)
+    phone: Optional[str] = None
+    active: bool = True
+    currentJobId: Optional[int] = None
+    skills: List[str] = []
+    notes: Optional[str] = None
+
+class UpdateCrewPayload(BaseModel):
+    id: int
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    active: Optional[bool] = None
+    currentJobId: Optional[int] = None
+    skills: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+class SavePhotoPayload(BaseModel):
+    jobId: int
+    url: str = Field(..., min_length=1)
+    phase: str = "before"
+    caption: Optional[str] = None
+    uploadedBy: Optional[str] = None
+
+class CreateInspectionPayload(BaseModel):
+    leadId: Optional[int] = None
+    jobId: Optional[int] = None
+    inspectorName: str = "Michael (Rise Up Lead Inspector)"
+    findings: Optional[List[Any]] = []
+    estimatedRemainingYears: Optional[int] = None
+    notes: Optional[str] = None
+    inspectionDate: Optional[str] = None
+
+class CreateWarrantyPayload(BaseModel):
+    jobId: int
+    startDate: Optional[str] = None
+    yearsDuration: int = 50
+    coverageDetails: Optional[str] = None
+    warrantyType: str = "Owens Corning Preferred Protection (50-Yr System)"
+
+class UpdateWarrantyPayload(BaseModel):
+    id: int
+    checkin6moCompleted: Optional[bool] = None
+    checkin1yrCompleted: Optional[bool] = None
+    status: Optional[str] = None
 
 router = APIRouter()
 
@@ -69,14 +118,12 @@ async def get_crew(
 
 @router.post("/crew")
 async def create_crew(
-    payload: Dict[str, Any],
+    payload: CreateCrewPayload,
     user: Dict[str, Any] = Depends(require_permission("field:manage_crew")),
     db: AsyncSession = Depends(get_db)
 ):
-    name = payload.get("name")
-    role = payload.get("role")
-    if not name or not role:
-        raise HTTPException(status_code=400, detail="Name and role are required")
+    name = payload.name
+    role = payload.role
 
     stmt = text("""
         INSERT INTO crew_members (name, phone, role, active, current_job_id, skills, notes)
@@ -85,41 +132,49 @@ async def create_crew(
     """)
     res = await db.execute(stmt, {
         "name": name,
-        "phone": payload.get("phone"),
+        "phone": payload.phone,
         "role": role,
-        "active": bool(payload.get("active", True)),
-        "job_id": int(payload["currentJobId"]) if payload.get("currentJobId") else None,
-        "skills": payload.get("skills") or [],
-        "notes": payload.get("notes"),
+        "active": payload.active,
+        "job_id": payload.currentJobId,
+        "skills": payload.skills,
+        "notes": payload.notes,
     })
     await db.commit()
     return {"ok": True, "crewMember": dict(res.first()._mapping)}
 
 @router.patch("/crew")
 async def update_crew(
-    payload: Dict[str, Any],
+    payload: UpdateCrewPayload,
     user: Dict[str, Any] = Depends(require_permission("field:manage_crew")),
     db: AsyncSession = Depends(get_db)
 ):
-    cid = payload.get("id")
-    if not cid:
-        raise HTTPException(status_code=400, detail="Crew member ID is required")
+    cid = payload.id
 
     updates = []
-    params: Dict[str, Any] = {"id": int(cid)}
+    params: Dict[str, Any] = {"id": cid}
 
-    fields = ["name", "phone", "role", "active", "notes"]
-    for f in fields:
-        if f in payload:
-            params[f] = payload[f]
-            updates.append(f"{f} = :{f}")
+    if payload.name is not None:
+        params["name"] = payload.name
+        updates.append("name = :name")
+    if payload.phone is not None:
+        params["phone"] = payload.phone
+        updates.append("phone = :phone")
+    if payload.role is not None:
+        params["role"] = payload.role
+        updates.append("role = :role")
+    if payload.active is not None:
+        params["active"] = payload.active
+        updates.append("active = :active")
+    if payload.notes is not None:
+        params["notes"] = payload.notes
+        updates.append("notes = :notes")
 
-    if "currentJobId" in payload:
-        params["job_id"] = int(payload["currentJobId"]) if payload["currentJobId"] else None
+    if payload.currentJobId is not None:
+        params["job_id"] = payload.currentJobId
         updates.append("current_job_id = :job_id")
 
-    if "skills" in payload:
-        params["skills"] = payload["skills"] if isinstance(payload["skills"], list) else []
+    if payload.skills is not None:
+        params["skills"] = payload.skills
         updates.append("skills = :skills")
 
     if not updates:
@@ -187,18 +242,16 @@ async def presign_photo_upload(
 
 @router.post("/photos")
 async def save_photo(
-    payload: Dict[str, Any],
+    payload: SavePhotoPayload,
     user: Dict[str, Any] = Depends(require_permission("photos:upload")),
     db: AsyncSession = Depends(get_db)
 ):
-    job_id = payload.get("jobId")
-    url = payload.get("url")
-    if not job_id or not url:
-        raise HTTPException(status_code=400, detail="Job ID and photo URL are required")
+    job_id = payload.jobId
+    url = payload.url
 
-    phase = payload.get("phase", "before")
-    caption = payload.get("caption")
-    uploaded_by = payload.get("uploadedBy", user.get("name") or "Field Crew")
+    phase = payload.phase
+    caption = payload.caption
+    uploaded_by = payload.uploadedBy or user.get("name") or "Field Crew"
 
     stmt = text("""
         INSERT INTO job_photos (job_id, phase, url, caption, uploaded_by)
@@ -206,7 +259,7 @@ async def save_photo(
         RETURNING *
     """)
     res = await db.execute(stmt, {
-        "jid": int(job_id),
+        "jid": job_id,
         "phase": phase,
         "url": url,
         "caption": caption,
@@ -214,7 +267,7 @@ async def save_photo(
     })
     photo = dict(res.first()._mapping)
 
-    j_res = await db.execute(text("SELECT lead_id, job_number FROM jobs WHERE id = :id"), {"id": int(job_id)})
+    j_res = await db.execute(text("SELECT lead_id, job_number FROM jobs WHERE id = :id"), {"id": job_id})
     j_row = j_res.first()
     if j_row and j_row.lead_id:
         await db.execute(
@@ -298,23 +351,23 @@ async def get_inspections(
 
 @router.post("/inspections")
 async def create_inspection(
-    payload: Dict[str, Any],
+    payload: CreateInspectionPayload,
     user: Dict[str, Any] = Depends(require_permission("inspections:conduct")),
     db: AsyncSession = Depends(get_db)
 ):
-    lead_id = int(payload["leadId"]) if payload.get("leadId") else None
-    job_id = int(payload["jobId"]) if payload.get("jobId") else None
+    lead_id = payload.leadId
+    job_id = payload.jobId
 
     if not lead_id and not job_id:
         raise HTTPException(status_code=400, detail="Lead ID or Job ID is required")
 
-    inspector_name = payload.get("inspectorName", "Michael (Rise Up Lead Inspector)")
-    findings = payload.get("findings") or []
+    inspector_name = payload.inspectorName
+    findings = payload.findings or []
 
     score = 100
     has_urgent = False
     for item in findings:
-        status_val = item.get("status")
+        status_val = item.get("status") if isinstance(item, dict) else None
         if status_val == "critical":
             score -= 18
             has_urgent = True
@@ -339,7 +392,7 @@ async def create_inspection(
         if r and r.client_id: resolved_client_id = int(r.client_id)
 
     findings_json = orjson.dumps(findings).decode("utf-8")
-    ins_date = payload.get("inspectionDate") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ins_date = payload.inspectionDate or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     stmt = text("""
         INSERT INTO inspections (
@@ -360,8 +413,8 @@ async def create_inspection(
         "score": final_score,
         "findings": findings_json,
         "urgent": has_urgent,
-        "years": int(payload.get("estimatedRemainingYears") or 3),
-        "notes": payload.get("notes"),
+        "years": payload.estimatedRemainingYears or 3,
+        "notes": payload.notes,
         "token": access_token,
     })
     insp = dict(res.first()._mapping)
@@ -371,10 +424,10 @@ async def create_inspection(
             text("""
                 UPDATE leads 
                 SET status = CASE WHEN status IN ('new', 'contacted') THEN 'inspected' ELSE status END,
-                    pipeline_stage = CASE WHEN pipeline_stage IN ('stage_1_lead_gen', 'stage_2_initial_contact') THEN 'stage_3_site_visit_estimate' ELSE pipeline_stage END,
-                    site_visit_completed_at = COALESCE(site_visit_completed_at, NOW()),
-                    last_contact_at = NOW(),
-                    updated_at = NOW()
+                pipeline_stage = CASE WHEN pipeline_stage IN ('stage_1_lead_gen', 'stage_2_initial_contact') THEN 'stage_3_site_visit_estimate' ELSE pipeline_stage END,
+                site_visit_completed_at = COALESCE(site_visit_completed_at, NOW()),
+                last_contact_at = NOW(),
+                updated_at = NOW()
                 WHERE id = :id
             """),
             {"id": lead_id}
@@ -470,15 +523,13 @@ async def get_warranties(
 
 @router.post("/warranties")
 async def create_warranty(
-    payload: Dict[str, Any],
+    payload: CreateWarrantyPayload,
     user: Dict[str, Any] = Depends(require_permission("warranties:issue")),
     db: AsyncSession = Depends(get_db)
 ):
-    job_id = payload.get("jobId")
-    if not job_id:
-        raise HTTPException(status_code=400, detail="Job ID is required")
+    job_id = payload.jobId
 
-    j_res = await db.execute(text("SELECT * FROM jobs WHERE id = :id"), {"id": int(job_id)})
+    j_res = await db.execute(text("SELECT * FROM jobs WHERE id = :id"), {"id": job_id})
     job_row = j_res.first()
     if not job_row:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -490,16 +541,16 @@ async def create_warranty(
     warranty_number = f"WAR-{year}-{seq}"
     access_token = secrets.token_hex(16)
 
-    start_date = payload.get("startDate")
+    start_date = payload.startDate
     start = datetime.fromisoformat(start_date) if start_date else datetime.now(timezone.utc)
-    years = int(payload.get("yearsDuration", 50))
+    years = payload.yearsDuration
 
     exp_date = (start + timedelta(days=years*365)).strftime("%Y-%m-%d")
     checkin_6mo = (start + timedelta(days=182)).strftime("%Y-%m-%d")
     checkin_1yr = (start + timedelta(days=365)).strftime("%Y-%m-%d")
     start_date_str = start.strftime("%Y-%m-%d")
 
-    coverage = payload.get("coverageDetails") or "Owens Corning Preferred Protection System Warranty (50-Year Non-Prorated TruDefinition Duration Shingles) with Rise Up Roofing 10-Year Workmanship Guarantee. CSLB #1096492."
+    coverage = payload.coverageDetails or "Owens Corning Preferred Protection System Warranty (50-Year Non-Prorated TruDefinition Duration Shingles) with Rise Up Roofing 10-Year Workmanship Guarantee. CSLB #1096492."
 
     client_id = job.get("client_id")
     if not client_id and job.get("lead_id"):
@@ -521,7 +572,7 @@ async def create_warranty(
         "lid": job.get("lead_id"),
         "cid": client_id,
         "wnum": warranty_number,
-        "wtype": payload.get("warrantyType", "Owens Corning Preferred Protection (50-Yr System)"),
+        "wtype": payload.warrantyType,
         "sdate": start_date_str,
         "edate": exp_date,
         "cov": coverage,
@@ -550,27 +601,25 @@ async def create_warranty(
 
 @router.patch("/warranties")
 async def update_warranty(
-    payload: Dict[str, Any],
+    payload: UpdateWarrantyPayload,
     user: Dict[str, Any] = Depends(require_permission("warranties:issue")),
     db: AsyncSession = Depends(get_db)
 ):
-    wid = payload.get("id")
-    if not wid:
-        raise HTTPException(status_code=400, detail="Warranty ID is required")
+    wid = payload.id
 
     updates = []
-    params: Dict[str, Any] = {"id": int(wid)}
+    params: Dict[str, Any] = {"id": wid}
 
-    if "checkin6moCompleted" in payload:
-        params["c6"] = bool(payload["checkin6moCompleted"])
+    if payload.checkin6moCompleted is not None:
+        params["c6"] = payload.checkin6moCompleted
         updates.append("checkin_6mo_completed = :c6")
 
-    if "checkin1yrCompleted" in payload:
-        params["c1"] = bool(payload["checkin1yrCompleted"])
+    if payload.checkin1yrCompleted is not None:
+        params["c1"] = payload.checkin1yrCompleted
         updates.append("checkin_1yr_completed = :c1")
 
-    if "status" in payload:
-        params["status"] = payload["status"]
+    if payload.status is not None:
+        params["status"] = payload.status
         updates.append("status = :status")
 
     updates.append("updated_at = NOW()")
@@ -582,11 +631,11 @@ async def update_warranty(
         raise HTTPException(status_code=404, detail="Warranty not found")
     war = dict(row._mapping)
 
-    if payload.get("checkin6moCompleted") or payload.get("checkin1yrCompleted"):
+    if payload.checkin6moCompleted or payload.checkin1yrCompleted:
         j_res = await db.execute(text("SELECT lead_id FROM jobs WHERE id = :id"), {"id": war["job_id"]})
         j = j_res.first()
         if j and j.lead_id:
-            ms = "6-Month Post-Job Check-In" if payload.get("checkin6moCompleted") else "1-Year Post-Job Check-In"
+            ms = "6-Month Post-Job Check-In" if payload.checkin6moCompleted else "1-Year Post-Job Check-In"
             await db.execute(
                 text("""
                     INSERT INTO activities (entity_type, entity_id, activity_type, title, description, performed_by)

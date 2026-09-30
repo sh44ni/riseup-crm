@@ -1,13 +1,18 @@
+from app.core.logger import get_logger
 import json
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.core.audit import record_audit_log
+from app.core.permissions import build_scope_filter, check_resource_access, AuthUser
 from app.middlewares.auth import require_auth, require_permission
-from app.services.sync import find_or_create_client
+from app.services.sync import find_or_create_client, parse_address_components, normalize_phone
 from app.services.scoring import calculate_lead_score
+from app.schemas.leads import LeadCreate, LeadUpdate, LeadResponse
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin/leads", tags=["Leads"])
 
@@ -20,10 +25,29 @@ async def list_leads(
     search: Optional[str] = None,
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: AuthUser = Depends(require_auth)
 ):
     conditions = []
     params = {"limit": limit, "offset": offset}
+
+    # 1. Enforce Role & Data Scoping
+    scope = build_scope_filter(
+        user=user,
+        permission="leads.view",
+        creator_col="l.created_by_user_id",
+        assigned_col="l.assigned_to_user_id",
+        param_prefix="lead_scope_"
+    )
+    if not scope["allowed"]:
+        return {
+            "leads": [],
+            "total": 0,
+            "counts": {"all": 0, "leads": 0, "new_clients": 0, "existing_clients": 0, "lost_leads": 0}
+        }
+    if scope["clause"] != "1=1":
+        conditions.append(scope["clause"])
+        params.update(scope["params"])
 
     # Tab / Category arrangement
     raw_cat = category or tab
@@ -78,6 +102,9 @@ async def list_leads(
             c.status as client_status,
             c.total_jobs_count,
             c.total_revenue as client_total_revenue,
+            c.address as client_360_address,
+            c.city as client_360_city,
+            c.zip as client_360_zip,
             CASE 
                 WHEN l.status = 'lost' OR c.client_category = 'lost_lead' OR l.lost_reason IS NOT NULL THEN 'lost_lead'
                 WHEN c.client_category = 'existing_client' OR c.status IN ('completed', 'repeat') OR COALESCE(c.total_jobs_count, 0) > 1 THEN 'existing_client'
@@ -103,7 +130,8 @@ async def list_leads(
     total = (await db.execute(count_sql, params)).scalar_one()
 
     # 5 Tab Counts: All Profiles, Leads, New Clients, Existing Clients, Lost Leads
-    counts_sql = text("""
+    scope_where = f"WHERE {scope['clause']}" if scope.get("clause") and scope["clause"] != "1=1" else ""
+    counts_sql = text(f"""
         SELECT 
             COUNT(*) as total_all,
             COUNT(CASE WHEN 
@@ -120,8 +148,9 @@ async def list_leads(
             THEN 1 END) as count_lost_leads
         FROM leads l
         LEFT JOIN clients c ON l.client_id = c.id
+        {scope_where}
     """)
-    counts_row = (await db.execute(counts_sql)).mappings().first()
+    counts_row = (await db.execute(counts_sql, scope.get("params") or {})).mappings().first()
 
     counts = {
         "all": int(counts_row["total_all"] or 0) if counts_row else 0,
@@ -138,16 +167,16 @@ async def list_leads(
     }
 
 @router.post("", dependencies=[Depends(require_permission("leads:create"))])
-async def create_lead(request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
-    body = await request.json()
-    full_name = (body.get("fullName") or body.get("full_name") or "").strip()
-    phone = body.get("phone")
-    email = body.get("email")
-    address = body.get("address")
-    city = body.get("city") or "San Diego"
-    zip_code = body.get("zip")
-    service_type = body.get("serviceType") or "Residential Roofing"
-    notes = body.get("notes")
+async def create_lead(payload: LeadCreate, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
+    body = payload.model_dump(exclude_unset=True)
+    full_name = payload.full_name
+    phone = payload.phone
+    email = payload.email
+    address = payload.address
+    city = payload.city or "San Diego"
+    zip_code = payload.zip
+    service_type = payload.service_type or "Residential Roofing"
+    notes = payload.notes
     creator_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Owner")
     lead_source = "manual"
     source_type = "manual"
@@ -261,7 +290,7 @@ async def create_lead(request: Request, db: AsyncSession = Depends(get_db), user
             "meta": json.dumps(meta_dict)
         })
     except Exception as ex:
-        print(f"Failed to record lead_created activity: {ex}")
+        logger.error(f"Failed to record lead_created activity: {ex}")
 
     await record_audit_log(db, "lead.create", "lead", new_lead["id"], user.id, user.email, user.role, body, request)
     try:
@@ -272,7 +301,7 @@ async def create_lead(request: Request, db: AsyncSession = Depends(get_db), user
     return {"ok": True, "lead": dict(new_lead)}
 
 @router.get("/{lead_id}", dependencies=[Depends(require_permission("leads:view"))])
-async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db)):
+async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
     sql = text("""
         SELECT 
             l.*, 
@@ -295,24 +324,113 @@ async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db)):
     row = (await db.execute(sql, {"id": lead_id})).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "leads.view", creator_id=row.get("created_by_user_id"), assigned_id=row.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to view this lead.")
     return {"lead": dict(row)}
 
 @router.put("/{lead_id}", dependencies=[Depends(require_permission("leads:edit"))])
-async def update_lead(lead_id: int, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
-    body = await request.json()
+async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
+    target = (await db.execute(text("""
+        SELECT l.id, l.created_by_user_id, l.assigned_to_user_id, l.client_id, l.full_name, l.phone, l.email, l.address, l.city, l.zip,
+               u.name AS prev_user_name, u.email AS prev_user_email
+        FROM leads l
+        LEFT JOIN users u ON l.assigned_to_user_id = u.id
+        WHERE l.id = :id
+    """), {"id": lead_id})).mappings().first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "leads.edit", creator_id=target.get("created_by_user_id"), assigned_id=target.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to edit this lead.")
+
+    body = payload.model_dump(exclude_unset=True)
+
+    # ── Unclaimed Lead Stage Guard ──
+    # If a lead is not claimed and not being claimed in this update, its stage cannot be advanced
+    is_unclaimed = target.get("assigned_to_user_id") is None
+    new_assignee = body.get("assigned_to_user_id")
+    if is_unclaimed and not new_assignee:
+        if "pipeline_stage" in body and body["pipeline_stage"] not in ("cold_lead", "stage_1_lead_gen", "new_leads"):
+            raise HTTPException(
+                status_code=400,
+                detail="Please claim the lead first before advancing its stage."
+            )
+        if "status" in body and body["status"] not in ("new",):
+            raise HTTPException(
+                status_code=400,
+                detail="Please claim the lead first before advancing its stage."
+            )
+
+    # ── Assignment & Reassignment Permission Guard ──
+    if "assigned_to_user_id" in body:
+        current_assignee = target.get("assigned_to_user_id")
+        desired_assignee = body.get("assigned_to_user_id")
+        if desired_assignee != current_assignee:
+            if current_assignee is None and desired_assignee == getattr(user, "id", None):
+                if not check_resource_access(user, "leads.claim", creator_id=target.get("created_by_user_id")):
+                    raise HTTPException(status_code=403, detail="Permission denied to claim this lead.")
+            else:
+                if not check_resource_access(user, "leads.reassign", creator_id=target.get("created_by_user_id"), assigned_id=current_assignee):
+                    raise HTTPException(status_code=403, detail="Permission denied to reassign this lead.")
+
     updates = []
     params = {"id": lead_id}
 
     allowed_fields = [
         "full_name", "phone", "email", "address", "city", "zip", "service_type",
         "notes", "status", "priority", "pipeline_stage", "assigned_to_user_id", "lost_reason",
+        "lost_notes", "lost_at",
         "roof_sqf", "roof_squares", "roof_pitch", "stories", "roof_type", "estimated_value"
     ]
+
+    # Parse address components if any address field is updated
+    if any(k in body for k in ["address", "city", "zip"]):
+        parsed_addr = parse_address_components(
+            body.get("address", target.get("address")),
+            body.get("city", target.get("city")),
+            body.get("zip", target.get("zip"))
+        )
+        if "address" in body:
+            body["address"] = parsed_addr["address"]
+        if "city" in body:
+            body["city"] = parsed_addr["city"]
+        if "zip" in body:
+            body["zip"] = parsed_addr["zip"]
+
+    # Normalize email
+    if "email" in body:
+        raw_e = (body.get("email") or "").strip().lower()
+        body["email"] = raw_e if raw_e else None
+
+    # Normalize phone
+    if "phone" in body:
+        raw_p = (body.get("phone") or "").strip()
+        body["phone"] = raw_p if raw_p else None
 
     for k in allowed_fields:
         if k in body:
             updates.append(f"{k} = :{k}")
             params[k] = body[k]
+
+    # Client 360 contact sync & deduplication (Client 360 as source of truth)
+    cid = target.get("client_id")
+    has_contact_update = any(k in body for k in ["full_name", "phone", "email", "address", "city", "zip"])
+
+    # If lead does not have a linked client, find or create one so Client 360 is the source of truth
+    if not cid and has_contact_update:
+        client_data = {
+            "fullName": body.get("full_name") or target.get("full_name"),
+            "phone": body.get("phone") or target.get("phone"),
+            "email": body.get("email") or target.get("email"),
+            "address": body.get("address") or target.get("address"),
+            "city": body.get("city") or target.get("city") or None,
+            "zip": body.get("zip") or target.get("zip"),
+            "leadSource": "manual",
+            "sourceType": "manual",
+        }
+        cid = await find_or_create_client(db, client_data)
+        if cid:
+            updates.append("client_id = :new_cid")
+            params["new_cid"] = cid
 
     # Auto-calculate estimated_value if roof_sqf provided and estimated_value is not
     if ("roof_sqf" in body or "service_type" in body) and "estimated_value" not in body:
@@ -328,26 +446,129 @@ async def update_lead(lead_id: int, request: Request, db: AsyncSession = Depends
     if body.get("status") == "completed" or body.get("pipeline_stage") in ("completed", "job_completed"):
         updates.append("job_completed_at = COALESCE(job_completed_at, NOW())")
 
+    # Auto-stamp lost_at when marking as lost (if not explicitly provided)
+    if body.get("status") == "lost" and "lost_at" not in body:
+        updates.append("lost_at = COALESCE(lost_at, NOW())")
+
     if updates:
-        sql = f"UPDATE leads SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id RETURNING id, full_name, status, pipeline_stage, client_id, lost_reason, roof_sqf, estimated_value"
+        sql = f"UPDATE leads SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id RETURNING id, full_name, phone, email, address, city, zip, status, pipeline_stage, client_id, lost_reason, lost_notes, lost_at, roof_sqf, estimated_value"
         updated = (await db.execute(text(sql), params)).mappings().first()
         
-        # Synchronize client category
-        cid = updated.get("client_id") if updated else None
+        # Synchronize Client 360 record (source of truth)
+        cid = updated.get("client_id") if updated else cid
         if cid:
+            # Sync contact info & address to clients table without overwriting valid data with blanks
+            client_updates = []
+            c_params = {"cid": cid}
+            for cf in ["full_name", "email", "phone", "address", "city", "zip"]:
+                if cf in body:
+                    val = body[cf]
+                    if isinstance(val, str):
+                        val = val.strip() or None
+                    if val is not None:
+                        client_updates.append(f"{cf} = :{cf}")
+                        c_params[cf] = val
+                        if cf == "phone":
+                            norm = normalize_phone(val)
+                            client_updates.append("phone_normalized = :norm_phone")
+                            c_params["norm_phone"] = norm
+            if client_updates:
+                client_updates.append("updated_at = NOW()")
+                await db.execute(text(f"UPDATE clients SET {', '.join(client_updates)} WHERE id = :cid"), c_params)
+
+            # Synchronize client category and status
             new_cat = None
             if body.get("status") == "lost" or body.get("lost_reason"):
                 new_cat = "lost_lead"
+                lost_r = body.get("lost_reason") or "Lost Opportunity"
+                await db.execute(text("""
+                    UPDATE clients
+                    SET client_category = 'lost_lead',
+                        status = 'closed_lost',
+                        lost_reason = COALESCE(:reason, lost_reason),
+                        updated_at = NOW()
+                    WHERE id = :cid
+                """), {"reason": lost_r, "cid": cid})
             elif body.get("status") == "won" or body.get("pipeline_stage") == "stage_4_closing":
                 new_cat = "new_client"
+                await db.execute(text("UPDATE clients SET client_category = :cat, status = 'active_job', updated_at = NOW() WHERE id = :cid"), {"cat": new_cat, "cid": cid})
             elif body.get("status") in ["new", "contacted", "site_visit_scheduled", "estimate_sent"]:
                 new_cat = "lead"
+                await db.execute(text("UPDATE clients SET client_category = :cat, updated_at = NOW() WHERE id = :cid"), {"cat": new_cat, "cid": cid})
             if "category" in body:
                 cat_val = body["category"]
                 if cat_val in ["lead", "new_client", "existing_client", "lost_lead"]:
                     new_cat = cat_val
-            if new_cat:
-                await db.execute(text("UPDATE clients SET client_category = :cat, updated_at = NOW() WHERE id = :cid"), {"cat": new_cat, "cid": cid})
+                    await db.execute(text("UPDATE clients SET client_category = :cat, updated_at = NOW() WHERE id = :cid"), {"cat": new_cat, "cid": cid})
+
+        # Activity log for address updates
+        if has_address_update:
+            try:
+                creator_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Staff")
+                addr_parts = [body.get(k) for k in ["address", "city", "zip"] if body.get(k)]
+                addr_str = ", ".join(addr_parts) if addr_parts else "Cleared"
+                await db.execute(text("""
+                    INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, user_id, user_name, created_at)
+                    VALUES ('lead', :lid, :cid, 'address_updated', 'Address Updated', :desc, :pby, :uid, :uname, NOW())
+                """), {
+                    "lid": lead_id,
+                    "cid": cid,
+                    "desc": f"Address updated to: {addr_str}",
+                    "pby": creator_name,
+                    "uid": getattr(user, "id", None),
+                    "uname": creator_name,
+                })
+            except Exception as ex:
+                logger.error(f"Failed to record address_updated activity: {ex}")
+
+        # Activity log for lead claim / reassignment
+        if "assigned_to_user_id" in body and body.get("assigned_to_user_id") != target.get("assigned_to_user_id"):
+            try:
+                creator_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Staff")
+                author_role = getattr(user, "role", "Staff")
+                if author_role:
+                    author_role = str(author_role).replace("_", " ").title()
+                perf_by = f"{creator_name} ({author_role})" if author_role else str(creator_name)
+                lead_name = updated.get("full_name") or f"Lead #{lead_id}"
+                
+                new_uid = body.get("assigned_to_user_id")
+                target_u = (await db.execute(text("SELECT id, name, email FROM users WHERE id = :uid"), {"uid": new_uid})).mappings().first() if new_uid else None
+                new_name = (target_u.get("name") or target_u.get("email")) if target_u else "Unassigned"
+                prev_name = target.get("prev_user_name") or (f"User #{target.get('assigned_to_user_id')}" if target.get("assigned_to_user_id") else "Unassigned")
+                now_iso = datetime.now(timezone.utc).isoformat()
+
+                meta_dict = {
+                    "lead_id": lead_id,
+                    "lead_name": lead_name,
+                    "previous_assignee_id": target.get("assigned_to_user_id"),
+                    "previous_assignee_name": prev_name,
+                    "new_assignee_id": new_uid,
+                    "new_assignee_name": new_name,
+                    "acting_user_id": user.id,
+                    "acting_user_name": creator_name,
+                    "timestamp": now_iso
+                }
+                is_claim = target.get("assigned_to_user_id") is None and new_uid == getattr(user, "id", None)
+                act_type = "lead_claimed" if is_claim else "lead_reassigned"
+                act_title = "Lead Claimed" if is_claim else "Lead Reassigned"
+                act_desc = f"{creator_name} claimed lead {lead_name}" if is_claim else f"{creator_name} reassigned {lead_name} from {prev_name} to {new_name}"
+
+                await db.execute(text("""
+                    INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, user_id, user_name, metadata, created_at)
+                    VALUES ('lead', :lid, :cid, :act_type, :title, :desc, :pby, :uid, :uname, CAST(:meta AS jsonb), NOW())
+                """), {
+                    "lid": lead_id,
+                    "cid": cid,
+                    "act_type": act_type,
+                    "title": act_title,
+                    "desc": act_desc,
+                    "pby": perf_by,
+                    "uid": getattr(user, "id", None),
+                    "uname": creator_name,
+                    "meta": json.dumps(meta_dict)
+                })
+            except Exception as ex:
+                logger.error(f"Failed to record assignment activity in update_lead: {ex}")
 
         await record_audit_log(db, "lead.update", "lead", lead_id, user.id, user.email, user.role, body, request)
         try:
@@ -360,13 +581,15 @@ async def update_lead(lead_id: int, request: Request, db: AsyncSession = Depends
     return {"ok": True}
 
 @router.delete("/{lead_id}", dependencies=[Depends(require_permission("leads:delete"))])
-async def delete_lead(lead_id: int, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
-    lead = (await db.execute(text("SELECT full_name FROM leads WHERE id = :id"), {"id": lead_id})).scalar_one_or_none()
+async def delete_lead(lead_id: int, request: Request, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
+    lead = (await db.execute(text("SELECT full_name, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "leads.delete", creator_id=lead.get("created_by_user_id"), assigned_id=lead.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to delete this lead.")
 
     await db.execute(text("DELETE FROM leads WHERE id = :id"), {"id": lead_id})
-    await record_audit_log(db, "lead.delete", "lead", lead_id, user.id, user.email, user.role, {"deletedLead": lead}, request)
+    await record_audit_log(db, "lead.delete", "lead", lead_id, user.id, user.email, user.role, {"deletedLead": lead["full_name"]}, request)
     try:
         from app.core.redis import cache_delete
         await cache_delete("crm:dashboard:stats")
@@ -375,13 +598,25 @@ async def delete_lead(lead_id: int, request: Request, db: AsyncSession = Depends
     return {"ok": True}
 
 @router.get("/{lead_id}/activities", dependencies=[Depends(require_permission("leads:view"))])
-async def get_lead_activities(lead_id: int, db: AsyncSession = Depends(get_db)):
+async def get_lead_activities(lead_id: int, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
+    lead = (await db.execute(text("SELECT id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "leads.view", creator_id=lead.get("created_by_user_id"), assigned_id=lead.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to view activities for this lead.")
+
     sql = text("SELECT * FROM activities WHERE entity_type = 'lead' AND entity_id = :lid ORDER BY created_at DESC")
     rows = (await db.execute(sql, {"lid": lead_id})).mappings().all()
     return {"activities": [dict(r) for r in rows]}
 
 @router.post("/{lead_id}/activities", dependencies=[Depends(require_permission("leads:edit"))])
-async def create_lead_activity(lead_id: int, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
+async def create_lead_activity(lead_id: int, request: Request, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
+    lead = (await db.execute(text("SELECT id, client_id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "leads.edit", creator_id=lead.get("created_by_user_id"), assigned_id=lead.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to log activities for this lead.")
+
     body = await request.json()
     title = body.get("title", "Note Logged")
     desc = body.get("description")
@@ -396,7 +631,7 @@ async def create_lead_activity(lead_id: int, request: Request, db: AsyncSession 
         author_role = str(author_role).replace("_", " ").title()
     perf_by = f"{author_name} ({author_role})" if author_role else str(author_name)
 
-    lead_cid = (await db.execute(text("SELECT client_id FROM leads WHERE id = :id"), {"id": lead_id})).scalar_one_or_none()
+    lead_cid = lead["client_id"]
 
     insert_sql = text("""
         INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, user_id, user_name, created_at)

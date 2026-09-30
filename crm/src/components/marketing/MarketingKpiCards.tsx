@@ -15,15 +15,15 @@ export const MarketingKpiCards: React.FC<MarketingKpiCardsProps> = ({ data, load
         {[...Array(5)].map((_, i) => (
           <div
             key={i}
-            className="light-glass-card glossy-sheen rounded-xl p-2.5 flex flex-col justify-between h-[104px]"
+            className="light-glass-card dark:bg-slate-900/60 dark:border-white/10 glossy-sheen rounded-xl p-2.5 flex flex-col justify-between h-[104px]"
           >
             <div className="flex items-center justify-between">
-              <div className="w-7 h-7 rounded-lg bg-slate-200/70 animate-pulse" />
-              <div className="w-10 h-4 rounded-full bg-slate-200/50 animate-pulse" />
+              <div className="w-7 h-7 rounded-lg bg-slate-200/70 dark:bg-slate-800/70 animate-pulse" />
+              <div className="w-10 h-4 rounded-full bg-slate-200/50 dark:bg-slate-800/50 animate-pulse" />
             </div>
             <div className="space-y-1 mt-2">
-              <div className="w-12 h-6 rounded bg-slate-200/80 animate-pulse" />
-              <div className="w-16 h-3 rounded bg-slate-200/50 animate-pulse" />
+              <div className="w-12 h-6 rounded bg-slate-200/80 dark:bg-slate-800/80 animate-pulse" />
+              <div className="w-16 h-3 rounded bg-slate-200/50 dark:bg-slate-800/50 animate-pulse" />
             </div>
           </div>
         ))}

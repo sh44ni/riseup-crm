@@ -20,6 +20,7 @@ import {
   Copy,
   Check,
   Sparkles,
+  Edit3,
 } from 'lucide-react';
 import {
   PipelineDealItem,
@@ -32,6 +33,9 @@ import { ProfileNotesFeed } from '@/components/common/ProfileNotesFeed';
 import { api } from '@/lib/api';
 import { updatePipelineDealStage, toggleChecklistItem } from '@/api/pipelineApi';
 import { useAuth } from '@/context/AuthContext';
+import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
+import { ClientEditContactModal, ClientContactData } from '@/components/clients/ClientEditContactModal';
+import { broadcastContactUpdated } from '@/utils/syncEventBus';
 
 interface PipelineDealInspectorModalProps {
   deal: PipelineDealItem | null;
@@ -55,6 +59,45 @@ export function PipelineDealInspectorModal({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [selectedLossReason, setSelectedLossReason] = useState<string>(LOSS_REASONS[0]);
   const [lossNotesInput, setLossNotesInput] = useState<string>('');
+  const [isEditContactOpen, setIsEditContactOpen] = useState(false);
+
+  const handleSaveContact = async (data: ClientContactData) => {
+    if (!deal) return;
+    try {
+      await api.updateLead(deal.id, {
+        full_name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        zip: data.zip,
+      });
+
+      broadcastContactUpdated({
+        leadId: deal.id,
+        clientId: (deal as any).clientId || (deal as any).client_id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        zip: data.zip,
+      });
+
+      const updated: PipelineDealItem = {
+        ...deal,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+      };
+      onUpdateDeal(updated);
+    } catch (err: any) {
+      console.error('Failed to update contact in Pipeline:', err);
+      throw err;
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -124,7 +167,7 @@ export function PipelineDealInspectorModal({
   const handleMarkOutcome = (outcome: 'closed_won' | 'closed_lost') => {
     let updated: PipelineDealItem = { ...deal };
     if (outcome === 'closed_won') {
-      updated.stageId = 'closed_won';
+      updated.stageId = 'contract_signed';
       updated.slaStatus = 'on_track';
       updated.slaText = 'Job Sold 🎉 • Handoff Complete';
     } else if (outcome === 'closed_lost') {
@@ -144,41 +187,52 @@ export function PipelineDealInspectorModal({
       className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xl animate-in fade-in duration-200"
     >
       <div
-        className="relative w-full max-w-2xl rounded-3xl bg-white/95 backdrop-blur-3xl border border-white/95 shadow-[0_25px_90px_rgba(0,0,0,0.40),0_0_0_1px_rgba(255,255,255,0.9)_inset] p-6 space-y-5 animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto no-scrollbar"
+        className="relative w-full max-w-2xl rounded-3xl bg-white/95 dark:bg-[#0B1320]/95 backdrop-blur-3xl border border-white/95 dark:border-white/10 shadow-[0_25px_90px_rgba(0,0,0,0.40),0_0_0_1px_rgba(255,255,255,0.9)_inset] dark:shadow-[0_25px_90px_rgba(0,0,0,0.85)] p-6 space-y-5 animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto no-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Strip */}
-        <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200/70">
+        <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200/70 dark:border-white/10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-700 border border-sky-500/25">
+              <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/25">
                 {currentStage ? currentStage.shortTitle : deal.stageId}
               </span>
-              <span className="text-[10px] font-bold text-slate-400">ID: #{deal.id.toUpperCase()}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">ID: #{deal.id.toUpperCase()}</span>
             </div>
-            <h2 className="text-xl font-black text-[#1F1F1F] tracking-tight">{deal.name}</h2>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mt-0.5">
+            <h2 className="text-xl font-black text-[#1F1F1F] dark:text-white tracking-tight">{deal.name}</h2>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               <MapPin size={12} className="text-[#1878B8]" />
               <span>{deal.address}, {deal.city}, CA</span>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl liquid-glass-btn text-slate-500 hover:text-slate-900 transition-all cursor-pointer"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditContactOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Edit contact info"
+            >
+              <Edit3 size={12} />
+              <span>Edit Info</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl liquid-glass-btn text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 bg-white/50 p-1 rounded-xl border border-white/80 backdrop-blur-md text-xs font-bold">
+        <div className="flex items-center gap-1.5 bg-white/50 dark:bg-white/5 p-1 rounded-xl border border-white/80 dark:border-white/10 backdrop-blur-md text-xs font-bold">
           <button
             onClick={() => setActiveTab('workflow')}
             className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'workflow'
                 ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
             }`}
           >
             SOP Cadence &amp; Checklist
@@ -188,7 +242,7 @@ export function PipelineDealInspectorModal({
             className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'details'
                 ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
             }`}
           >
             Quote &amp; Contact Info
@@ -198,7 +252,7 @@ export function PipelineDealInspectorModal({
             className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
               activeTab === 'outcome'
                 ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
             }`}
           >
             Mandatory Outcome
@@ -210,9 +264,9 @@ export function PipelineDealInspectorModal({
           <div className="space-y-4">
             {/* 11-Step Progress Mini Stepper */}
             <div className="p-3.5 rounded-2xl liquid-glass-tile space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-600">
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-600 dark:text-slate-300">
                 <span>Estimate Sending Progress</span>
-                <span className="text-[#1878B8]">
+                <span className="text-[#1878B8] dark:text-sky-400">
                   Step {currentStage ? currentStage.stepNumber : 1} of 11
                 </span>
               </div>
@@ -228,10 +282,10 @@ export function PipelineDealInspectorModal({
                       title={`${s.stepNumber}. ${s.shortTitle} (${s.timingLabel})`}
                       className={`h-2 rounded-full transition-all ${
                         isCurrent
-                          ? 'bg-[#1878B8] ring-2 ring-sky-300 ring-offset-1'
+                          ? 'bg-[#1878B8] ring-2 ring-sky-300 dark:ring-sky-700 ring-offset-1 dark:ring-offset-slate-900'
                           : isPassed
                           ? 'bg-emerald-500'
-                          : 'bg-slate-200'
+                          : 'bg-slate-200 dark:bg-white/10'
                       }`}
                     />
                   );
@@ -241,39 +295,39 @@ export function PipelineDealInspectorModal({
 
             {/* Current Step SOP Box */}
             {currentStage && (
-              <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 shadow-2xs space-y-2">
+              <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-800/40 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10.5px] font-black uppercase tracking-wider text-[#1878B8]">
+                  <span className="text-[10.5px] font-black uppercase tracking-wider text-[#1878B8] dark:text-sky-400">
                     Current Step: {currentStage.title}
                   </span>
-                  <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-white text-sky-800 border border-sky-200">
+                  <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-white dark:bg-white/10 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50">
                     {currentStage.timingLabel}
                   </span>
                 </div>
-                <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
                   {currentStage.sopGoal}
                 </p>
               </div>
             )}
 
-            {/* 48-Hour Review Window Alert for Estimate Sent */}
+            {/* 24-Hour Review Window Alert for Estimate Sent */}
             {deal.stageId === 'estimate_sent' && (
-              <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-2xs space-y-1.5">
+              <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 shadow-2xs space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                    <Clock size={13} className="text-amber-600 animate-pulse" />
-                    <span>48-Hour Review Cadence</span>
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <Clock size={13} className="text-amber-600 dark:text-amber-400 animate-pulse" />
+                    <span>24-Hour Review Cadence</span>
                   </span>
-                  <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-amber-200/90 text-amber-950">
+                  <span className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-md bg-amber-200/90 dark:bg-amber-900/50 text-amber-950 dark:text-amber-200">
                     {deal.hoursUntilAutoMove !== null && deal.hoursUntilAutoMove !== undefined
                       ? deal.hoursUntilAutoMove > 0
-                        ? `${deal.hoursUntilAutoMove}h until Auto-Move`
-                        : 'Auto-moving to Follow-Up'
-                      : '48h Window Active'}
+                        ? `${deal.hoursUntilAutoMove}h until Follow-Up`
+                        : 'Follow-Up Due'
+                      : '24h Window Active'}
                   </span>
                 </div>
-                <p className="text-xs text-amber-900/90 font-medium">
-                  Leads stay in Estimate Sent for 48 hours to allow homeowner review, after which they automatically transition to Follow-Up.
+                <p className="text-xs text-amber-900/90 dark:text-amber-200/90 font-medium">
+                  First follow-up reminder is scheduled for 24 hours after estimate dispatch to check in on proposal review.
                 </p>
               </div>
             )}
@@ -283,35 +337,35 @@ export function PipelineDealInspectorModal({
               <div
                 className={`p-4 rounded-2xl border shadow-2xs space-y-2.5 ${
                   deal.isFollowupOverdue
-                    ? 'bg-red-50/90 border-red-300 ring-1 ring-red-400/30'
-                    : 'bg-purple-50/80 border-purple-200'
+                    ? 'bg-red-50/90 dark:bg-red-950/30 border-red-300 dark:border-red-800/50 ring-1 ring-red-400/30'
+                    : 'bg-purple-50/80 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/40'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span
                     className={`text-xs font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                      deal.isFollowupOverdue ? 'text-red-700' : 'text-purple-800'
+                      deal.isFollowupOverdue ? 'text-red-700 dark:text-red-400' : 'text-purple-800 dark:text-purple-300'
                     }`}
                   >
                     <Clock size={14} className={deal.isFollowupOverdue ? 'animate-pulse text-red-600' : 'text-purple-600'} />
-                    <span>{deal.isFollowupOverdue ? '⚠️ Overdue Contact SLA (7+ Days)' : '7-Day Follow-Up SLA Active'}</span>
+                    <span>{deal.isFollowupOverdue ? '⚠️ Overdue Contact SLA' : '48-Hour Follow-Up Cadence Active'}</span>
                   </span>
                   <span
                     className={`text-[10.5px] font-black px-2 py-0.5 rounded-md ${
-                      deal.isFollowupOverdue ? 'bg-red-600 text-white animate-pulse' : 'bg-purple-200 text-purple-900'
+                      deal.isFollowupOverdue ? 'bg-red-600 text-white animate-pulse' : 'bg-purple-200 dark:bg-purple-900/50 text-purple-900 dark:text-purple-200'
                     }`}
                   >
-                    {deal.followupDaysRemaining !== undefined
-                      ? deal.followupDaysRemaining > 0
-                        ? `${deal.followupDaysRemaining}d remaining`
-                        : `${deal.followupHoursRemaining ?? 0}h remaining`
+                    {deal.followupHoursRemaining !== undefined
+                      ? deal.followupHoursRemaining <= 48
+                        ? `${deal.followupHoursRemaining}h remaining`
+                        : `${deal.followupDaysRemaining ?? 0}d remaining`
                       : 'Active SLA'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-700">
+                <p className="text-xs text-slate-700 dark:text-slate-300">
                   {deal.isFollowupOverdue
-                    ? 'This deal has gone 7 or more days without contact and requires immediate outreach to reset the SLA.'
-                    : 'Log phone, SMS, email, or in-person outreach to document contact and automatically reset the 7-day SLA.'}
+                    ? 'This deal has exceeded the follow-up window and requires immediate outreach to reset the SLA.'
+                    : 'Log phone, SMS, email, or in-person outreach to document contact and automatically reset the 48-hour follow-up window.'}
                 </p>
                 {onOpenFollowUpModal && (
                   <button
@@ -327,7 +381,7 @@ export function PipelineDealInspectorModal({
                     }`}
                   >
                     <Phone size={13} />
-                    <span>Log Follow-Up Outreach (Reset Timer to +7 Days)</span>
+                    <span>Log Follow-Up Outreach (Reset Timer to +48 Hours)</span>
                   </button>
                 )}
               </div>
@@ -336,7 +390,7 @@ export function PipelineDealInspectorModal({
             {/* Action Checklist */}
             <div className="p-4 rounded-2xl liquid-glass-tile space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-500">
+                <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Step Gate Checklist
                 </span>
                 <span className="text-[10px] font-bold text-slate-400">
@@ -351,20 +405,20 @@ export function PipelineDealInspectorModal({
                     onClick={() => toggleChecklist(item.id)}
                     className={`flex items-center gap-2.5 p-2 rounded-xl transition-all cursor-pointer border ${
                       item.done
-                        ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800'
-                        : 'bg-white/70 border-white/90 text-slate-700 hover:bg-white'
+                        ? 'bg-emerald-500/10 dark:bg-emerald-950/30 border-emerald-500/25 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-white/70 dark:bg-white/5 border-white/90 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-white/10'
                     }`}
                   >
                     <div
                       className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
                         item.done
                           ? 'bg-emerald-600 border-emerald-600 text-white'
-                          : 'border-slate-300 bg-white'
+                          : 'border-slate-300 dark:border-white/20 bg-white dark:bg-white/5'
                       }`}
                     >
                       {item.done && <Check size={11} />}
                     </div>
-                    <span className={`text-xs font-semibold ${item.done ? 'line-through text-slate-400' : ''}`}>
+                    <span className={`text-xs font-semibold ${item.done ? 'line-through text-slate-400 dark:text-slate-500' : ''}`}>
                       {item.label}
                     </span>
                   </div>
@@ -374,10 +428,10 @@ export function PipelineDealInspectorModal({
 
             {/* Advance to Next Stage CTA */}
             {nextStage && (
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/70 border border-white/90 shadow-2xs">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/70 dark:bg-white/5 border border-white/90 dark:border-white/10 shadow-2xs">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Next Milestone</div>
-                  <div className="text-xs font-black text-slate-800">{nextStage.title}</div>
+                  <div className="text-xs font-black text-slate-800 dark:text-white">{nextStage.title}</div>
                 </div>
                 <button
                   onClick={() => {
@@ -403,7 +457,7 @@ export function PipelineDealInspectorModal({
                 <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
                   Estimate Value
                 </span>
-                <div className="text-base font-black text-slate-800">
+                <div className="text-base font-black text-slate-800 dark:text-white">
                   ${deal.value.toLocaleString()}
                 </div>
               </div>
@@ -412,7 +466,7 @@ export function PipelineDealInspectorModal({
                 <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
                   Roof Service
                 </span>
-                <div className="text-xs font-black text-slate-800 truncate">
+                <div className="text-xs font-black text-slate-800 dark:text-white truncate">
                   {deal.service}
                 </div>
               </div>
@@ -425,40 +479,51 @@ export function PipelineDealInspectorModal({
                   <img
                     src={deal.estimator.avatar}
                     alt={deal.estimator.name}
-                    className="w-5 h-5 rounded-full object-cover border border-white"
+                    className="w-5 h-5 rounded-full object-cover border border-white dark:border-white/10"
                   />
-                  <span className="text-xs font-bold text-slate-800">{deal.estimator.name}</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-white">{deal.estimator.name}</span>
                 </div>
               </div>
             </div>
 
             {/* Direct Channels */}
             <div className="p-3.5 rounded-2xl liquid-glass-tile space-y-2.5">
-              <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-slate-500">
-                Direct Contact Triggers
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] uppercase tracking-wider font-extrabold text-slate-500 dark:text-slate-400">
+                  Direct Contact Triggers
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditContactOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/80 dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-white/10 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  title="Edit Contact Information"
+                >
+                  <Edit3 size={11} />
+                  <span>Edit Contact</span>
+                </button>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 border border-white/80 shadow-2xs">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-2xs">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-sky-100/90 text-[#0284c7] flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-sky-100/90 dark:bg-sky-950/50 text-[#0284c7] dark:text-sky-300 flex items-center justify-center shrink-0">
                       <Phone size={13} />
                     </div>
                     <div className="min-w-0">
                       <div className="text-[10px] text-slate-400 font-medium">Direct Phone</div>
-                      <div className="text-xs font-bold text-slate-800 truncate">{deal.phone}</div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-white truncate">{deal.phone}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleCopy(deal.phone, 'phone')}
-                      className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white"
                     >
                       {copiedField === 'phone' ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                     </button>
                     <a
-                      href={`tel:${deal.phone}`}
-                      className="p-1.5 rounded-lg bg-sky-500/15 text-[#1878B8] hover:bg-[#1878B8] hover:text-white transition-colors"
+                      href={getTelUrl(deal.phone)}
+                      className="p-1.5 rounded-lg bg-sky-500/15 text-[#1878B8] dark:text-sky-400 hover:bg-[#1878B8] hover:text-white transition-colors"
                       title="Call Now"
                     >
                       <Phone size={12} />
@@ -466,26 +531,26 @@ export function PipelineDealInspectorModal({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 border border-white/80 shadow-2xs">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-white/80 dark:border-white/10 shadow-2xs">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-indigo-100/90 text-indigo-700 flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-100/90 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
                       <Mail size={13} />
                     </div>
                     <div className="min-w-0">
                       <div className="text-[10px] text-slate-400 font-medium">Email Address</div>
-                      <div className="text-xs font-bold text-slate-800 truncate">{deal.email}</div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-white truncate">{deal.email}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleCopy(deal.email, 'email')}
-                      className="p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 hover:text-slate-700 dark:hover:text-white"
                     >
                       {copiedField === 'email' ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                     </button>
                     <a
-                      href={`mailto:${deal.email}`}
-                      className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-700 hover:bg-indigo-600 hover:text-white transition-colors"
+                      href={getMailtoUrl(deal.email)}
+                      className="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors"
                       title="Compose Email"
                     >
                       <Mail size={12} />
@@ -511,19 +576,19 @@ export function PipelineDealInspectorModal({
         {/* TAB 3: RESOLVE OUTCOME */}
         {activeTab === 'outcome' && (
           <div className="space-y-4">
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
-              <div className="text-xs font-black text-slate-800">
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10">
+              <div className="text-xs font-black text-slate-800 dark:text-white">
                 Rise Up Pipeline Outcome Mandate
               </div>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                 Every lead must end in one of these three outcomes. Select the outcome to finalize or reschedule this opportunity.
               </p>
             </div>
 
             {/* Option 1: Closed Won */}
-            <div className="p-4 rounded-2xl border border-emerald-300 bg-emerald-50/50 space-y-3">
+            <div className="p-4 rounded-2xl border border-emerald-300 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-950/30 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-emerald-800 font-black text-sm">
+                <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-black text-sm">
                   <Award size={18} />
                   <span>1. Closed Won / Job Sold</span>
                 </div>
@@ -534,15 +599,15 @@ export function PipelineDealInspectorModal({
                   Mark Won 🎉
                 </button>
               </div>
-              <p className="text-xs text-emerald-700 font-medium">
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
                 Contract signed, deposit collected. Automatically transitions deal to Project Management.
               </p>
             </div>
 
             {/* Option 2: Closed Lost */}
-            <div className="p-4 rounded-2xl border border-rose-300 bg-rose-50/50 space-y-3">
+            <div className="p-4 rounded-2xl border border-rose-300 dark:border-rose-800/50 bg-rose-50/50 dark:bg-rose-950/30 space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-rose-800 font-black text-sm">
+                <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-black text-sm">
                   <XCircle size={18} />
                   <span>2. Closed Lost</span>
                 </div>
@@ -554,13 +619,13 @@ export function PipelineDealInspectorModal({
                 </button>
               </div>
               <div className="space-y-2">
-                <label className="text-[10.5px] font-bold text-slate-600">
+                <label className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300">
                   Mandatory Root Cause Reason:
                 </label>
                 <select
                   value={selectedLossReason}
                   onChange={(e) => setSelectedLossReason(e.target.value)}
-                  className="w-full text-xs font-semibold bg-white border border-rose-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none"
+                  className="w-full text-xs font-semibold bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800/50 rounded-xl px-3 py-2 text-slate-800 dark:text-white focus:outline-none"
                 >
                   {LOSS_REASONS.map((r) => (
                     <option key={r} value={r}>
@@ -573,13 +638,31 @@ export function PipelineDealInspectorModal({
                   placeholder="Optional autopsy notes (e.g. competitor bid $19.5k)..."
                   value={lossNotesInput}
                   onChange={(e) => setLossNotesInput(e.target.value)}
-                  className="w-full text-xs bg-white border border-rose-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none"
+                  className="w-full text-xs bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800/50 rounded-xl px-3 py-2 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
                 />
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Client 360 Source of Truth Edit Contact Modal */}
+      {isEditContactOpen && (
+        <ClientEditContactModal
+          isOpen={isEditContactOpen}
+          onClose={() => setIsEditContactOpen(false)}
+          clientName={deal.name}
+          initialData={{
+            name: deal.name,
+            email: deal.email || '',
+            phone: deal.phone || '',
+            address: deal.address || '',
+            city: deal.city || '',
+            zip: (deal as any).zip || '',
+          }}
+          onSave={handleSaveContact}
+        />
+      )}
     </div>,
     document.body
   );

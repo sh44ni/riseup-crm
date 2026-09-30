@@ -14,10 +14,21 @@ export function getBackendBaseUrl(): string {
 }
 
 export const API_ORIGIN = getBackendBaseUrl();
-export const API_BASE = `${API_ORIGIN}/api`;
+// Use a relative /api path when a reverse proxy is available:
+//   - Local dev:  Vite proxy (vite.config.ts) forwards /api → http://127.0.0.1:8000
+//   - Production: nginx on crm.riseuprac.com forwards /api → http://127.0.0.1:8010
+// Only fall back to the full absolute URL for non-proxied hosts (e.g. Vercel previews).
+const PROXIED_HOSTS = ['localhost', '127.0.0.1', 'crm.riseuprac.com'];
+export const API_BASE = (() => {
+  if (typeof window !== 'undefined' && PROXIED_HOSTS.includes(window.location.hostname)) {
+    return '/api';
+  }
+  return `${API_ORIGIN}/api`;
+})();
 
 class ApiClient {
   private token: string | null = null;
+  private isRedirecting401 = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -28,9 +39,11 @@ class ApiClient {
   setToken(token: string | null) {
     this.token = token;
     if (token) {
+      this.isRedirecting401 = false;
       localStorage.setItem('crm_auth_token', token);
     } else {
       localStorage.removeItem('crm_auth_token');
+      localStorage.removeItem('crm_user');
     }
   }
 
@@ -39,30 +52,27 @@ class ApiClient {
   }
 
   getAuthHeaders(): Record<string, string> {
-    const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'X-Client-Platform': 'crm-web',
     };
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey;
-    }
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
     return headers;
   }
 
-  async request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T = any>(endpoint: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
+    const { timeoutMs = 12000, ...fetchOptions } = options;
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
     const baseHeaders = this.getAuthHeaders();
     const headers: Record<string, string> = {
       ...baseHeaders,
-      ...((options.headers as Record<string, string>) || {}),
+      ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
-    let body = options.body;
+    let body = fetchOptions.body;
     if (body && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof Blob)) {
       body = JSON.stringify(body);
     }
@@ -71,47 +81,87 @@ class ApiClient {
       delete headers['Content-Type'];
     }
 
-    const res = await fetch(url, {
-      ...options,
-      body,
-      headers,
-      credentials: 'include',
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (res.status === 401 && !endpoint.includes('/auth/login')) {
-      this.setToken(null);
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+    try {
+      const res = await fetch(url, {
+        ...fetchOptions,
+        body,
+        headers,
+        credentials: 'include',
+        signal: fetchOptions.signal || controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      // Public routes that should NEVER be redirected to /login on a 401,
+      // even if the browser has a stale token in localStorage.
+      const PUBLIC_ENDPOINTS = [
+        '/auth/login',
+        '/public/invitations',
+        '/public/contracts',
+        '/contract/sign',
+      ];
+      const isPublicEndpoint = PUBLIC_ENDPOINTS.some(p => endpoint.includes(p));
+
+      // Also skip the 401→/login redirect when visiting public CRM pages
+      // (accept-invite, contract sign) even if getMe() returns 401 for a stale token.
+      const PUBLIC_PAGES = ['/accept-invite', '/contract/sign/', '/changelogs'];
+      const isOnPublicPage = typeof window !== 'undefined' &&
+        PUBLIC_PAGES.some(p => window.location.pathname.startsWith(p));
+
+      if (res.status === 401 && !isPublicEndpoint && !isOnPublicPage) {
+        this.setToken(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('crm_auth_token');
+          localStorage.removeItem('crm_user');
+          if (!this.isRedirecting401) {
+            this.isRedirecting401 = true;
+            if (window.location.pathname !== '/login') {
+              window.location.replace('/login');
+            }
+          }
+        }
+        throw new Error('Session expired. Please log in again.');
       }
-      throw new Error('Session expired. Please log in again.');
-    }
 
-    const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      let errorMsg = `Request failed with status ${res.status}`;
-      if (typeof data.detail === 'string') {
-        errorMsg = data.detail;
-      } else if (Array.isArray(data.detail)) {
-        errorMsg = data.detail.map((d: any) => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join(', ');
-      } else if (data.detail && typeof data.detail === 'object') {
-        errorMsg = data.detail.message || JSON.stringify(data.detail);
-      } else if (data.error) {
-        errorMsg = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
-      } else if (data.message) {
-        errorMsg = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
+      if (!res.ok) {
+        let errorMsg = `Request failed with status ${res.status}`;
+        if (typeof data.detail === 'string') {
+          errorMsg = data.detail;
+        } else if (Array.isArray(data.detail)) {
+          errorMsg = data.detail.map((d: any) => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join(', ');
+        } else if (data.detail && typeof data.detail === 'object') {
+          errorMsg = data.detail.message || JSON.stringify(data.detail);
+        } else if (data.error) {
+          errorMsg = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
+        } else if (data.message) {
+          errorMsg = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
+        }
+        throw new Error(errorMsg);
       }
-      throw new Error(errorMsg);
-    }
 
-    return data as T;
+      return data as T;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error(`Request timed out after ${timeoutMs / 1000}s`);
+      }
+      throw err;
+    }
   }
 
   // ── Authentication ──
   async login(password: string, email?: string) {
+    if (!email || !email.trim()) {
+      throw new Error('Email is required for authentication.');
+    }
     const res = await this.request('/admin/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ password, email: email || 'admin@riseuprac.com' }),
+      body: JSON.stringify({ password, email: email.trim().toLowerCase() }),
     });
     if (res.token) {
       this.setToken(res.token);
@@ -217,6 +267,13 @@ class ApiClient {
   async claimLead(id: number | string) {
     return this.request(`/admin/pipeline/${id}/claim`, {
       method: 'POST',
+    });
+  }
+
+  async reassignLead(id: number | string, newUserId: number, notes?: string) {
+    return this.request(`/admin/pipeline/${id}/reassign`, {
+      method: 'POST',
+      body: JSON.stringify({ new_user_id: newUserId, notes }),
     });
   }
 
@@ -493,6 +550,7 @@ class ApiClient {
   async createRole(data: {
     name: string;
     description?: string;
+    is_authorized_signatory?: boolean;
     permissions?: Array<{ permission_id: number; scope: string }>;
     modules?: Record<string, { view: string; manage: boolean }>;
   }) {
@@ -507,6 +565,7 @@ class ApiClient {
     data: {
       name?: string;
       description?: string;
+      is_authorized_signatory?: boolean;
       permissions?: Array<{ permission_id: number; scope: string }>;
       modules?: Record<string, { view: string; manage: boolean }>;
     }
@@ -519,6 +578,32 @@ class ApiClient {
 
   async deleteRole(roleId: number) {
     return this.request(`/admin/roles/${roleId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ── Authorized Signatories ──
+  async getSignatories(): Promise<{ signatories: any[]; total: number; configured_count: number }> {
+    return this.request('/admin/signatories');
+  }
+
+  async updateSignatorySignature(
+    userId: number | string,
+    data: {
+      signature_name?: string;
+      signature_title?: string;
+      signature_type: 'typed' | 'drawn';
+      signature_data: string;
+    }
+  ) {
+    return this.request(`/admin/signatories/${userId}/signature`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSignatorySignature(userId: number | string) {
+    return this.request(`/admin/signatories/${userId}/signature`, {
       method: 'DELETE',
     });
   }
@@ -688,3 +773,42 @@ class ApiClient {
 
 export const api = new ApiClient();
 export default api;
+
+/**
+ * Unified fetch helper for all CRM API calls.
+ * Handles auth headers, timeouts, AbortController, and error normalization.
+ * Use this instead of raw fetch() in all API files.
+ */
+export async function apiFetch<T = unknown>(
+  path: string,
+  options: RequestInit & { timeoutMs?: number } = {}
+): Promise<T> {
+  const { timeoutMs = 12000, headers: extraHeaders, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...api.getAuthHeaders(),
+        ...(extraHeaders as Record<string, string> ?? {}),
+      },
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const errBody = await res.json();
+        errMsg = errBody.detail ?? errBody.error ?? errMsg;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
+    return res.json() as Promise<T>;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}

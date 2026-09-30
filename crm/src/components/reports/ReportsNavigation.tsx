@@ -44,11 +44,11 @@ export function ReportsNavigation({
             onClick={() => onTabChange(tab.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer shadow-xs shrink-0 ${
               isActive
-                ? 'bg-slate-950 text-white shadow-md shadow-slate-900/20 scale-[1.01]'
-                : 'bg-white/80 hover:bg-white text-slate-700 hover:text-slate-950 border border-slate-200/90'
+                ? 'bg-slate-950 dark:bg-sky-600 text-white shadow-md shadow-slate-900/20 scale-[1.01]'
+                : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white border border-slate-200/90 dark:border-white/10'
             }`}
           >
-            <Icon size={14} className={isActive ? tab.accentColor : 'text-slate-500'} />
+            <Icon size={14} className={isActive ? (tab.id === 'revenue' ? 'text-sky-300' : 'text-purple-300') : 'text-slate-500 dark:text-slate-400'} />
             <span>{tab.label}</span>
           </button>
         );

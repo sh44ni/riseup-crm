@@ -27,7 +27,7 @@ const ROUTE_LABELS: Record<string, string> = {
 const ROUTE_TITLES: Record<string, string> = {
   services: 'Our Services',
   projects: 'Our Projects',
-  reviews: 'Customer Reviews',
+  reviews: 'Client Reviews',
   about: 'About Rise Up',
   contact: 'Free Estimate',
   careers: 'Careers',

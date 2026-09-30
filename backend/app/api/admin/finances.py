@@ -3,11 +3,53 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.permissions import require_permission, has_permission
 from app.services.sync import find_or_create_client, recalculate_client_stats
 import orjson
+
+class CreateInvoicePayload(BaseModel):
+    jobId: int
+    generateMilestones: Optional[bool] = None
+    amount: Optional[float] = None
+    dueDate: Optional[str] = None
+    milestoneName: str = "Payment Milestone"
+    notes: Optional[str] = None
+
+class UpdateInvoicePayload(BaseModel):
+    id: int
+    status: Optional[str] = None
+    paymentMethod: Optional[str] = None
+    transactionId: Optional[str] = None
+    notes: Optional[str] = None
+
+class CreateExpensePayload(BaseModel):
+    jobId: int
+    category: str = Field(..., min_length=1)
+    vendor: str = Field(..., min_length=1)
+    amount: float = Field(..., ge=0)
+    invoiceReceiptNumber: Optional[str] = None
+    expenseDate: Optional[str] = None
+    notes: Optional[str] = None
+
+class ManageFinancingPayload(BaseModel):
+    action: str = Field(..., min_length=1)
+    id: Optional[int] = None
+    name: Optional[str] = None
+    apr: float = 0
+    termMonths: int = 60
+    minDownPaymentPct: float = 0
+    isDefault: bool = False
+    isActive: bool = True
+    sortOrder: int = 0
+    badgeLabel: Optional[str] = None
+    description: Optional[str] = None
+    minProjectCost: float = 5000
+    maxProjectCost: float = 50000
+    defaultProjectCost: float = 16500
+    creditCheckCopyFlag: bool = True
 
 router = APIRouter()
 
@@ -133,15 +175,12 @@ async def get_invoices(
 
 @router.post("/invoices")
 async def create_invoice(
-    payload: Dict[str, Any],
+    payload: CreateInvoicePayload,
     user: Dict[str, Any] = Depends(require_permission("finances.edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    job_id = payload.get("jobId")
-    if not job_id:
-        raise HTTPException(status_code=400, detail="A valid roofing job from the jobs pipeline is required to create an invoice.")
+    parsed_job_id = payload.jobId
 
-    parsed_job_id = int(job_id)
     j_res = await db.execute(text("SELECT * FROM jobs WHERE id = :id"), {"id": parsed_job_id})
     job_row = j_res.first()
     if not job_row:
@@ -166,15 +205,18 @@ async def create_invoice(
     year = datetime.now(timezone.utc).year
 
     # Mode A: CSLB-compliant 4-milestone schedule
-    if payload.get("generateMilestones"):
+    if payload.generateMilestones:
         contract_value = float(job.get("contract_value") or 12000)
         deposit_amount = min(1000.0, round(contract_value * 0.10, 2))
         delivery_amount = round(contract_value * 0.40, 2)
         dryin_amount = round(contract_value * 0.40, 2)
         final_amount = max(0.0, round(contract_value - (deposit_amount + delivery_amount + dryin_amount), 2))
 
-        count_res = await db.execute(text("SELECT COUNT(*) FROM invoices"))
-        seq = int(count_res.scalar() or 0)
+        try:
+            seq_val = (await db.execute(text("SELECT nextval('invoice_number_seq')"))).scalar()
+        except Exception:
+            await db.execute(text("CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START WITH 1000"))
+            seq_val = (await db.execute(text("SELECT nextval('invoice_number_seq')"))).scalar()
 
         today = datetime.now(timezone.utc)
         def add_days(d: int) -> str:
@@ -188,9 +230,9 @@ async def create_invoice(
         ]
 
         created = []
-        for m in milestones:
-            seq += 1
-            inv_num = f"INV-{year}-{str(seq).zfill(4)}"
+        for i, m in enumerate(milestones):
+            current_seq = seq_val + i
+            inv_num = f"INV-{year}-{str(current_seq).zfill(4)}"
             ins_stmt = text("""
                 INSERT INTO invoices (job_id, estimate_id, client_id, invoice_number, milestone_name, amount, due_date, status, notes)
                 VALUES (:jid, :eid, :cid, :inum, :mname, :amt, :due, 'pending', :notes)
@@ -251,14 +293,18 @@ async def create_invoice(
         return {"ok": True, "invoices": created}
 
     # Mode B: Single custom milestone
-    amount = payload.get("amount")
-    due_date = payload.get("dueDate")
-    if not amount or float(amount) <= 0 or not due_date:
+    amount = payload.amount
+    due_date = payload.dueDate
+    if amount is None or amount <= 0 or not due_date:
         raise HTTPException(status_code=400, detail="Valid amount and due date are required")
 
-    count_res = await db.execute(text("SELECT COUNT(*) FROM invoices"))
-    seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
-    invoice_number = f"INV-{year}-{seq}"
+    try:
+        seq_val = (await db.execute(text("SELECT nextval('invoice_number_seq')"))).scalar()
+    except Exception:
+        await db.execute(text("CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START WITH 1000"))
+        seq_val = (await db.execute(text("SELECT nextval('invoice_number_seq')"))).scalar()
+
+    invoice_number = f"INV-{year}-{str(seq_val).zfill(4)}"
 
     ins_stmt = text("""
         INSERT INTO invoices (
@@ -271,10 +317,10 @@ async def create_invoice(
         "eid": job.get("estimate_id"),
         "cid": resolved_client_id,
         "inum": invoice_number,
-        "mname": payload.get("milestoneName", "Payment Milestone"),
-        "amt": float(amount),
+        "mname": payload.milestoneName,
+        "amt": amount,
         "due": due_date,
-        "notes": payload.get("notes"),
+        "notes": payload.notes,
     })
     new_invoice = dict(res.first()._mapping)
 
@@ -322,34 +368,32 @@ async def create_invoice(
 
 @router.patch("/invoices")
 async def update_invoice(
-    payload: Dict[str, Any],
+    payload: UpdateInvoicePayload,
     user: Dict[str, Any] = Depends(require_permission("finances.edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    inv_id = payload.get("id")
-    if not inv_id:
-        raise HTTPException(status_code=400, detail="Invoice ID is required")
+    inv_id = payload.id
 
     updates = []
-    params: Dict[str, Any] = {"id": int(inv_id)}
+    params: Dict[str, Any] = {"id": inv_id}
 
-    status = payload.get("status")
+    status = payload.status
     if status:
         params["status"] = status
         updates.append("status = :status")
         if status == "paid":
             updates.append("paid_at = NOW()")
 
-    if payload.get("paymentMethod"):
-        params["paymentMethod"] = payload["paymentMethod"]
+    if payload.paymentMethod:
+        params["paymentMethod"] = payload.paymentMethod
         updates.append("payment_method = :paymentMethod")
 
-    if payload.get("transactionId"):
-        params["transactionId"] = payload["transactionId"]
+    if payload.transactionId:
+        params["transactionId"] = payload.transactionId
         updates.append("transaction_id = :transactionId")
 
-    if payload.get("notes"):
-        params["notes"] = payload["notes"]
+    if payload.notes:
+        params["notes"] = payload.notes
         updates.append("notes = :notes")
 
     updates.append("updated_at = NOW()")
@@ -384,7 +428,7 @@ async def update_invoice(
                     "jid": inv["job_id"],
                     "cid": resolved_client_id,
                     "title": f"Payment Received: ${float(inv.get('amount') or 0):,.2f}",
-                    "desc": f"Paid for {inv.get('milestone_name')} ({inv.get('invoice_number')}) via {payload.get('paymentMethod', 'Credit Card / Check')}",
+                    "desc": f"Paid for {inv.get('milestone_name')} ({inv.get('invoice_number')}) via {payload.paymentMethod or 'Credit Card / Check'}",
                     "pby": user.get("name") or "Staff",
                     "uid": user["id"],
                     "uname": user.get("name") or "Staff",
@@ -425,7 +469,7 @@ async def update_invoice(
                         "lid": job.lead_id,
                         "cid": resolved_client_id,
                         "title": f"Payment Received: ${float(inv.get('amount') or 0):,.2f}",
-                        "desc": f"Paid for {inv.get('milestone_name')} ({inv.get('invoice_number')}) via {payload.get('paymentMethod', 'Credit Card / Check')}",
+                        "desc": f"Paid for {inv.get('milestone_name')} ({inv.get('invoice_number')}) via {payload.paymentMethod or 'Credit Card / Check'}",
                         "pby": user.get("name") or "Staff",
                         "uid": user["id"],
                         "uname": user.get("name") or "Staff",
@@ -461,17 +505,14 @@ async def get_expenses(
 
 @router.post("/expenses")
 async def create_expense(
-    payload: Dict[str, Any],
+    payload: CreateExpensePayload,
     user: Dict[str, Any] = Depends(require_permission("finances:manage_expenses")),
     db: AsyncSession = Depends(get_db)
 ):
-    job_id = payload.get("jobId")
-    category = payload.get("category")
-    vendor = payload.get("vendor")
-    amount = payload.get("amount")
-
-    if not job_id or not category or not vendor or not amount:
-        raise HTTPException(status_code=400, detail="Job ID, category, vendor, and amount are required")
+    job_id = payload.jobId
+    category = payload.category
+    vendor = payload.vendor
+    amount = payload.amount
 
     stmt = text("""
         INSERT INTO job_expenses (
@@ -480,13 +521,13 @@ async def create_expense(
         RETURNING *
     """)
     res = await db.execute(stmt, {
-        "jid": int(job_id),
+        "jid": job_id,
         "cat": category,
         "ven": vendor,
-        "amt": float(amount),
-        "rec": payload.get("invoiceReceiptNumber"),
-        "edate": payload.get("expenseDate") or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "notes": payload.get("notes"),
+        "amt": amount,
+        "rec": payload.invoiceReceiptNumber,
+        "edate": payload.expenseDate or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "notes": payload.notes,
     })
     await db.commit()
     return {"ok": True, "expense": dict(res.first()._mapping)}
@@ -583,26 +624,26 @@ async def get_financing_admin(
 
 @router.post("/financing")
 async def manage_financing(
-    payload: Dict[str, Any],
+    payload: ManageFinancingPayload,
     user: Dict[str, Any] = Depends(require_permission("settings:edit")),
     db: AsyncSession = Depends(get_db)
 ):
-    action = payload.get("action")
+    action = payload.action
 
     if action == "save_plan":
-        name = payload.get("name")
+        name = payload.name
         if not name or not name.strip():
             raise HTTPException(status_code=400, detail="Plan name is required")
 
-        plan_id = payload.get("id")
-        apr = float(payload.get("apr", 0))
-        term_months = int(payload.get("termMonths", 60))
-        min_down = float(payload.get("minDownPaymentPct", 0))
-        is_default = bool(payload.get("isDefault"))
-        is_active = bool(payload.get("isActive", True))
-        sort_order = int(payload.get("sortOrder", 0))
-        badge_label = payload.get("badgeLabel")
-        desc = payload.get("description")
+        plan_id = payload.id
+        apr = payload.apr
+        term_months = payload.termMonths
+        min_down = payload.minDownPaymentPct
+        is_default = payload.isDefault
+        is_active = payload.isActive
+        sort_order = payload.sortOrder
+        badge_label = payload.badgeLabel
+        desc = payload.description
 
         if is_default:
             await db.execute(text("UPDATE financing_plans SET is_default = false"))
@@ -619,7 +660,7 @@ async def manage_financing(
                 {
                     "name": name.strip(), "apr": apr, "term": term_months, "down": min_down,
                     "def": is_default, "act": is_active, "sort": sort_order, "badge": badge_label,
-                    "desc": desc, "id": int(plan_id)
+                    "desc": desc, "id": plan_id
                 }
             )
         else:
@@ -639,19 +680,19 @@ async def manage_financing(
         return {"ok": True, "message": "Financing plan saved successfully"}
 
     elif action == "set_default":
-        plan_id = payload.get("id")
+        plan_id = payload.id
         if not plan_id:
             raise HTTPException(status_code=400, detail="Plan ID is required")
         await db.execute(text("UPDATE financing_plans SET is_default = false"))
-        await db.execute(text("UPDATE financing_plans SET is_default = true, is_active = true WHERE id = :id"), {"id": int(plan_id)})
+        await db.execute(text("UPDATE financing_plans SET is_default = true, is_active = true WHERE id = :id"), {"id": plan_id})
         await db.commit()
         return {"ok": True, "message": "Default plan updated"}
 
     elif action == "save_settings":
-        min_cost = float(payload.get("minProjectCost", 5000))
-        max_cost = float(payload.get("maxProjectCost", 50000))
-        def_cost = float(payload.get("defaultProjectCost", 16500))
-        credit_flag = bool(payload.get("creditCheckCopyFlag", True))
+        min_cost = payload.minProjectCost
+        max_cost = payload.maxProjectCost
+        def_cost = payload.defaultProjectCost
+        credit_flag = payload.creditCheckCopyFlag
 
         await db.execute(
             text("""
@@ -669,14 +710,14 @@ async def manage_financing(
         return {"ok": True, "message": "Calculator settings saved"}
 
     elif action == "delete_plan":
-        plan_id = payload.get("id")
+        plan_id = payload.id
         if not plan_id:
             raise HTTPException(status_code=400, detail="Plan ID is required")
-        check = await db.execute(text("SELECT is_default FROM financing_plans WHERE id = :id"), {"id": int(plan_id)})
+        check = await db.execute(text("SELECT is_default FROM financing_plans WHERE id = :id"), {"id": plan_id})
         r = check.first()
         if r and r.is_default:
             raise HTTPException(status_code=400, detail="Cannot delete default financing plan")
-        await db.execute(text("DELETE FROM financing_plans WHERE id = :id"), {"id": int(plan_id)})
+        await db.execute(text("DELETE FROM financing_plans WHERE id = :id"), {"id": plan_id})
         await db.commit()
         return {"ok": True, "message": "Plan deleted"}
 

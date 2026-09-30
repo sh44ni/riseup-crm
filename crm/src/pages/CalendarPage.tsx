@@ -23,7 +23,7 @@ export function CalendarPage() {
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
 
   // Dynamic Date navigation supporting any month and year
-  const [currentDate, setCurrentDate] = useState<Date>(() => new Date(2026, 8, 15)); // Default September 2026
+  const [currentDate, setCurrentDate] = useState<Date>(() => new Date());
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth() + 1; // 1-12
   const currentMonthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -214,7 +214,7 @@ export function CalendarPage() {
               type="button"
               onClick={handleRefresh}
               title="Refresh schedule"
-              className="w-9 h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 hover:text-slate-900 hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
+              className="w-9 h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
             >
               <RotateCcw
                 size={14}
@@ -224,16 +224,16 @@ export function CalendarPage() {
           </div>
         }
         bottomRightBadges={
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
             {/* 1. Active Team Members (Live from DB) */}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10.5px] font-bold text-emerald-800 shadow-2xs shrink-0 backdrop-blur-xs">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 dark:border-emerald-800/40 text-[10.5px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0 backdrop-blur-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{stats.activeTeamMembers || teamMembers.length} Staff Active</span>
             </span>
 
             {/* 2. Live Weather & OSHA Safety */}
             <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 border border-sky-500/20 text-[10.5px] font-bold text-sky-800 shadow-2xs shrink-0 backdrop-blur-xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 dark:bg-sky-950/40 border border-sky-500/20 dark:border-sky-800/40 text-[10.5px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs shrink-0 backdrop-blur-xs"
               title={weather.safetyLabel}
             >
               <span className="text-amber-500">☀️</span>
@@ -244,8 +244,8 @@ export function CalendarPage() {
             </span>
 
             {/* 3. Operations Today */}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10.5px] font-bold text-indigo-800 shadow-2xs shrink-0 backdrop-blur-xs">
-              <ShieldCheck size={12} className="text-indigo-600" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-500/20 dark:border-indigo-800/40 text-[10.5px] font-bold text-indigo-800 dark:text-indigo-300 shadow-2xs shrink-0 backdrop-blur-xs">
+              <ShieldCheck size={12} className="text-indigo-600 dark:text-indigo-400" />
               <span>
                 {stats.operationsToday > 0
                   ? `${stats.operationsToday} Ops Today (${stats.completedToday} Done)`

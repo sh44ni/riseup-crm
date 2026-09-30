@@ -36,47 +36,14 @@ export interface SinglePersonalTaskResponse {
   message?: string;
 }
 
-import { API_ORIGIN } from '@/lib/api';
-
-const BACKEND_BASE_URL = API_ORIGIN;
-const API_ENDPOINT = `${BACKEND_BASE_URL}/api/admin/users/me/tasks`;
-
-function getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  const apiKey = (import.meta as any).env?.VITE_CRM_API_KEY || 'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw';
-  const token = typeof window !== 'undefined' ? (localStorage.getItem('crm_auth_token') || localStorage.getItem('access_token')) : null;
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    'X-Client-Platform': 'crm-web',
-    ...extra,
-  };
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
+import { apiFetch } from '@/lib/api';
 
 /**
  * Fetch current user's personal tasks
  */
 export async function fetchPersonalTasksFromBackend(): Promise<PersonalTaskPayload[] | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-    const res = await fetch(API_ENDPOINT, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-
-    const json: PersonalTasksListResponse = await res.json();
+    const json = await apiFetch<PersonalTasksListResponse>('/admin/users/me/tasks', { timeoutMs: 3000 });
     return json.success && Array.isArray(json.data) ? json.data : null;
   } catch {
     return null;
@@ -90,20 +57,11 @@ export async function createPersonalTaskOnBackend(
   task: PersonalTaskPayload
 ): Promise<PersonalTaskPayload | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(API_ENDPOINT, {
+    const json = await apiFetch<SinglePersonalTaskResponse>('/admin/users/me/tasks', {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(task),
-      signal: controller.signal,
+      timeoutMs: 4000,
     });
-
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-
-    const json: SinglePersonalTaskResponse = await res.json();
     return json.success ? json.data : null;
   } catch {
     return null;
@@ -118,18 +76,12 @@ export async function updatePersonalTaskOnBackend(
   updates: Partial<PersonalTaskPayload>
 ): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(`${API_ENDPOINT}/${encodeURIComponent(id)}`, {
+    await apiFetch<any>(`/admin/users/me/tasks/${encodeURIComponent(id)}`, {
       method: 'PUT',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(updates),
-      signal: controller.signal,
+      timeoutMs: 4000,
     });
-
-    clearTimeout(timeoutId);
-    return res.ok;
+    return true;
   } catch {
     return false;
   }
@@ -140,17 +92,11 @@ export async function updatePersonalTaskOnBackend(
  */
 export async function deletePersonalTaskOnBackend(id: string): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(`${API_ENDPOINT}/${encodeURIComponent(id)}`, {
+    await apiFetch<any>(`/admin/users/me/tasks/${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
-      signal: controller.signal,
+      timeoutMs: 4000,
     });
-
-    clearTimeout(timeoutId);
-    return res.ok;
+    return true;
   } catch {
     return false;
   }

@@ -6,9 +6,10 @@ from datetime import datetime, date as py_date, timezone, timedelta
 import orjson
 import httpx
 import time
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.permissions import require_auth_user
+from app.core.permissions import require_auth_user, require_permission, require_any_permission
 from app.core.redis import get_redis
 from app.models.calendar_event import CalendarEvent
 from app.schemas.calendar_event import (
@@ -20,6 +21,37 @@ from app.schemas.calendar_event import (
     CalendarWeatherResponse,
     CalendarWeatherData,
 )
+
+class UpdateCalendarEventPayload(BaseModel):
+    status: Optional[str] = None
+    title: Optional[str] = None
+    notes: Optional[str] = None
+    assignedToUserId: Optional[int] = None
+    assignedToName: Optional[str] = None
+    customerName: Optional[str] = None
+    date: Optional[str] = None
+    dayNumber: Optional[int] = None
+    month: Optional[int] = None
+    year: Optional[int] = None
+    startTime: Optional[str] = None
+    endTime: Optional[str] = None
+    category: Optional[str] = None
+    jobCode: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    assignedToRole: Optional[str] = None
+    crewId: Optional[str] = None
+    crewName: Optional[str] = None
+    foremanName: Optional[str] = None
+    foremanPhone: Optional[str] = None
+    squares: Optional[float] = None
+    material: Optional[str] = None
+    deliverySupplier: Optional[str] = None
+    permitNumber: Optional[str] = None
+    permitType: Optional[str] = None
+    isWeatherSensitive: Optional[bool] = None
 
 router = APIRouter(prefix="/calendar", tags=["Admin Calendar Operations"])
 
@@ -215,7 +247,7 @@ async def get_calendar_events(
     assignedToUserId: Optional[int] = Query(None),
     category: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
-    user: Dict[str, Any] = Depends(require_auth_user()),
+    user: Dict[str, Any] = Depends(require_any_permission(["calendar.view", "jobs.view", "field:view_calendar"])),
     db: AsyncSession = Depends(get_db),
     redis = Depends(get_redis),
 ):
@@ -540,7 +572,7 @@ async def get_calendar_events(
 @router.post("/events", response_model=CalendarEventSingleResponse, status_code=status.HTTP_201_CREATED)
 async def create_calendar_event(
     payload: CalendarEventPayload,
-    user: Dict[str, Any] = Depends(require_auth_user()),
+    user: Dict[str, Any] = Depends(require_permission("calendar.create_event")),
     db: AsyncSession = Depends(get_db),
 ):
     parsed_date = py_date.fromisoformat(payload.date) if isinstance(payload.date, str) else payload.date
@@ -606,35 +638,38 @@ async def create_calendar_event(
 @router.put("/events/{event_id}", response_model=CalendarEventSingleResponse)
 async def update_calendar_event(
     event_id: str,
-    payload: Dict[str, Any],
-    user: Dict[str, Any] = Depends(require_auth_user()),
+    payload: UpdateCalendarEventPayload,
+    user: Dict[str, Any] = Depends(require_any_permission(["calendar.create_event", "jobs.edit"])),
     db: AsyncSession = Depends(get_db),
 ):
+
     # Handle task- prefixed items (persisted in tasks table)
+    payload_dict = payload.model_dump(exclude_unset=True)
+
     if event_id.startswith("task-"):
         raw_tid = event_id.replace("task-", "")
         if raw_tid.isdigit():
             t_id = int(raw_tid)
-            completed_val = datetime.now(timezone.utc) if payload.get("status") == "completed" else None
+            completed_val = datetime.now(timezone.utc) if payload.status == "completed" else None
             
             task_updates = []
             task_params: Dict[str, Any] = {"id": t_id}
 
-            if "status" in payload:
+            if "status" in payload_dict:
                 task_updates.append("completed_at = :completed_at")
                 task_params["completed_at"] = completed_val
-            if "title" in payload:
+            if "title" in payload_dict:
                 task_updates.append("title = :title")
-                task_params["title"] = payload["title"]
-            if "notes" in payload:
+                task_params["title"] = payload.title
+            if "notes" in payload_dict:
                 task_updates.append("description = :notes")
-                task_params["notes"] = payload["notes"]
-            if "assignedToUserId" in payload:
+                task_params["notes"] = payload.notes
+            if "assignedToUserId" in payload_dict:
                 task_updates.append("assigned_to_user_id = :uid")
-                task_params["uid"] = payload["assignedToUserId"]
-            if "assignedToName" in payload:
+                task_params["uid"] = payload.assignedToUserId
+            if "assignedToName" in payload_dict:
                 task_updates.append("assigned_to = :assigned_to")
-                task_params["assigned_to"] = payload["assignedToName"]
+                task_params["assigned_to"] = payload.assignedToName
 
             if task_updates:
                 await db.execute(text(f"UPDATE tasks SET {', '.join(task_updates)} WHERE id = :id"), task_params)
@@ -644,21 +679,21 @@ async def update_calendar_event(
                 success=True,
                 data=CalendarEventPayload(
                     id=event_id,
-                    title=payload.get("title", "Team Operation"),
+                    title=payload.title or "Team Operation",
                     jobCode=f"TASK-{t_id}",
-                    customerName=payload.get("customerName", "Team Task"),
+                    customerName=payload.customerName or "Team Task",
                     address="Headquarters",
                     city="North County",
-                    date=payload.get("date", "2026-09-18"),
-                    dayNumber=int(payload.get("dayNumber", 18)),
-                    month=int(payload.get("month", 9)),
-                    year=int(payload.get("year", 2026)),
-                    startTime=payload.get("startTime", "09:00 AM"),
-                    endTime=payload.get("endTime", "10:00 AM"),
-                    category=payload.get("category", "team_task"),
-                    status=payload.get("status", "completed" if completed_val else "scheduled"),
-                    assignedToUserId=payload.get("assignedToUserId"),
-                    assignedToName=payload.get("assignedToName"),
+                    date=payload.date or "2026-09-18",
+                    dayNumber=payload.dayNumber or 18,
+                    month=payload.month or 9,
+                    year=payload.year or 2026,
+                    startTime=payload.startTime or "09:00 AM",
+                    endTime=payload.endTime or "10:00 AM",
+                    category=payload.category or "team_task",
+                    status=payload.status or ("completed" if completed_val else "scheduled"),
+                    assignedToUserId=payload.assignedToUserId,
+                    assignedToName=payload.assignedToName,
                     completedAt=completed_val.isoformat() if completed_val else None,
                     sourceType="task",
                 ),
@@ -685,26 +720,26 @@ async def update_calendar_event(
     }
 
     for client_k, model_k in mapping.items():
-        if client_k in payload:
-            setattr(event, model_k, payload[client_k])
+        if client_k in payload_dict:
+            setattr(event, model_k, payload_dict[client_k])
 
-    if "assignedToName" in payload and payload["assignedToName"]:
-        event.crew_name = payload["assignedToName"]
-    if "assignedToRole" in payload and payload["assignedToRole"]:
-        event.foreman_name = payload["assignedToRole"]
+    if "assignedToName" in payload_dict and payload.assignedToName:
+        event.crew_name = payload.assignedToName
+    if "assignedToRole" in payload_dict and payload.assignedToRole:
+        event.foreman_name = payload.assignedToRole
 
-    if "date" in payload and payload["date"]:
-        event.date = py_date.fromisoformat(payload["date"]) if isinstance(payload["date"], str) else payload["date"]
-    if "dayNumber" in payload:
-        event.day_number = int(payload["dayNumber"])
-    if "month" in payload:
-        event.month = int(payload["month"])
-    if "year" in payload:
-        event.year = int(payload["year"])
+    if "date" in payload_dict and payload.date:
+        event.date = py_date.fromisoformat(payload.date) if isinstance(payload.date, str) else payload.date
+    if "dayNumber" in payload_dict:
+        event.day_number = payload.dayNumber
+    if "month" in payload_dict:
+        event.month = payload.month
+    if "year" in payload_dict:
+        event.year = payload.year
 
-    if payload.get("status") == "completed" and not event.completed_at:
+    if payload.status == "completed" and not event.completed_at:
         event.completed_at = datetime.now(timezone.utc)
-    elif payload.get("status") and payload.get("status") != "completed":
+    elif payload.status and payload.status != "completed":
         event.completed_at = None
 
     await db.commit()
@@ -751,7 +786,7 @@ async def update_calendar_event(
 @router.delete("/events/{event_id}")
 async def delete_calendar_event(
     event_id: str,
-    user: Dict[str, Any] = Depends(require_auth_user()),
+    user: Dict[str, Any] = Depends(require_permission("calendar.create_event")),
     db: AsyncSession = Depends(get_db),
 ):
     if event_id.startswith("task-"):

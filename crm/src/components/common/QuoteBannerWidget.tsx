@@ -54,7 +54,7 @@ export function QuoteBannerWidget({ className = '' }: QuoteBannerWidgetProps) {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onClick={handleCardClick}
-        className={`relative z-10 rounded-2xl overflow-hidden border border-white/85 light-glass-panel glossy-sheen shadow-xs group/quote select-none transition-all duration-300 hover:border-sky-300 ${
+        className={`relative z-10 rounded-2xl overflow-hidden border border-white/85 dark:border-white/10 light-glass-panel glossy-sheen shadow-xs group/quote select-none transition-all duration-300 hover:border-sky-300 dark:hover:border-sky-500/30 ${
           config.linkUrl ? 'cursor-pointer' : ''
         } ${heightClasses[config.cardHeight || 'balanced']} ${className}`}
       >
@@ -87,7 +87,7 @@ export function QuoteBannerWidget({ className = '' }: QuoteBannerWidgetProps) {
           }}
           aria-label="Customize Quote Banner"
           title="Customize Quote & Media Banner"
-          className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-white/90 hover:bg-sky-500 text-slate-600 hover:text-white flex items-center justify-center border border-white/80 shadow-xs opacity-0 group-hover/quote:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110 active:scale-95 z-20"
+          className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-white/90 dark:bg-slate-900/90 hover:bg-sky-500 text-slate-600 dark:text-slate-300 hover:text-white flex items-center justify-center border border-white/80 dark:border-white/10 shadow-xs opacity-0 group-hover/quote:opacity-100 transition-all duration-200 cursor-pointer hover:scale-110 active:scale-95 z-20"
         >
           <Pencil size={11} className="stroke-[2.5]" />
         </button>
@@ -151,13 +151,15 @@ export function QuoteBannerWidget({ className = '' }: QuoteBannerWidgetProps) {
       {/* ========================================================
           4. CUSTOMIZER MODAL POPUP
           ======================================================== */}
-      <QuoteBannerCustomizerModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        currentConfig={config}
-        onSave={updateConfig}
-        onReset={resetConfig}
-      />
+      {isModalOpen && (
+        <QuoteBannerCustomizerModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          currentConfig={config}
+          onSave={updateConfig}
+          onReset={resetConfig}
+        />
+      )}
     </>
   );
 }

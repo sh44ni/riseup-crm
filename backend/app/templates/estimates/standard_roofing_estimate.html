@@ -366,11 +366,21 @@
         </div>
         <div class="spec-card">
           <div class="spec-card-label">Property Address</div>
-          <div class="spec-card-val">{{ proposal.customer_address }}, {{ proposal.customer_city }}</div>
+          <div class="spec-card-val">
+            {% if proposal.customer_address and proposal.customer_city %}
+              {{ proposal.customer_address }}, {{ proposal.customer_city }}
+            {% elif proposal.customer_address %}
+              {{ proposal.customer_address }}
+            {% elif proposal.customer_city %}
+              {{ proposal.customer_city }}
+            {% else %}
+              [Address Pending]
+            {% endif %}
+          </div>
         </div>
         <div class="spec-card">
           <div class="spec-card-label">Contact Phone</div>
-          <div class="spec-card-val">{{ proposal.customer_phone or '(760) 555-0199' }}</div>
+          <div class="spec-card-val">{{ proposal.customer_phone or 'Phone not on file' }}</div>
         </div>
         <div class="spec-card">
           <div class="spec-card-label">Roof Size</div>

@@ -23,9 +23,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: website/package-lock.json
 
       - name: Install dependencies
-        run: npm install --install-strategy=nested
+        run: npm ci
 
       - name: Type check
         run: npx tsc --noEmit
@@ -37,8 +39,56 @@ jobs:
           FASTAPI_BACKEND_URL: https://backend.riseuprac.com
           USE_FASTAPI: 'true'
 
+  backend:
+    name: Lint & Test Backend (FastAPI & Pytest)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint with Ruff
+        run: ruff check app/
+
+      - name: Install pytest-cov
+        run: pip install pytest-cov
+
+      - name: Run Pytest with Coverage
+        run: |
+          pytest --cov=app --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=40
+        env:
+          ENVIRONMENT: test
+          APP_ENV: test
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          SESSION_SECRET_KEY: test-secret-key-for-ci-only-not-production
+          MIGRATION_KEY: test-migration-key-for-ci
+          CRON_SECRET: test-cron-secret-for-ci
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+
   crm:
-    name: Build CRM (Vite)
+    name: Lint, Test & Build CRM (Vite)
     runs-on: ubuntu-latest
 
     defaults:
@@ -53,9 +103,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: crm/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: ESLint check
+        run: npx eslint src --max-warnings 50
+
+      - name: Run Vitest tests
+        run: npm test
+
+      - name: Run Vitest Coverage
+        run: npx vitest run --coverage
+        continue-on-error: true  # Don't fail CI until coverage is established
 
       - name: Build CRM
         run: npm run build

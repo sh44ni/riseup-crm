@@ -77,33 +77,33 @@ export function CalendarSwimlanesView({
   }, [teamMembersList, events, weekDays]);
 
   return (
-    <div className="bg-white/85 light-glass-panel rounded-3xl border border-white/90 shadow-sm p-4 sm:p-6 select-none space-y-4">
+    <div className="bg-white/85 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-sm p-4 sm:p-6 select-none space-y-4">
       {/* Swimlanes Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/70">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
               Team Workload &amp; Capacity
             </h2>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200 text-[10px] font-black uppercase">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 text-[10px] font-black uppercase">
               Registered Staff
             </span>
           </div>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             Real-time staff workload, site operations, and scheduled team tasks for {weekDays[0].label} – {weekDays[6].label}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-600">
+          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
             {teamMembersList.length} Team Members
           </span>
-          <div className="h-4 w-px bg-slate-300" />
+          <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
           <span
             className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
               totalConflicts > 0
-                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800/60'
+                : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
             }`}
           >
             {totalConflicts === 0
@@ -117,7 +117,7 @@ export function CalendarSwimlanesView({
       <div className="overflow-x-auto no-scrollbar pb-2">
         <div className="min-w-[840px]">
           {/* Timeline Header Days */}
-          <div className="grid grid-cols-12 gap-2 pb-2 mb-2 border-b border-slate-200/80 text-xs font-black text-slate-500">
+          <div className="grid grid-cols-12 gap-2 pb-2 mb-2 border-b border-slate-200/80 dark:border-white/10 text-xs font-black text-slate-500 dark:text-slate-400">
             <div className="col-span-4 pl-2">Team Member &amp; Role</div>
             <div className="col-span-8 grid grid-cols-7 gap-1 text-center">
               {weekDays.map((w) => (
@@ -128,7 +128,7 @@ export function CalendarSwimlanesView({
                   className={`py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer ${
                     selectedDay === w.day
                       ? 'bg-[#1878B8] text-white shadow-xs'
-                      : 'hover:bg-slate-100 text-slate-700'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   {w.label}
@@ -149,7 +149,7 @@ export function CalendarSwimlanesView({
               return (
                 <div
                   key={member.id}
-                  className="grid grid-cols-12 gap-2 p-2.5 rounded-2xl bg-white/70 border border-slate-200/80 hover:border-sky-300 transition-all items-center"
+                  className="grid grid-cols-12 gap-2 p-2.5 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10 hover:border-sky-300 dark:hover:border-sky-500 transition-all items-center"
                 >
                   {/* Left Member Info */}
                   <div className="col-span-4 flex items-center gap-2.5 min-w-0">
@@ -161,16 +161,16 @@ export function CalendarSwimlanesView({
                       {member.initials || member.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-bold text-xs text-slate-900 truncate flex items-center gap-1.5">
+                      <div className="font-bold text-xs text-slate-900 dark:text-white truncate flex items-center gap-1.5">
                         <span>{member.name}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate flex items-center gap-1">
-                        <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 border border-sky-200/60 font-semibold text-[9px]">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1">
+                        <span className="px-1.5 py-0.2 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/60 font-semibold text-[9px]">
                           {member.roleLabel || member.role}
                         </span>
                       </div>
                       {member.phone && (
-                        <div className="text-[9.5px] text-slate-400 font-mono truncate">
+                        <div className="text-[9.5px] text-slate-400 dark:text-slate-500 font-mono truncate">
                           {member.phone}
                         </div>
                       )}
@@ -192,10 +192,10 @@ export function CalendarSwimlanesView({
                               onSelectDay(w.day);
                               if (onQuickSchedule) onQuickSchedule(member.id, w.day);
                             }}
-                            className="h-10 rounded-xl bg-slate-50/50 border border-dashed border-slate-200/70 flex items-center justify-center hover:bg-sky-50/50 hover:border-sky-300 cursor-pointer transition-colors group"
+                            className="h-10 rounded-xl bg-slate-50/50 dark:bg-slate-800/40 border border-dashed border-slate-200/70 dark:border-white/10 flex items-center justify-center hover:bg-sky-50/50 dark:hover:bg-sky-950/30 hover:border-sky-300 dark:hover:border-sky-600 cursor-pointer transition-colors group"
                             title={`Available - Click to assign task to ${member.name}`}
                           >
-                            <span className="text-[9.5px] font-bold text-slate-300 group-hover:text-sky-600 flex items-center gap-0.5">
+                            <span className="text-[9.5px] font-bold text-slate-300 dark:text-slate-600 group-hover:text-sky-600 dark:group-hover:text-sky-400 flex items-center gap-0.5">
                               <Plus size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                               <span>Open</span>
                             </span>
@@ -219,8 +219,8 @@ export function CalendarSwimlanesView({
                                 }}
                                 className={`w-full text-left p-1 rounded-lg border shadow-2xs transition-all hover:scale-[1.02] cursor-pointer ${
                                   isDone
-                                    ? 'bg-slate-100 text-slate-400 border-slate-200 line-through'
-                                    : 'bg-white border-slate-200 hover:border-sky-400'
+                                    ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-white/5 line-through'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 hover:border-sky-400 dark:hover:border-sky-500'
                                 }`}
                               >
                                 <div className="flex items-center gap-1">
@@ -228,11 +228,11 @@ export function CalendarSwimlanesView({
                                     className="w-1.5 h-1.5 rounded-full shrink-0"
                                     style={{ backgroundColor: cfg.dotColor }}
                                   />
-                                  <span className="text-[9px] font-bold text-slate-900 truncate block">
+                                  <span className="text-[9px] font-bold text-slate-900 dark:text-white truncate block">
                                     {evt.title}
                                   </span>
                                 </div>
-                                <div className="text-[8.5px] text-slate-500 font-mono truncate pl-2.5">
+                                <div className="text-[8.5px] text-slate-500 dark:text-slate-400 font-mono truncate pl-2.5">
                                   {evt.startTime}
                                 </div>
                               </button>

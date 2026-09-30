@@ -226,29 +226,29 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
       {/* ================================================================
           SECTION 1: LIVE WEB & CRM ESTIMATOR PRICING RULES (CSLB LINKED)
           ================================================================ */}
-      <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 bg-white/80 backdrop-blur-md shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
+      <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1878B8]/15 to-sky-500/20 text-[#1878B8] flex items-center justify-center border border-sky-300/40 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1878B8]/15 to-sky-500/20 text-[#1878B8] dark:text-sky-400 flex items-center justify-center border border-sky-300/40 dark:border-sky-500/30 shadow-2xs">
               <Calculator size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black text-slate-900 tracking-tight">
+                <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                   Live Website & Pipeline Estimator Service Rules
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 text-[10px] font-black uppercase tracking-wider">
                   Live Sync
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
-                Connected to website hero calculator (<span className="font-mono text-slate-700">riseuproofing.com</span>) and automated CRM pipeline deal valuations.
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Connected to website hero calculator (<span className="font-mono text-slate-700 dark:text-slate-300">riseuproofing.com</span>) and automated CRM pipeline deal valuations.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-xl bg-sky-50 text-[#1878B8] border border-sky-200 text-xs font-bold">
+            <span className="px-3 py-1 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-[#1878B8] dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 text-xs font-bold">
               4 Production Services
             </span>
           </div>
@@ -259,36 +259,36 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
           {rules.map((rule) => (
             <div
               key={rule.service_id}
-              className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:shadow-xs transition-all space-y-4"
+              className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs hover:shadow-xs transition-all space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-700/60 border border-slate-200 dark:border-white/10 flex items-center justify-center shrink-0">
                     {getServiceIcon(rule.slug)}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
                       {rule.name}
                     </h3>
-                    <span className="text-[10px] font-mono text-slate-400">
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
                       slug: {rule.slug}
                     </span>
                   </div>
                 </div>
 
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10">
                   {rule.financing_apr ?? 0}% APR • {rule.financing_term_months ?? 60}mo
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 {/* Low $/sqft */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     Price Low ($ / sq ft)
                   </span>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold text-slate-500">$</span>
+                    <span className="font-bold text-slate-500 dark:text-slate-400">$</span>
                     <input
                       type="number"
                       step="0.05"
@@ -300,18 +300,18 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                           parseFloat(e.target.value) || 0
                         )
                       }
-                      className="w-full bg-white px-2 py-1 rounded-lg border border-slate-200 font-bold text-right text-slate-900 outline-none text-xs"
+                      className="w-full bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none text-xs"
                     />
                   </div>
                 </div>
 
                 {/* High $/sqft */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     Price High ($ / sq ft)
                   </span>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold text-slate-500">$</span>
+                    <span className="font-bold text-slate-500 dark:text-slate-400">$</span>
                     <input
                       type="number"
                       step="0.05"
@@ -323,18 +323,18 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                           parseFloat(e.target.value) || 0
                         )
                       }
-                      className="w-full bg-white px-2 py-1 rounded-lg border border-slate-200 font-bold text-right text-slate-900 outline-none text-xs"
+                      className="w-full bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none text-xs"
                     />
                   </div>
                 </div>
 
                 {/* Base Fee Low */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     Base Setup Fee Low ($)
                   </span>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold text-slate-500">$</span>
+                    <span className="font-bold text-slate-500 dark:text-slate-400">$</span>
                     <input
                       type="number"
                       step="50"
@@ -346,18 +346,18 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                           parseFloat(e.target.value) || 0
                         )
                       }
-                      className="w-full bg-white px-2 py-1 rounded-lg border border-slate-200 font-bold text-right text-slate-900 outline-none text-xs"
+                      className="w-full bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none text-xs"
                     />
                   </div>
                 </div>
 
                 {/* Base Fee High */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-white/10 space-y-1">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                     Base Setup Fee High ($)
                   </span>
                   <div className="flex items-center gap-1">
-                    <span className="font-bold text-slate-500">$</span>
+                    <span className="font-bold text-slate-500 dark:text-slate-400">$</span>
                     <input
                       type="number"
                       step="50"
@@ -369,18 +369,18 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                           parseFloat(e.target.value) || 0
                         )
                       }
-                      className="w-full bg-white px-2 py-1 rounded-lg border border-slate-200 font-bold text-right text-slate-900 outline-none text-xs"
+                      className="w-full bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none text-xs"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Financing & Range limits */}
-              <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 border-t border-slate-100">
+              <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-white/5">
                 <span>
                   Bounds: {(rule.min_sqft || 500).toLocaleString()} – {(rule.max_sqft || 12000).toLocaleString()} sq ft
                 </span>
-                <span className="font-semibold text-[#1878B8]">
+                <span className="font-semibold text-[#1878B8] dark:text-sky-400">
                   Formula: Base + (SQFT × Rate)
                 </span>
               </div>
@@ -510,23 +510,23 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
       {/* ================================================================
           SECTION 2: PROFIT MARGIN GUARDRAILS
           ================================================================ */}
-      <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 bg-white/70 backdrop-blur-md shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
+      <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100 dark:border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/20 text-emerald-700 flex items-center justify-center border border-emerald-300/40">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/20 text-emerald-700 dark:text-emerald-400 flex items-center justify-center border border-emerald-300/40 dark:border-emerald-500/30">
               <TrendingUp size={20} />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-900 tracking-tight">
+              <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                 Gross Profit Margin Guardrails & Commissions
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Automated threshold enforcement for all residential & commercial estimates.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+            <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 text-xs font-bold">
               Target: {marginGuardrails.targetGrossMargin}% Gross Margin
             </span>
           </div>
@@ -534,12 +534,12 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
           {/* Target Margin */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs space-y-3">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
                 Target Gross Margin
               </span>
-              <span className="text-base font-black text-emerald-600">
+              <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
                 {marginGuardrails.targetGrossMargin}%
               </span>
             </div>
@@ -554,18 +554,18 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
               }
               className="w-full accent-emerald-600 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Default margin applied to automated EagleView take-offs.
             </p>
           </div>
 
           {/* Hard Floor Margin */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs space-y-3">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
                 Hard Floor Minimum Margin
               </span>
-              <span className="text-base font-black text-amber-600">
+              <span className="text-base font-black text-amber-600 dark:text-amber-400">
                 {marginGuardrails.hardFloorMargin}%
               </span>
             </div>
@@ -580,18 +580,18 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
               }
               className="w-full accent-amber-600 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Quotes below this rate require Owner executive sign-off.
             </p>
           </div>
 
           {/* Sales Rep Commission */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs space-y-3">
             <div className="flex justify-between items-center">
-              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+              <span className="font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px]">
                 Sales Commission Rate
               </span>
-              <span className="text-base font-black text-sky-600">
+              <span className="text-base font-black text-sky-600 dark:text-sky-400">
                 {marginGuardrails.salesCommissionRate}%
               </span>
             </div>
@@ -606,7 +606,7 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
               }
               className="w-full accent-sky-600 cursor-pointer"
             />
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Calculated on net realized gross profit per signed contract.
             </p>
           </div>
@@ -618,16 +618,16 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
           ================================================================ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Pitch Multipliers */}
-        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 bg-white/70 backdrop-blur-md shadow-xs space-y-5">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-sky-500/15 text-[#1878B8] flex items-center justify-center border border-sky-300/40">
+        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs space-y-5">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-sky-500/15 text-[#1878B8] dark:text-sky-400 flex items-center justify-center border border-sky-300/40 dark:border-sky-500/30">
               <Layers size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 Roof Pitch Labor Multipliers
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Multiplies base installation labor based on slope steepness.
               </p>
             </div>
@@ -658,11 +658,11 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
             ].map((item) => (
               <div
                 key={item.key}
-                className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 shadow-2xs"
+                className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs"
               >
                 <div>
-                  <span className="font-bold text-slate-800">{item.label}</span>
-                  <p className="text-[11px] text-slate-400">{item.desc}</p>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{item.label}</span>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{item.desc}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <input
@@ -672,9 +672,9 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                     onChange={(e) =>
                       updatePitch(item.key, parseFloat(e.target.value) || 1.0)
                     }
-                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-bold text-right text-slate-900 outline-none"
+                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none"
                   />
-                  <span className="font-bold text-slate-500">x</span>
+                  <span className="font-bold text-slate-500 dark:text-slate-400">x</span>
                 </div>
               </div>
             ))}
@@ -682,16 +682,16 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
         </div>
 
         {/* Story Height Multipliers */}
-        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 bg-white/70 backdrop-blur-md shadow-xs space-y-5">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-700 flex items-center justify-center border border-amber-300/40">
+        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs space-y-5">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-400 flex items-center justify-center border border-amber-300/40 dark:border-amber-500/30">
               <Home size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 Story Height & Staging Multipliers
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Compensates for crane lifts, scaffolding, and ladder loading.
               </p>
             </div>
@@ -717,11 +717,11 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
             ].map((item) => (
               <div
                 key={item.key}
-                className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 shadow-2xs"
+                className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs"
               >
                 <div>
-                  <span className="font-bold text-slate-800">{item.label}</span>
-                  <p className="text-[11px] text-slate-400">{item.desc}</p>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{item.label}</span>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{item.desc}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <input
@@ -731,9 +731,9 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                     onChange={(e) =>
                       updateStory(item.key, parseFloat(e.target.value) || 1.0)
                     }
-                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-bold text-right text-slate-900 outline-none"
+                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none"
                   />
-                  <span className="font-bold text-slate-500">x</span>
+                  <span className="font-bold text-slate-500 dark:text-slate-400">x</span>
                 </div>
               </div>
             ))}
@@ -746,16 +746,16 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
           ================================================================ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Tear-off Rates */}
-        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 bg-white/70 backdrop-blur-md shadow-xs space-y-5">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-700 flex items-center justify-center border border-rose-300/40">
+        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs space-y-5">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/15 text-rose-700 dark:text-rose-400 flex items-center justify-center border border-rose-300/40 dark:border-rose-500/30">
               <DollarSign size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 Tear-Off & Dumpster Rates ($ / SQ)
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Direct disposal cost per roofing square (100 sq ft).
               </p>
             </div>
@@ -786,14 +786,14 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
             ].map((item) => (
               <div
                 key={item.key}
-                className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 shadow-2xs"
+                className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs"
               >
                 <div>
-                  <span className="font-bold text-slate-800">{item.label}</span>
-                  <p className="text-[11px] text-slate-400">{item.desc}</p>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{item.label}</span>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{item.desc}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-500">$</span>
+                  <span className="font-bold text-slate-500 dark:text-slate-400">$</span>
                   <input
                     type="number"
                     step="5"
@@ -801,9 +801,9 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                     onChange={(e) =>
                       updateTearOff(item.key, parseFloat(e.target.value) || 0)
                     }
-                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-bold text-right text-slate-900 outline-none"
+                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none"
                   />
-                  <span className="font-bold text-slate-400">/ SQ</span>
+                  <span className="font-bold text-slate-400 dark:text-slate-500">/ SQ</span>
                 </div>
               </div>
             ))}
@@ -811,16 +811,16 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
         </div>
 
         {/* City Permits Allowances */}
-        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 bg-white/70 backdrop-blur-md shadow-xs space-y-5">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-700 flex items-center justify-center border border-indigo-300/40">
+        <div className="light-glass-card rounded-3xl p-6 border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs space-y-5">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-white/5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 flex items-center justify-center border border-indigo-300/40 dark:border-indigo-500/30">
               <MapPin size={18} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 North County City Permit Fees
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Flat building department permit allowance added to contracts.
               </p>
             </div>
@@ -851,14 +851,14 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
             ].map((item) => (
               <div
                 key={item.key}
-                className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 shadow-2xs"
+                className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-white/10 shadow-2xs"
               >
                 <div>
-                  <span className="font-bold text-slate-800">{item.label}</span>
-                  <p className="text-[11px] text-slate-400">{item.desc}</p>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{item.label}</span>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{item.desc}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-500">$</span>
+                  <span className="font-bold text-slate-500 dark:text-slate-400">$</span>
                   <input
                     type="number"
                     step="10"
@@ -866,9 +866,9 @@ export function PricingFormulasTab({ pricing, onChange }: PricingFormulasTabProp
                     onChange={(e) =>
                       updatePermit(item.key, parseFloat(e.target.value) || 0)
                     }
-                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 font-bold text-right text-slate-900 outline-none"
+                    className="w-20 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 font-bold text-right text-slate-900 dark:text-white outline-none"
                   />
-                  <span className="font-bold text-slate-400">USD</span>
+                  <span className="font-bold text-slate-400 dark:text-slate-500">USD</span>
                 </div>
               </div>
             ))}

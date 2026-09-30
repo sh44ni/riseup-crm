@@ -11,6 +11,7 @@ class Estimate(Base):
     __tablename__ = "estimates"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    job_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True)
     lead_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
     client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id", ondelete="SET NULL"), nullable=True, index=True)
     estimate_number: Mapped[str] = mapped_column(Text, unique=True, nullable=False, index=True)
@@ -47,10 +48,16 @@ class Estimate(Base):
     signature_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     signature_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     access_token: Mapped[Optional[str]] = mapped_column(Text, unique=True, nullable=True, index=True)
-    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     created_by_role_snapshot: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    is_archived: Mapped[bool] = mapped_column(Boolean, server_default="false", default=False, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_estimates_created_status", "created_at", "status"),
+        Index("idx_estimates_status_created", "status", "created_at"),
+    )
 
 class EstimatorService(Base):
     __tablename__ = "estimator_services"
@@ -86,7 +93,7 @@ class EstimatorSizePreset(Base):
     __tablename__ = "estimator_size_presets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    service_id: Mapped[int] = mapped_column(Integer, ForeignKey("estimator_services.id", ondelete="CASCADE"), nullable=False)
+    service_id: Mapped[int] = mapped_column(Integer, ForeignKey("estimator_services.id", ondelete="CASCADE"), nullable=False, index=True)
     label: Mapped[str] = mapped_column(Text, nullable=False)
     sqft_value: Mapped[int] = mapped_column(Integer, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
@@ -95,7 +102,7 @@ class EstimatorLead(Base):
     __tablename__ = "estimator_leads"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    service_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("estimator_services.id", ondelete="SET NULL"), nullable=True)
+    service_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("estimator_services.id", ondelete="SET NULL"), nullable=True, index=True)
     sqft_entered: Mapped[int] = mapped_column(Integer, nullable=False)
     estimate_low: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     estimate_high: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
@@ -134,7 +141,7 @@ class FinancingCalculation(Base):
     __tablename__ = "financing_calculations"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    plan_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("financing_plans.id", ondelete="SET NULL"), nullable=True)
+    plan_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("financing_plans.id", ondelete="SET NULL"), nullable=True, index=True)
     project_cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     down_payment: Mapped[float] = mapped_column(Numeric(10, 2), server_default="0.00", nullable=False)
     monthly_payment: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)

@@ -13,6 +13,7 @@ _redis_available: Optional[bool] = None
 _last_redis_check: float = 0.0
 _in_memory_cache: Dict[str, Tuple[str, float]] = {}
 _in_memory_rate_limits: Dict[str, List[float]] = {}
+_purge_task: Optional[asyncio.Task] = None
 
 # Atomic sliding window rate limiter Lua script
 SLIDING_WINDOW_LUA = """
@@ -38,6 +39,27 @@ else
     return {0, 0, reset_ms}
 end
 """
+
+async def _purge_stale_in_memory(interval_seconds: int = 300) -> None:
+    """Background coroutine: purge expired entries from in-memory fallback dicts every 5 minutes."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        now = time.time()
+
+        # Purge expired cache entries
+        stale_cache = [k for k, (_, exp) in list(_in_memory_cache.items()) if exp <= now]
+        for k in stale_cache:
+            _in_memory_cache.pop(k, None)
+
+        # Purge rate limit keys where ALL timestamps are older than the max possible window (3600s)
+        # Keys with still-valid timestamps are preserved
+        MAX_WINDOW = 3600
+        stale_rl = [
+            k for k, ts_list in list(_in_memory_rate_limits.items())
+            if not ts_list or (now - max(ts_list)) > MAX_WINDOW
+        ]
+        for k in stale_rl:
+            _in_memory_rate_limits.pop(k, None)
 
 def get_redis() -> redis.Redis:
     global redis_client, _rate_limit_script
@@ -70,15 +92,29 @@ async def is_redis_available() -> bool:
     return _redis_available
 
 async def init_redis() -> Optional[redis.Redis]:
-    global redis_client, _redis_available
+    global redis_client, _redis_available, _purge_task
     try:
         await is_redis_available()
     except Exception:
         _redis_available = False
+
+    # Start background in-memory purge task (only if not already running)
+    if _purge_task is None or _purge_task.done():
+        _purge_task = asyncio.create_task(_purge_stale_in_memory(300))
+
     return redis_client
 
 async def close_redis() -> None:
-    global redis_client, _redis_available
+    global redis_client, _redis_available, _purge_task
+    # Cancel background purge task
+    if _purge_task and not _purge_task.done():
+        _purge_task.cancel()
+        try:
+            await _purge_task
+        except asyncio.CancelledError:
+            pass
+        _purge_task = None
+
     if redis_client:
         try:
             await redis_client.close()
@@ -195,9 +231,14 @@ async def invalidate_session_cache() -> None:
     if await is_redis_available():
         try:
             client = get_redis()
-            keys = await client.keys("session_user:*")
-            if keys:
-                await client.delete(*keys)
+            batch: List[str] = []
+            async for k in client.scan_iter(match="session_user:*", count=100):
+                batch.append(k)
+                if len(batch) >= 200:
+                    await client.delete(*batch)
+                    batch.clear()
+            if batch:
+                await client.delete(*batch)
         except Exception:
             global _redis_available
             _redis_available = False

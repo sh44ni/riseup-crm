@@ -1,3 +1,4 @@
+from app.core.logger import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,7 @@ import time
 import asyncio
 from datetime import datetime, timezone
 import orjson
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -16,6 +18,34 @@ from app.core.redis import get_redis, is_redis_available
 from app.core.permissions import require_permission, require_auth_user, has_permission
 from app.services.weather import get_weather
 from app.middlewares.telemetry import in_memory_latencies, in_memory_counters
+
+logger = get_logger(__name__)
+
+class UpdateSettingsPayload(BaseModel):
+    key: str = Field(..., min_length=1)
+    value: Any
+
+class UpdateDashboardConfigPayload(BaseModel):
+    hero: Optional[Dict[str, Any]] = None
+    quoteCard: Optional[Dict[str, Any]] = None
+    weather: Optional[Dict[str, Any]] = None
+
+class CreateTemplatePayload(BaseModel):
+    name: str = Field(..., min_length=1)
+    body: str = Field(..., min_length=1)
+    category: str = "custom"
+    type: str = "both"
+    subject: Optional[str] = None
+    description: Optional[str] = None
+
+class UpdateTemplatePayload(BaseModel):
+    id: int
+    name: Optional[str] = None
+    category: Optional[str] = None
+    type: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    description: Optional[str] = None
 
 router = APIRouter()
 
@@ -124,17 +154,15 @@ async def get_settings(
 
 @router.post("/settings")
 async def update_settings(
-    payload: Dict[str, Any],
+    payload: UpdateSettingsPayload,
     user: Dict[str, Any] = Depends(require_auth_user()),
     db: AsyncSession = Depends(get_db)
 ):
     if user.get("role") != "owner":
         raise HTTPException(status_code=403, detail="Forbidden. Owner role required.")
 
-    key = payload.get("key")
-    value = payload.get("value")
-    if not key or value is None:
-        raise HTTPException(status_code=400, detail="Settings key and value are required")
+    key = payload.key
+    value = payload.value
 
     stmt = text("""
         INSERT INTO app_settings (key, value, updated_at)
@@ -169,7 +197,7 @@ async def get_dashboard_config(
 
 @router.patch("/dashboard-config")
 async def update_dashboard_config(
-    payload: Dict[str, Any],
+    payload: UpdateDashboardConfigPayload,
     user: Dict[str, Any] = Depends(require_auth_user()),
     db: AsyncSession = Depends(get_db)
 ):
@@ -181,9 +209,9 @@ async def update_dashboard_config(
         existing = orjson.loads(val) if isinstance(val, str) else val
 
     updated = {
-        "hero": {**existing.get("hero", {}), **(payload.get("hero") or {})},
-        "quoteCard": {**existing.get("quoteCard", {}), **(payload.get("quoteCard") or {})},
-        "weather": {**existing.get("weather", {}), **(payload.get("weather") or {})},
+        "hero": {**existing.get("hero", {}), **(payload.hero or {})},
+        "quoteCard": {**existing.get("quoteCard", {}), **(payload.quoteCard or {})},
+        "weather": {**existing.get("weather", {}), **(payload.weather or {})},
     }
 
     await db.execute(
@@ -197,347 +225,6 @@ async def update_dashboard_config(
     await db.commit()
     return {"ok": True, "config": updated, "message": "Dashboard updated successfully"}
 
-# ── ESTIMATOR CONFIG ─────────────────────────────────────────────────────────
-
-@router.get("/estimator")
-async def get_estimator_admin(
-    user: Dict[str, Any] = Depends(require_permission("settings:edit")),
-    db: AsyncSession = Depends(get_db)
-):
-    services_res = await db.execute(text("""
-        SELECT 
-            s.id, s.slug, s.name, s.short_label, s.icon_key, s.badge_label, s.sort_order, s.is_active, s.created_at,
-            p.id as pricing_id, p.price_per_sqft_low, p.price_per_sqft_high, p.base_fee_low, p.base_fee_high,
-            p.min_sqft, p.max_sqft, p.apr_available, p.financing_apr, p.financing_term_months,
-            p.updated_at, p.updated_by
-        FROM estimator_services s
-        LEFT JOIN estimator_pricing_rules p ON s.id = p.service_id
-        ORDER BY s.sort_order ASC
-    """))
-    services = [dict(r._mapping) for r in services_res.fetchall()]
-
-    presets_res = await db.execute(text("""
-        SELECT id, service_id, label, sqft_value, sort_order
-        FROM estimator_size_presets
-        ORDER BY sort_order ASC
-    """))
-    presets = [dict(r._mapping) for r in presets_res.fetchall()]
-
-    leads_res = await db.execute(text("""
-        SELECT l.id, s.name as service_name, l.sqft_entered, l.estimate_low, l.estimate_high, l.source, l.session_id, l.created_at
-        FROM estimator_leads l
-        LEFT JOIN estimator_services s ON l.service_id = s.id
-        ORDER BY l.created_at DESC
-        LIMIT 100
-    """))
-    leads = [dict(r._mapping) for r in leads_res.fetchall()]
-
-    # Load custom multipliers & guardrails from app_settings
-    settings_res = await db.execute(text("SELECT value FROM app_settings WHERE key = 'pricing_config'"))
-    row_val = settings_res.scalar_one_or_none()
-    pricing_config = {}
-    if row_val:
-        pricing_config = orjson.loads(row_val) if isinstance(row_val, str) else row_val
-
-    pricing_rules_flat = []
-    for s in services:
-        if s.get("pricing_id"):
-            pricing_rules_flat.append({
-                "id": s["pricing_id"],
-                "service_id": s["id"],
-                "slug": s["slug"],
-                "name": s["name"],
-                "price_per_sqft_low": float(s["price_per_sqft_low"] or 0),
-                "price_per_sqft_high": float(s["price_per_sqft_high"] or 0),
-                "base_fee_low": float(s["base_fee_low"] or 0),
-                "base_fee_high": float(s["base_fee_high"] or 0),
-                "min_sqft": int(s["min_sqft"] or 500),
-                "max_sqft": int(s["max_sqft"] or 12000),
-                "apr_available": bool(s["apr_available"]),
-                "financing_apr": float(s["financing_apr"] or 0),
-                "financing_term_months": int(s["financing_term_months"] or 60),
-            })
-
-    return {
-        "ok": True,
-        "services": [
-            {
-                "id": s["id"],
-                "slug": s["slug"],
-                "name": s["name"],
-                "shortLabel": s["short_label"],
-                "iconKey": s["icon_key"],
-                "badgeLabel": s["badge_label"],
-                "sortOrder": s["sort_order"],
-                "isActive": s["is_active"],
-                "pricing": {
-                    "id": s["pricing_id"],
-                    "pricePerSqftLow": float(s["price_per_sqft_low"] or 0),
-                    "pricePerSqftHigh": float(s["price_per_sqft_high"] or 0),
-                    "baseFeeLow": float(s["base_fee_low"] or 0),
-                    "baseFeeHigh": float(s["base_fee_high"] or 0),
-                    "minSqft": s["min_sqft"] or 500,
-                    "maxSqft": s["max_sqft"] or 12000,
-                    "aprAvailable": bool(s["apr_available"]),
-                    "financingApr": float(s["financing_apr"] or 0),
-                    "financingTermMonths": s["financing_term_months"] or 60,
-                    "updatedAt": s["updated_at"],
-                    "updatedBy": s["updated_by"],
-                }
-            }
-            for s in services
-        ],
-        "pricingRules": pricing_rules_flat,
-        "marginGuardrails": pricing_config.get("marginGuardrails", {
-            "targetGrossMargin": 38,
-            "hardFloorMargin": 28,
-            "salesCommissionRate": 10,
-        }),
-        "pitchMultipliers": pricing_config.get("pitchMultipliers", {
-            "flatTo3_12": 1.0,
-            "fourTo6_12": 1.05,
-            "sevenTo9_12": 1.15,
-            "tenPlus_12": 1.30,
-        }),
-        "storyMultipliers": pricing_config.get("storyMultipliers", {
-            "oneStory": 1.0,
-            "twoStory": 1.08,
-            "threeStoryCoastal": 1.22,
-        }),
-        "tearOffRates": pricing_config.get("tearOffRates", {
-            "shingle1Layer": 35,
-            "shingle2Layer": 55,
-            "tileConcrete": 75,
-            "woodShake": 95,
-        }),
-        "permitFees": pricing_config.get("permitFees", {
-            "oceanside": 485,
-            "carlsbad": 520,
-            "encinitas": 560,
-            "vista": 460,
-        }),
-        "wasteFactors": pricing_config.get("wasteFactors", {
-            "gableStandard": 10,
-            "hipComplex": 15,
-            "cutValleysDormers": 18,
-        }),
-        "presets": [
-            {
-                "id": p["id"],
-                "serviceId": p["service_id"],
-                "label": p["label"],
-                "sqftValue": p["sqft_value"],
-                "sortOrder": p["sort_order"],
-            }
-            for p in presets
-        ],
-        "leads": [
-            {
-                "id": l["id"],
-                "serviceName": l["service_name"] or "Unknown",
-                "sqftEntered": l["sqft_entered"],
-                "estimateLow": float(l["estimate_low"] or 0),
-                "estimateHigh": float(l["estimate_high"] or 0),
-                "source": l["source"],
-                "sessionId": l["session_id"],
-                "createdAt": l["created_at"],
-            }
-            for l in leads
-        ]
-    }
-
-@router.post("/estimator")
-async def manage_estimator(
-    payload: Dict[str, Any],
-    user: Dict[str, Any] = Depends(require_permission("settings:edit")),
-    db: AsyncSession = Depends(get_db)
-):
-    action = payload.get("action")
-
-    # If payload contains pricingRules or multipliers directly (from CRM Settings save)
-    pricing_rules = payload.get("pricingRules")
-    if pricing_rules and isinstance(pricing_rules, list):
-        for rule in pricing_rules:
-            sid = rule.get("service_id")
-            if not sid:
-                continue
-            await db.execute(
-                text("""
-                    UPDATE estimator_pricing_rules
-                    SET price_per_sqft_low = :low,
-                        price_per_sqft_high = :high,
-                        base_fee_low = :blow,
-                        base_fee_high = :bhigh,
-                        min_sqft = :mins,
-                        max_sqft = :maxs,
-                        apr_available = :apr,
-                        financing_apr = :fapr,
-                        financing_term_months = :term,
-                        updated_at = NOW(),
-                        updated_by = :upby
-                    WHERE service_id = :sid
-                """),
-                {
-                    "sid": sid,
-                    "low": float(rule.get("price_per_sqft_low", 4.0)),
-                    "high": float(rule.get("price_per_sqft_high", 6.2)),
-                    "blow": float(rule.get("base_fee_low", 500.0)),
-                    "bhigh": float(rule.get("base_fee_high", 950.0)),
-                    "mins": int(rule.get("min_sqft", 500)),
-                    "maxs": int(rule.get("max_sqft", 12000)),
-                    "apr": bool(rule.get("apr_available", True)),
-                    "fapr": float(rule.get("financing_apr", 0.0)),
-                    "term": int(rule.get("financing_term_months", 60)),
-                    "upby": user.get("name") or "Staff",
-                }
-            )
-
-    stored_keys = ["marginGuardrails", "pitchMultipliers", "storyMultipliers", "tearOffRates", "permitFees", "wasteFactors"]
-    has_multipliers = any(k in payload for k in stored_keys)
-    if has_multipliers:
-        settings_res = await db.execute(text("SELECT value FROM app_settings WHERE key = 'pricing_config'"))
-        existing_val = settings_res.scalar_one_or_none()
-        config_dict = {}
-        if existing_val:
-            config_dict = orjson.loads(existing_val) if isinstance(existing_val, str) else existing_val
-        for k in stored_keys:
-            if k in payload:
-                config_dict[k] = payload[k]
-        json_str = orjson.dumps(config_dict).decode("utf-8")
-        await db.execute(
-            text("""
-                INSERT INTO app_settings (key, value, updated_at)
-                VALUES ('pricing_config', :val, NOW())
-                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-            """),
-            {"val": json_str}
-        )
-
-    if not action and (pricing_rules or has_multipliers):
-        await db.commit()
-        try:
-            from app.core.redis import cache_delete
-            await cache_delete("crm:dashboard:stats")
-            await cache_delete("estimator:config")
-        except Exception:
-            pass
-        return {"ok": True, "message": "Estimator settings saved successfully"}
-
-    if action == "update_pricing":
-        sid = payload.get("serviceId")
-        if not sid: raise HTTPException(status_code=400, detail="Service ID is required")
-
-        await db.execute(
-            text("""
-                UPDATE estimator_pricing_rules
-                SET price_per_sqft_low = :low,
-                    price_per_sqft_high = :high,
-                    base_fee_low = :blow,
-                    base_fee_high = :bhigh,
-                    min_sqft = :mins,
-                    max_sqft = :maxs,
-                    apr_available = :apr,
-                    financing_apr = :fapr,
-                    financing_term_months = :term,
-                    updated_at = NOW(),
-                    updated_by = :by
-                WHERE service_id = :sid
-            """),
-            {
-                "low": float(payload.get("pricePerSqftLow", 0)),
-                "high": float(payload.get("pricePerSqftHigh", 0)),
-                "blow": float(payload.get("baseFeeLow", 0)),
-                "bhigh": float(payload.get("baseFeeHigh", 0)),
-                "mins": int(payload.get("minSqft", 500)),
-                "maxs": int(payload.get("maxSqft", 12000)),
-                "apr": bool(payload.get("aprAvailable")),
-                "fapr": float(payload.get("financingApr", 0)),
-                "term": int(payload.get("financingTermMonths", 60)),
-                "by": user.get("name") or "Staff",
-                "sid": int(sid)
-            }
-        )
-        await db.commit()
-        return {"ok": True, "message": "Pricing rules updated successfully"}
-
-    elif action == "save_service":
-        sid = payload.get("id")
-        name = payload.get("name")
-        short_label = payload.get("shortLabel")
-        icon_key = payload.get("iconKey")
-        if not name or not short_label or not icon_key:
-            raise HTTPException(status_code=400, detail="Name, short label, and icon key are required")
-
-        if sid:
-            await db.execute(
-                text("""
-                    UPDATE estimator_services
-                    SET name = :name, short_label = :slabel, icon_key = :ikey, badge_label = :badge,
-                        sort_order = :sort, is_active = :act
-                    WHERE id = :id
-                """),
-                {
-                    "name": name, "slabel": short_label, "ikey": icon_key,
-                    "badge": payload.get("badgeLabel"), "sort": int(payload.get("sortOrder", 0)),
-                    "act": bool(payload.get("isActive", True)), "id": int(sid)
-                }
-            )
-        else:
-            safe_slug = payload.get("slug") or name.lower().replace(" ", "-")
-            res = await db.execute(
-                text("""
-                    INSERT INTO estimator_services (slug, name, short_label, icon_key, badge_label, sort_order, is_active)
-                    VALUES (:slug, :name, :slabel, :ikey, :badge, :sort, :act)
-                    RETURNING id
-                """),
-                {
-                    "slug": safe_slug, "name": name, "slabel": short_label, "ikey": icon_key,
-                    "badge": payload.get("badgeLabel"), "sort": int(payload.get("sortOrder", 10)),
-                    "act": bool(payload.get("isActive", True))
-                }
-            )
-            new_id = res.scalar()
-            await db.execute(
-                text("""
-                    INSERT INTO estimator_pricing_rules (
-                        service_id, price_per_sqft_low, price_per_sqft_high, base_fee_low, base_fee_high,
-                        min_sqft, max_sqft, apr_available, financing_apr, financing_term_months, updated_by
-                    ) VALUES (:sid, 4.00, 6.50, 500, 1000, 800, 8000, true, 0, 60, :by)
-                """),
-                {"sid": new_id, "by": user.get("name") or "Staff"}
-            )
-
-        await db.commit()
-        return {"ok": True, "message": "Service saved successfully"}
-
-    elif action == "save_preset":
-        pid = payload.get("id")
-        label = payload.get("label")
-        sqft = payload.get("sqftValue")
-        if not label or not sqft:
-            raise HTTPException(status_code=400, detail="Label and sqft value required")
-
-        if pid:
-            await db.execute(
-                text("UPDATE estimator_size_presets SET label = :lbl, sqft_value = :sqft, sort_order = :sort, service_id = :sid WHERE id = :id"),
-                {"lbl": label, "sqft": int(sqft), "sort": int(payload.get("sortOrder", 0)), "sid": payload.get("serviceId"), "id": int(pid)}
-            )
-        else:
-            await db.execute(
-                text("INSERT INTO estimator_size_presets (service_id, label, sqft_value, sort_order) VALUES (:sid, :lbl, :sqft, :sort)"),
-                {"sid": payload.get("serviceId"), "lbl": label, "sqft": int(sqft), "sort": int(payload.get("sortOrder", 0))}
-            )
-        await db.commit()
-        return {"ok": True, "message": "Preset saved successfully"}
-
-    elif action == "delete_preset":
-        pid = payload.get("id")
-        if not pid: raise HTTPException(status_code=400, detail="Preset ID required")
-        await db.execute(text("DELETE FROM estimator_size_presets WHERE id = :id"), {"id": int(pid)})
-        await db.commit()
-        return {"ok": True, "message": "Preset deleted successfully"}
-
-    raise HTTPException(status_code=400, detail="Unknown action")
 
 # ── CSV EXPORT ───────────────────────────────────────────────────────────────
 
@@ -660,14 +347,12 @@ async def get_templates(
 
 @router.post("/templates")
 async def create_template(
-    payload: Dict[str, Any],
+    payload: CreateTemplatePayload,
     user: Dict[str, Any] = Depends(require_permission("templates:manage")),
     db: AsyncSession = Depends(get_db)
 ):
-    name = payload.get("name")
-    body = payload.get("body")
-    if not name or not body:
-        raise HTTPException(status_code=400, detail="Template name and message body are required")
+    name = payload.name
+    body = payload.body
 
     stmt = text("""
         INSERT INTO templates (name, category, type, subject, body, description)
@@ -676,31 +361,47 @@ async def create_template(
     """)
     res = await db.execute(stmt, {
         "name": name,
-        "cat": payload.get("category", "custom"),
-        "type": payload.get("type", "both"),
-        "subj": payload.get("subject"),
+        "cat": payload.category,
+        "type": payload.type,
+        "subj": payload.subject,
         "body": body,
-        "desc": payload.get("description"),
+        "desc": payload.description,
     })
     await db.commit()
     return {"ok": True, "template": dict(res.first()._mapping)}
 
 @router.patch("/templates")
 async def update_template(
-    payload: Dict[str, Any],
+    payload: UpdateTemplatePayload,
     user: Dict[str, Any] = Depends(require_permission("templates:manage")),
     db: AsyncSession = Depends(get_db)
 ):
-    tid = payload.get("id")
-    if not tid:
-        raise HTTPException(status_code=400, detail="Template ID is required")
+    tid = payload.id
 
     updates = []
-    params: Dict[str, Any] = {"id": int(tid)}
-    for f in ["name", "category", "type", "subject", "body", "description"]:
-        if f in payload:
-            params[f] = payload[f]
-            updates.append(f"{f} = :{f}")
+    params: Dict[str, Any] = {"id": tid}
+
+    if payload.name is not None:
+        params["name"] = payload.name
+        updates.append("name = :name")
+    if payload.category is not None:
+        params["category"] = payload.category
+        updates.append("category = :category")
+    if payload.type is not None:
+        params["type"] = payload.type
+        updates.append("type = :type")
+    if payload.subject is not None:
+        params["subject"] = payload.subject
+        updates.append("subject = :subject")
+    if payload.body is not None:
+        params["body"] = payload.body
+        updates.append("body = :body")
+    if payload.description is not None:
+        params["description"] = payload.description
+        updates.append("description = :description")
+
+    if not updates:
+        return {"ok": True, "message": "No fields to update"}
 
     updates.append("updated_at = NOW()")
     stmt = text(f"UPDATE templates SET {', '.join(updates)} WHERE id = :id RETURNING *")
@@ -737,6 +438,7 @@ async def get_crm_dashboard(
 
     try:
         stats_sql = text("""
+
         WITH
         -- Current window: last 30 days
         current_window AS (
@@ -950,7 +652,7 @@ async def get_crm_dashboard(
                 for r in act_rows
             ]
         except Exception as e:
-            print(f"Error querying recent activities: {e}")
+            logger.warning(f"Error querying recent activities: {e}")
             stats["recentActivities"] = []
 
     except Exception as exc:
@@ -1046,7 +748,7 @@ async def get_recent_activities(
         ]
         return {"ok": True, "activities": activities}
     except Exception as e:
-        print(f"Error querying recent activities: {e}")
+        logger.error(f"Error querying recent activities: {e}")
         return {"ok": True, "activities": []}
 
 

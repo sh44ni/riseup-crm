@@ -20,29 +20,29 @@ export function JobCard({ job, onClick }: JobCardProps) {
   return (
     <div
       onClick={onClick}
-      className="light-glass-card glossy-sheen rounded-2xl p-4.5 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-3 group border border-white/80 select-none"
+      className="light-glass-card glossy-sheen rounded-2xl p-4.5 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-3 group border border-white/80 dark:border-white/10 select-none"
     >
       {/* Header: Job # + Service Type + Value */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-[#1878B8]/15 text-[#0284C7] border border-[#1878B8]/25 shadow-2xs font-mono">
+            <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-[#1878B8]/15 text-[#0284C7] dark:text-sky-400 border border-[#1878B8]/25 shadow-2xs font-mono">
               {job.job_number}
             </span>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
               {job.service_type || 'Roofing'}
             </span>
           </div>
-          <h3 className="font-extrabold text-sm text-slate-900 group-hover:text-[#0284C7] transition-colors mt-1.5 line-clamp-1">
+          <h3 className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-[#0284C7] dark:group-hover:text-sky-400 transition-colors mt-1.5 line-clamp-1">
             {job.customer_name}
           </h3>
-          <div className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5">
-            <MapPin size={11} className="text-[#0284C7] shrink-0" />
+          <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1 mt-0.5">
+            <MapPin size={11} className="text-[#0284C7] dark:text-sky-400 shrink-0" />
             <span className="truncate">{job.address ? `${job.address}, ${job.city || ''}` : 'San Diego County, CA'}</span>
           </div>
         </div>
 
-        <span className="text-xs font-black text-slate-900 bg-slate-100/90 px-2.5 py-1 rounded-lg border border-slate-200/80 shrink-0">
+        <span className="text-xs font-black text-slate-900 dark:text-white bg-slate-100/90 dark:bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-200/80 dark:border-white/10 shrink-0">
           ${job.contract_value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
         </span>
       </div>
@@ -51,12 +51,12 @@ export function JobCard({ job, onClick }: JobCardProps) {
       {totalMilestones > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-slate-500 font-semibold">Milestones</span>
-            <span className={`font-bold ${completedMilestones === totalMilestones ? 'text-emerald-600' : 'text-slate-700'}`}>
+            <span className="text-slate-500 dark:text-slate-400 font-semibold">Milestones</span>
+            <span className={`font-bold ${completedMilestones === totalMilestones ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>
               {completedMilestones}/{totalMilestones}
             </span>
           </div>
-          <div className="w-full h-1.5 rounded-full bg-slate-200/80 overflow-hidden">
+          <div className="w-full h-1.5 rounded-full bg-slate-200/80 dark:bg-slate-800 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 progress === 100
@@ -67,13 +67,13 @@ export function JobCard({ job, onClick }: JobCardProps) {
             />
           </div>
           {nextMilestone && (
-            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-600 font-medium truncate">
+            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-600 dark:text-slate-300 font-medium truncate">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
               <span className="truncate">Next: {nextMilestone.title}</span>
             </div>
           )}
           {completedMilestones === totalMilestones && (
-            <div className="flex items-center gap-1 text-[10.5px] text-emerald-600 font-semibold">
+            <div className="flex items-center gap-1 text-[10.5px] text-emerald-600 dark:text-emerald-400 font-semibold">
               <CheckCircle2 size={11} />
               <span>All done</span>
             </div>
@@ -82,7 +82,7 @@ export function JobCard({ job, onClick }: JobCardProps) {
       )}
 
       {/* Tap hint */}
-      <div className="flex items-center justify-end text-[#0284C7] font-bold text-[11px] group-hover:translate-x-0.5 transition-transform pt-0.5">
+      <div className="flex items-center justify-end text-[#0284C7] dark:text-sky-400 font-bold text-[11px] group-hover:translate-x-0.5 transition-transform pt-0.5">
         <span>Open</span>
         <ChevronRight size={13} />
       </div>

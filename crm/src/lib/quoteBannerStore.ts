@@ -27,17 +27,17 @@ export interface QuoteBannerConfig {
 
 export const DEFAULT_QUOTE_BANNER_CONFIG: QuoteBannerConfig = {
   mode: 'single',
-  singleImageUrl: '/hero-bg.jpg',
+  singleImageUrl: '/sidebar-coastal-card.jpg',
   slides: [
     {
       id: 'slide-1',
-      imageUrl: '/hero-bg.jpg',
-      title: 'Rise Up Fleet & Coastal Villa',
+      imageUrl: '/sidebar-coastal-card.jpg',
+      title: 'Coastal Roofing Craftsmanship',
     },
     {
       id: 'slide-2',
-      imageUrl: '/sidebar-coastal-card.jpg',
-      title: 'Coastal Roofing Horizon',
+      imageUrl: '/hero-bg.jpg',
+      title: 'Rise Up Fleet & Coastal Villa',
     },
     {
       id: 'slide-3',
@@ -70,11 +70,19 @@ export function loadQuoteBannerConfig(): QuoteBannerConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_QUOTE_BANNER_CONFIG;
     const parsed = JSON.parse(raw);
+    const singleImg = (parsed.singleImageUrl === '/hero-bg.jpg' || !parsed.singleImageUrl)
+      ? DEFAULT_QUOTE_BANNER_CONFIG.singleImageUrl
+      : parsed.singleImageUrl;
     return {
       ...DEFAULT_QUOTE_BANNER_CONFIG,
       ...parsed,
+      singleImageUrl: singleImg,
       slides: Array.isArray(parsed.slides) && parsed.slides.length > 0
-        ? parsed.slides
+        ? parsed.slides.map((s: QuoteSlide, idx: number) =>
+            idx === 0 && s.imageUrl === '/hero-bg.jpg'
+              ? { ...s, imageUrl: '/sidebar-coastal-card.jpg', title: 'Coastal Roofing Craftsmanship' }
+              : s
+          )
         : DEFAULT_QUOTE_BANNER_CONFIG.slides,
     };
   } catch (err) {

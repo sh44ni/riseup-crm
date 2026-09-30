@@ -16,50 +16,11 @@ export interface ClientSummary {
   totalLtv: number;
 }
 
-export interface ClientApiRecord {
-  id: number;
-  full_name: string;
-  phone?: string | null;
-  phone_normalized?: string | null;
-  email?: string | null;
-  secondary_phone?: string | null;
-  address?: string | null;
-  city?: string | null;
-  zip?: string | null;
-  zip_code?: string | null;
-  property_type?: string | null;
-  roof_type?: string | null;
-  roof_sqf?: number | null;
-  roof_age?: number | null;
-  stories?: number | string | null;
-  hoa?: boolean | null;
-  status?: string | null;
-  client_category?: string | null;
-  total_revenue?: number | null;
-  total_jobs_count?: number | null;
-  assigned_to_user_id?: number | null;
-  assigned_to_name?: string | null;
-  acquired_by_user_id?: number | null;
-  acquired_by_name?: string | null;
-  acquired_by_role?: string | null;
-  acquired_by_avatar?: string | null;
-  source_type?: string | null;
-  lead_source_detail?: string | null;
-  notes?: string | null;
-  tags?: string[] | null;
-  created_at: string;
-  updated_at?: string | null;
-  lost_reason?: string | null;
-  lead_lost_reason?: string | null;
-  latest_estimate_total?: number | null;
-  total_billed?: number | null;
-  total_paid?: number | null;
-  balance_due?: number | null;
-}
+import type { BackendClient, BackendLead, BackendJob } from '@/types/backendTypes';
 
 export interface ClientDirectoryResponse {
   ok: boolean;
-  clients: ClientApiRecord[];
+  clients: BackendClient[];
   total: number;
   page: number;
   limit: number;
@@ -69,18 +30,18 @@ export interface ClientDirectoryResponse {
 
 export interface Client360ApiResponse {
   ok: boolean;
-  client: ClientApiRecord;
-  leads: any[];
-  inspections: any[];
-  inspection_photos?: any[];
-  documents?: any[];
-  estimates: any[];
-  jobs: any[];
-  invoices: any[];
-  warranties: any[];
-  reviews: any[];
-  activities: any[];
-  tasks: any[];
+  client: BackendClient;
+  leads: BackendLead[];
+  inspections: unknown[];
+  inspection_photos?: unknown[];
+  documents?: unknown[];
+  estimates: unknown[];
+  jobs: BackendJob[];
+  invoices: unknown[];
+  warranties: unknown[];
+  reviews: unknown[];
+  activities: unknown[];
+  tasks: unknown[];
 }
 
 export interface CreateClientPayload {
@@ -97,6 +58,31 @@ export interface CreateClientPayload {
   roofAge?: number;
   stories?: number;
   hoa?: boolean;
+  notes?: string;
+  assignedToUserId?: number;
+  sourceType?: string;
+  acquiredByUserId?: number;
+  leadSourceDetail?: string;
+}
+
+export interface CreateExistingClientPayload {
+  fullName: string;
+  phone?: string;
+  email?: string;
+  secondaryPhone?: string;
+  address?: string;
+  city?: string;
+  zip?: string;
+  propertyType?: string;
+  roofType?: string;
+  roofSqf?: number;
+  roofAge?: number;
+  stories?: number | string;
+  hoa?: boolean;
+  pipelineStage?: string;
+  serviceType?: string;
+  contractValue?: number;
+  clientSince?: string;
   notes?: string;
   assignedToUserId?: number;
   sourceType?: string;
@@ -173,6 +159,95 @@ export async function createClient(payload: CreateClientPayload): Promise<{ ok: 
   return await res.json();
 }
 
+export interface ExistingClientResponse {
+  ok: boolean;
+  client: {
+    id: number;
+    full_name: string;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    city?: string | null;
+    zip?: string | null;
+    status?: string;
+    client_category?: string;
+    acquired_by_name?: string;
+    acquired_by_role?: string;
+  };
+  lead?: {
+    id: number;
+    pipeline_stage: string;
+  } | null;
+  job?: {
+    id: number;
+    job_number: string;
+  } | null;
+  message?: string;
+}
+
+export async function createExistingClient(
+  payload: CreateExistingClientPayload
+): Promise<ExistingClientResponse> {
+  const res = await fetch(`${BASE}/api/admin/clients/existing`, {
+    method: 'POST',
+    headers: {
+      ...api.getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to onboard existing client' }));
+    throw new Error(err?.detail || `Existing client onboarding failed: HTTP ${res.status}`);
+  }
+
+  return await res.json();
+}
+
+export interface CheckContactResponse {
+  exists: boolean;
+  field?: 'email' | 'phone' | null;
+  conflict_field?: 'email' | 'phone' | null;
+  client?: {
+    id: number;
+    full_name: string;
+    email: string;
+    phone?: string | null;
+    status: string;
+  } | null;
+  message?: string | null;
+}
+
+export async function checkClientContact(params: {
+  email?: string;
+  phone?: string;
+  excludeClientId?: number;
+}): Promise<CheckContactResponse> {
+  const cleanEmail = params.email?.trim();
+  const rawPhone = params.phone?.trim();
+  const digits = rawPhone ? rawPhone.replace(/\D/g, '') : '';
+  if ((!cleanEmail || !cleanEmail.includes('@')) && (!rawPhone || digits.length < 7)) {
+    return { exists: false, client: null, message: null };
+  }
+  const qs = new URLSearchParams();
+  if (cleanEmail && cleanEmail.includes('@')) qs.append('email', cleanEmail);
+  if (rawPhone && digits.length >= 7) qs.append('phone', rawPhone);
+  if (params.excludeClientId) qs.append('exclude_client_id', String(params.excludeClientId));
+
+  const res = await fetch(`${BASE}/api/admin/clients/check-contact?${qs.toString()}`, {
+    headers: api.getAuthHeaders(),
+  });
+  if (!res.ok) {
+    return { exists: false, client: null, message: null };
+  }
+  return await res.json();
+}
+
+export type CheckEmailResponse = CheckContactResponse;
+export const checkClientEmail = (email: string, excludeClientId?: number) =>
+  checkClientContact({ email, excludeClientId });
+
 export async function updateClient(clientId: number | string, payload: Record<string, any>): Promise<any> {
   const res = await fetch(`${BASE}/api/admin/clients/${clientId}`, {
     method: 'PATCH',
@@ -222,6 +297,31 @@ export async function addClientActivity(clientId: number | string, payload: Clie
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to log client activity' }));
     throw new Error(err?.detail || `Activity logging failed: HTTP ${res.status}`);
+  }
+
+  return await res.json();
+}
+
+export async function markClientLostApi(
+  clientId: number | string,
+  lostReason: string,
+  lostNotes?: string
+): Promise<{ ok: boolean; client_id: number; leads_updated: number; lost_reason: string }> {
+  const res = await fetch(`${BASE}/api/admin/clients/${clientId}/mark-lost`, {
+    method: 'POST',
+    headers: {
+      ...api.getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      lost_reason: lostReason,
+      ...(lostNotes ? { lost_notes: lostNotes } : {}),
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to mark client as lost' }));
+    throw new Error(err?.detail || `Mark lost failed: HTTP ${res.status}`);
   }
 
   return await res.json();

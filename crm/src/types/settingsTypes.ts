@@ -1,6 +1,7 @@
 export type SettingsTab =
   | 'profile'
   | 'users'
+  | 'signatories'
   | 'company'
   | 'pricing'
   | 'pipeline'
@@ -31,6 +32,10 @@ export interface TeamMember {
   lastActive: string;
   joinedDate: string;
   avatarUrl?: string;
+  signature_data?: string;
+  signature_type?: 'typed' | 'drawn';
+  signature_title?: string;
+  is_authorized_signatory?: boolean;
 }
 
 export interface UserRole {
@@ -39,6 +44,7 @@ export interface UserRole {
   description: string;
   memberCount: number;
   badgeColor: string;
+  is_authorized_signatory?: boolean;
   permissions: {
     viewFinancials: boolean;
     editPricingFormulas: boolean;

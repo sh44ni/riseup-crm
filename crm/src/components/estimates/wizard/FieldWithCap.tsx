@@ -36,7 +36,7 @@ export function FieldWithCap({
     }
   };
 
-  const baseClasses = `w-full px-4 py-2.5 liquid-glass-input rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition-all shadow-sm ${className}`;
+  const baseClasses = `w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 transition-all shadow-sm ${className}`;
 
   return (
     <div className="w-full flex flex-col gap-1.5 relative">

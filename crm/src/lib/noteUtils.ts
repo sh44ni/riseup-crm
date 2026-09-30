@@ -171,11 +171,11 @@ export function parseProfileNotes(rawNotes: any): ParsedProfileNote[] {
 
   const trimmed = strVal.trim();
 
-  // Pattern matches headers like:
+  // Strict pattern matches note headers like:
   // [Sep 18, 2026 • 10:25 AM — Marc Sarellano (Owner)]
   // [Sep 18, 2026 10:25 AM by Marc]
   // [48h Automated Rule]: ...
-  const headerRegex = /\[([^\]]+)\]/g;
+  const headerRegex = /\[((?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4}-\d{2}-\d{2})[^\n\]]+|(?:(?:\d+h\s+)?Automated Rule|System|Audit)[^\n\]]*))\]/gi;
   const matches = [...trimmed.matchAll(headerRegex)];
 
   if (matches.length > 0) {
@@ -192,8 +192,8 @@ export function parseProfileNotes(rawNotes: any): ParsedProfileNote[] {
       if (body.startsWith(':')) body = body.slice(1).trim();
 
       // Deconstruct headerContent: e.g. "Sep 18, 2026 • 10:25 AM — Marc Sarellano (Owner)"
-      let author = 'Marc Sarellano';
-      let role: string | undefined = 'Owner';
+      let author = 'Team Member';
+      let role: string | undefined = undefined;
       let timestamp = formatTimestamp12h(new Date());
 
       if (headerContent.includes('—')) {
@@ -235,7 +235,7 @@ export function parseProfileNotes(rawNotes: any): ParsedProfileNote[] {
       } else {
         // Fallback
         timestamp = headerContent.trim();
-        author = 'General Note';
+        author = 'Team Note';
         role = undefined;
       }
 
@@ -263,11 +263,11 @@ export function parseProfileNotes(rawNotes: any): ParsedProfileNote[] {
     return lines
       .map((line, idx) => ({
         id: `legacy-${idx}`,
-        author: 'Marc Sarellano',
-        role: 'Owner / Qualifier',
+        author: 'Team Member',
+        role: 'Field Team',
         timestamp: formatTimestamp12h(new Date()),
         content: line,
-        initials: 'MS',
+        initials: 'TM',
       }))
       .reverse();
   }
@@ -276,11 +276,11 @@ export function parseProfileNotes(rawNotes: any): ParsedProfileNote[] {
   return [
     {
       id: `note-single-${Date.now()}`,
-      author: 'General Note',
+      author: 'Team Note',
       role: undefined,
       timestamp: formatTimestamp12h(new Date()),
       content: trimmed,
-      initials: 'GN',
+      initials: 'TN',
     },
   ];
 }

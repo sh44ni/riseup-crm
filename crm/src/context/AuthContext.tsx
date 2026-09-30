@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 
 export interface User {
@@ -10,6 +10,11 @@ export interface User {
   avatar_url?: string;
   permissions?: Record<string, string>;
   is_protected_owner?: boolean;
+  is_authorized_signatory?: boolean;
+  has_signature?: boolean;
+  signature_title?: string;
+  signature_type?: string;
+  signature_data?: string;
 }
 
 export interface AuthContextType {
@@ -24,6 +29,7 @@ export interface AuthContextType {
   logout: () => Promise<void>;
   hasPermission: (permission: string, requiredScope?: 'all' | 'assigned' | 'own') => boolean;
   can: (permission: string) => boolean;
+  getScope: (permission: string) => 'none' | 'own' | 'assigned' | 'all';
   hasRole: (roleName: string) => boolean;
 }
 
@@ -47,44 +53,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isHydrating, setIsHydrating] = useState<boolean>(() => Boolean(api.getToken()));
 
   // Hydrate user & permissions on mount or when token is present
   const refreshUser = useCallback(async () => {
-    if (!api.getToken()) return;
+    if (!api.getToken()) {
+      setIsHydrating(false);
+      return;
+    }
     try {
       const res = await api.getMe();
       if (res && res.user) {
         setUser(res.user);
         localStorage.setItem('crm_user', JSON.stringify(res.user));
+      } else {
+        setUser(null);
+        localStorage.removeItem('crm_user');
       }
     } catch {
-      // Ignore background hydration failures (e.g. offline)
+      // If token is invalid, purge cached session and reset
+      setUser(null);
+      localStorage.removeItem('crm_user');
+      api.setToken(null);
+    } finally {
+      setIsHydrating(false);
     }
   }, []);
 
   useEffect(() => {
+    // Don't hydrate session on public pages — a stale token would cause a
+    // 401 from /admin/auth/me which redirects the user away from the page.
+    const PUBLIC_PAGES = ['/accept-invite', '/contract/sign/', '/changelogs'];
+    const isPublicPage = typeof window !== 'undefined' &&
+      PUBLIC_PAGES.some(p => window.location.pathname.startsWith(p));
+
+    if (isPublicPage) {
+      setIsHydrating(false);
+      return;
+    }
+
     if (token) {
       refreshUser();
+    } else {
+      setIsHydrating(false);
     }
   }, [token, refreshUser]);
 
-  const setSessionUser = (newToken: string, newUser: User) => {
+  const setSessionUser = useCallback((newToken: string, newUser: User) => {
     setTokenState(newToken);
     api.setToken(newToken);
     setUser(newUser);
     localStorage.setItem('crm_user', JSON.stringify(newUser));
-  };
+    setIsHydrating(false);
+  }, []);
 
-  const updateUserProfile = (data: Partial<User>) => {
+  const updateUserProfile = useCallback((data: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
       const updated = { ...prev, ...data };
       localStorage.setItem('crm_user', JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
-  const login = async (password: string, email?: string) => {
+  const login = useCallback(async (password: string, email?: string) => {
     setIsLoading(true);
     try {
       const res = await api.login(password, email);
@@ -92,22 +124,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTokenState(res.token);
       api.setToken(res.token);
 
-      const activeUser: User = res.user || {
-        id: 1,
-        email: email || 'owner@riseuproofing.com',
-        name: 'Sam Martinez',
-        role: 'owner',
-        is_protected_owner: true,
-        permissions: { '*': 'all' },
-      };
+      if (!res.user) {
+        throw new Error('Authentication failed: Invalid user profile received.');
+      }
+
+      const activeUser: User = res.user;
       setUser(activeUser);
       localStorage.setItem('crm_user', JSON.stringify(activeUser));
+      setIsHydrating(false);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await api.logout();
     } catch {
@@ -117,13 +147,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTokenState(null);
       localStorage.removeItem('crm_user');
       api.setToken(null);
+      setIsHydrating(false);
     }
-  };
+  }, []);
 
   const isOwner = Boolean(
-    user?.role === 'owner' ||
-    user?.is_protected_owner ||
-    user?.permissions?.['*'] === 'all'
+    !isHydrating &&
+    user && (
+      user.role === 'owner' ||
+      user.is_protected_owner ||
+      user?.permissions?.['*'] === 'all'
+    )
   );
 
   const hasPermission = useCallback(
@@ -138,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const normKey = permission.replace(/:/g, '.');
       const userScope = perms[normKey] || perms[permission];
 
-      if (!userScope) return false;
+      if (!userScope || userScope === 'none') return false;
       if (!requiredScope) return true;
 
       if (requiredScope === 'all') {
@@ -151,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return userScope === 'all' || userScope === 'assigned' || userScope === 'own';
       }
 
-      return true;
+      return false;
     },
     [user, isOwner]
   );
@@ -161,6 +195,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return hasPermission(permission);
     },
     [hasPermission]
+  );
+
+  const getScope = useCallback(
+    (permission: string): 'none' | 'own' | 'assigned' | 'all' => {
+      if (!user) return 'none';
+      if (isOwner || user.permissions?.['*'] === 'all') return 'all';
+      const normKey = permission.replace(/:/g, '.');
+      const val = user.permissions?.[normKey] || user.permissions?.[permission];
+      if (val === 'all' || val === 'assigned' || val === 'own') return val;
+      return 'none';
+    },
+    [user, isOwner]
   );
 
   const hasRole = useCallback(
@@ -173,23 +219,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user]
   );
 
+  const contextValue = useMemo(
+    () => ({
+      user,
+      token,
+      isLoading,
+      isOwner,
+      login,
+      setSessionUser,
+      updateUserProfile,
+      refreshUser,
+      logout,
+      hasPermission,
+      can,
+      getScope,
+      hasRole,
+    }),
+    [
+      user,
+      token,
+      isLoading,
+      isOwner,
+      login,
+      setSessionUser,
+      updateUserProfile,
+      refreshUser,
+      logout,
+      hasPermission,
+      can,
+      getScope,
+      hasRole,
+    ]
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isLoading,
-        isOwner,
-        login,
-        setSessionUser,
-        updateUserProfile,
-        refreshUser,
-        logout,
-        hasPermission,
-        can,
-        hasRole,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

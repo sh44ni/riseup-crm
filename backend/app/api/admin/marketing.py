@@ -12,6 +12,21 @@ from app.core.permissions import (
     has_permission, get_permission_scope
 )
 from app.services.sla import get_needs_follow_up_sql_condition
+from pydantic import BaseModel, Field
+
+class CreateReviewRequestPayload(BaseModel):
+    customerName: str = Field(..., min_length=1)
+    leadId: Optional[int] = None
+    jobId: Optional[int] = None
+    customerCity: Optional[str] = "San Diego"
+    initialRating: Optional[int] = 5
+    serviceType: Optional[str] = "Roof Replacement"
+    source: Optional[str] = "sms_request"
+
+class UpdateReviewPayload(BaseModel):
+    id: int
+    status: Optional[str] = None
+    feedback: Optional[str] = None
 
 router = APIRouter()
 
@@ -57,23 +72,37 @@ async def get_analytics(
         days = 730
         hours = None
 
-    date_regex = re.compile(r"^\d{4}-\d{2}-\d{2}")
+    date_regex = re.compile(r"^\d{4}-\d{2}-\d{2}$")
     is_hourly = False
     is_monthly = False
 
-    if from_date and to_date and date_regex.match(from_date) and date_regex.match(to_date):
-        from_expr = f"'{from_date}'::TIMESTAMPTZ"
-        to_expr = f"('{to_date}'::DATE + INTERVAL '1 day')::TIMESTAMPTZ"
-    elif hours:
-        from_expr = f"(NOW() - INTERVAL '{hours} hours')"
-        to_expr = "NOW()"
-        is_hourly = True
-    else:
-        num_days = days if days is not None else 30
-        from_expr = f"(NOW() - INTERVAL '{num_days} days')"
-        to_expr = "NOW()"
-        if num_days > 180:
-            is_monthly = True
+    time_params: dict = {}
+    valid_custom_dates = False
+    
+    if from_date and to_date and date_regex.match(from_date.strip()) and date_regex.match(to_date.strip()):
+        try:
+            parsed_from = datetime.strptime(from_date.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            parsed_to = datetime.strptime(to_date.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+            time_params = {"from_dt": parsed_from, "to_dt": parsed_to}
+            valid_custom_dates = True
+            if (parsed_to - parsed_from).days > 180:
+                is_monthly = True
+        except ValueError:
+            valid_custom_dates = False
+
+    if not valid_custom_dates:
+        now = datetime.now(timezone.utc)
+        if hours:
+            time_params = {"from_dt": now - timedelta(hours=int(hours)), "to_dt": now}
+            is_hourly = True
+        else:
+            num_days = int(days) if days is not None else 30
+            time_params = {"from_dt": now - timedelta(days=num_days), "to_dt": now}
+            if num_days > 180:
+                is_monthly = True
+
+    from_expr = ":from_dt"
+    to_expr = ":to_dt"
 
     leads_time_filter = f"created_at >= {from_expr} AND created_at < {to_expr}"
     localhost_clause = (
@@ -280,42 +309,42 @@ async def get_analytics(
     leads_q = text(f"SELECT COUNT(*) AS count FROM leads WHERE {leads_time_filter}")
     website_leads_q = text(f"SELECT COUNT(*) AS count FROM leads WHERE (source_type = 'website' OR lead_source LIKE 'website%') AND {leads_time_filter}")
 
-    daily_pv = [dict(r._mapping) for r in (await db.execute(timeline_q)).fetchall()]
-    top_pages = [dict(r._mapping) for r in (await db.execute(top_pages_q)).fetchall()]
-    devices = [dict(r._mapping) for r in (await db.execute(device_q)).fetchall()]
-    referrers = [dict(r._mapping) for r in (await db.execute(referrers_q)).fetchall()]
-    countries = [dict(r._mapping) for r in (await db.execute(countries_q)).fetchall()]
-    cities = [dict(r._mapping) for r in (await db.execute(cities_q)).fetchall()]
-    hourly = [dict(r._mapping) for r in (await db.execute(hourly_q)).fetchall()]
-    weekdays = [dict(r._mapping) for r in (await db.execute(weekday_q)).fetchall()]
-    event_types = [dict(r._mapping) for r in (await db.execute(event_type_q)).fetchall()]
-    top_buttons = [dict(r._mapping) for r in (await db.execute(top_buttons_q)).fetchall()]
+    daily_pv = [dict(r._mapping) for r in (await db.execute(timeline_q, time_params)).fetchall()]
+    top_pages = [dict(r._mapping) for r in (await db.execute(top_pages_q, time_params)).fetchall()]
+    devices = [dict(r._mapping) for r in (await db.execute(device_q, time_params)).fetchall()]
+    referrers = [dict(r._mapping) for r in (await db.execute(referrers_q, time_params)).fetchall()]
+    countries = [dict(r._mapping) for r in (await db.execute(countries_q, time_params)).fetchall()]
+    cities = [dict(r._mapping) for r in (await db.execute(cities_q, time_params)).fetchall()]
+    hourly = [dict(r._mapping) for r in (await db.execute(hourly_q, time_params)).fetchall()]
+    weekdays = [dict(r._mapping) for r in (await db.execute(weekday_q, time_params)).fetchall()]
+    event_types = [dict(r._mapping) for r in (await db.execute(event_type_q, time_params)).fetchall()]
+    top_buttons = [dict(r._mapping) for r in (await db.execute(top_buttons_q, time_params)).fetchall()]
 
     try:
-        activity_feed = [dict(r._mapping) for r in (await db.execute(activity_feed_q)).fetchall()]
+        activity_feed = [dict(r._mapping) for r in (await db.execute(activity_feed_q, time_params)).fetchall()]
     except Exception:
         activity_feed = []
 
-    s_res = await db.execute(session_stats_q)
+    s_res = await db.execute(session_stats_q, time_params)
     s_stats = s_res.first()
 
-    calls = [dict(r._mapping) for r in (await db.execute(calls_q)).fetchall()]
-    calls_by_page = [dict(r._mapping) for r in (await db.execute(calls_by_page_q)).fetchall()]
-    total_calls_res = await db.execute(calls_total_q)
+    calls = [dict(r._mapping) for r in (await db.execute(calls_q, time_params)).fetchall()]
+    calls_by_page = [dict(r._mapping) for r in (await db.execute(calls_by_page_q, time_params)).fetchall()]
+    total_calls_res = await db.execute(calls_total_q, time_params)
     total_calls = int(total_calls_res.scalar() or 0)
 
-    utms = [dict(r._mapping) for r in (await db.execute(utm_q)).fetchall()]
+    utms = [dict(r._mapping) for r in (await db.execute(utm_q, time_params)).fetchall()]
 
-    l_res = await db.execute(leads_q)
+    l_res = await db.execute(leads_q, time_params)
     leads_count = int(l_res.scalar() or 0)
 
-    wl_res = await db.execute(website_leads_q)
+    wl_res = await db.execute(website_leads_q, time_params)
     website_leads_count = int(wl_res.scalar() or 0)
 
-    tpv_res = await db.execute(total_pv_q)
+    tpv_res = await db.execute(total_pv_q, time_params)
     total_pageviews = int(tpv_res.scalar() or 0)
 
-    uv_res = await db.execute(unique_visitors_q)
+    uv_res = await db.execute(unique_visitors_q, time_params)
     unique_visitors = int(uv_res.scalar() or 0)
 
     total_sessions = int(s_stats.total_sessions or 0) if s_stats else 0
@@ -491,7 +520,7 @@ async def get_stats(
     except Exception:
         pass
 
-    uid = user["id"]
+    uid = int(user["id"])
     lead_filter = ""
     if leads_scope == "own":
         lead_filter = f"AND (l.created_by = {uid} OR l.created_by_user_id = {uid})"
@@ -980,16 +1009,17 @@ async def get_reviews(
 
 @router.post("/reviews")
 async def create_review_request(
-    payload: Dict[str, Any],
+    payload: CreateReviewRequestPayload,
     user: Dict[str, Any] = Depends(require_permission("reviews:manage")),
     db: AsyncSession = Depends(get_db)
 ):
-    cust_name = payload.get("customerName")
+    payload_dict = payload.model_dump(exclude_unset=True)
+    cust_name = payload_dict.get("customerName")
     if not cust_name:
         raise HTTPException(status_code=400, detail="Customer name is required")
 
-    lead_id = int(payload["leadId"]) if payload.get("leadId") else None
-    job_id = int(payload["jobId"]) if payload.get("jobId") else None
+    lead_id = int(payload_dict["leadId"]) if payload_dict.get("leadId") else None
+    job_id = int(payload_dict["jobId"]) if payload_dict.get("jobId") else None
     token = f"REV-{datetime.now(timezone.utc).strftime('%y%m%d%H%M')}-{secrets.token_hex(4).upper()}"
 
     client_id = None
@@ -1014,10 +1044,10 @@ async def create_review_request(
         "jid": job_id,
         "cid": client_id,
         "name": cust_name,
-        "city": payload.get("customerCity", "San Diego"),
-        "rating": int(payload.get("initialRating", 5)),
-        "stype": payload.get("serviceType", "Roof Replacement"),
-        "source": payload.get("source", "sms_request"),
+        "city": payload_dict.get("customerCity", "San Diego"),
+        "rating": int(payload_dict.get("initialRating", 5)),
+        "stype": payload_dict.get("serviceType", "Roof Replacement"),
+        "source": payload_dict.get("source", "sms_request"),
         "token": token,
     })
     review = dict(res.first()._mapping)
@@ -1041,23 +1071,24 @@ async def create_review_request(
 
 @router.patch("/reviews")
 async def update_review(
-    payload: Dict[str, Any],
+    payload: UpdateReviewPayload,
     user: Dict[str, Any] = Depends(require_permission("reviews:manage")),
     db: AsyncSession = Depends(get_db)
 ):
-    rid = payload.get("id")
+    payload_dict = payload.model_dump(exclude_unset=True)
+    rid = payload_dict.get("id")
     if not rid:
         raise HTTPException(status_code=400, detail="Review ID is required")
 
     updates = ["updated_at = NOW()"]
     params: Dict[str, Any] = {"id": int(rid)}
 
-    if "status" in payload:
-        params["status"] = payload["status"]
+    if "status" in payload_dict:
+        params["status"] = payload_dict["status"]
         updates.append("status = :status")
 
-    if "feedback" in payload:
-        params["feedback"] = payload["feedback"]
+    if "feedback" in payload_dict:
+        params["feedback"] = payload_dict["feedback"]
         updates.append("feedback = :feedback")
 
     stmt = text(f"UPDATE reviews SET {', '.join(updates)} WHERE id = :id RETURNING *")

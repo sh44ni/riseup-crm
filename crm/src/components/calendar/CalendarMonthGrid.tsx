@@ -62,14 +62,14 @@ export function CalendarMonthGrid({
   });
 
   return (
-    <div className="bg-white/85 light-glass-panel rounded-3xl border border-white/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between select-none h-full">
+    <div className="bg-white/85 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-sm p-4 sm:p-5 flex flex-col justify-between select-none h-full">
       {/* Calendar Month Header */}
       <div className="flex items-center justify-between mb-3 sm:mb-4 shrink-0">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+          <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
             {currentMonthName}
           </h2>
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 text-[#0284c7] border border-sky-200/80 text-[11px] font-bold">
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-[#0284c7] dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 text-[11px] font-bold">
             <CalendarIcon size={12} className="stroke-[2.5]" />
             <span>{events.length} Operations</span>
           </span>
@@ -79,7 +79,7 @@ export function CalendarMonthGrid({
           <button
             type="button"
             onClick={onToday}
-            className="px-3 py-1.5 rounded-xl bg-white/90 hover:bg-white text-slate-800 text-xs font-bold border border-slate-200/90 shadow-2xs hover:border-sky-300 transition-all cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200/90 dark:border-white/10 shadow-2xs hover:border-sky-300 dark:hover:border-sky-500 transition-all cursor-pointer"
           >
             Today
           </button>
@@ -87,7 +87,7 @@ export function CalendarMonthGrid({
             type="button"
             onClick={onPrevMonth}
             title="Previous Month"
-            className="w-8 h-8 rounded-xl bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center border border-slate-200/90 shadow-2xs hover:border-sky-300 transition-all cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-white/90 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center border border-slate-200/90 dark:border-white/10 shadow-2xs hover:border-sky-300 dark:hover:border-sky-500 transition-all cursor-pointer"
           >
             <ChevronLeft size={15} />
           </button>
@@ -95,7 +95,7 @@ export function CalendarMonthGrid({
             type="button"
             onClick={onNextMonth}
             title="Next Month"
-            className="w-8 h-8 rounded-xl bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center border border-slate-200/90 shadow-2xs hover:border-sky-300 transition-all cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-white/90 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center border border-slate-200/90 dark:border-white/10 shadow-2xs hover:border-sky-300 dark:hover:border-sky-500 transition-all cursor-pointer"
           >
             <ChevronRight size={15} />
           </button>
@@ -107,7 +107,7 @@ export function CalendarMonthGrid({
         {DAYS_OF_WEEK.map((day) => (
           <div
             key={day}
-            className="text-center text-[11px] font-black text-slate-400 tracking-wider py-1"
+            className="text-center text-[11px] font-black text-slate-400 dark:text-slate-500 tracking-wider py-1"
           >
             {day}
           </div>
@@ -124,7 +124,7 @@ export function CalendarMonthGrid({
             return (
               <div
                 key={`empty-${index}`}
-                className="h-[122px] sm:h-[128px] rounded-2xl bg-slate-50/40 border border-slate-100/60 p-2 opacity-30 cursor-default"
+                className="h-[122px] sm:h-[128px] rounded-2xl bg-slate-50/40 dark:bg-slate-800/20 border border-slate-100/60 dark:border-white/5 p-2 opacity-30 cursor-default"
               />
             );
           }
@@ -140,8 +140,8 @@ export function CalendarMonthGrid({
               onClick={() => onSelectDay(dayNumber)}
               className={`h-[122px] sm:h-[128px] rounded-2xl p-2 transition-all flex flex-col justify-between cursor-pointer relative group ${
                 isSelected
-                  ? 'bg-sky-50/80 border-2 border-[#1878B8] shadow-md shadow-sky-500/15'
-                  : 'bg-white/70 hover:bg-white border border-slate-200/80 hover:border-sky-300 shadow-2xs hover:shadow-xs'
+                  ? 'bg-sky-50/80 dark:bg-sky-950/40 border-2 border-[#1878B8] dark:border-sky-500 shadow-md shadow-sky-500/15'
+                  : 'bg-white/70 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-white/10 hover:border-sky-300 dark:hover:border-sky-500 shadow-2xs hover:shadow-xs'
               }`}
             >
               {/* Day Number Header & Count Badge */}
@@ -153,7 +153,7 @@ export function CalendarMonthGrid({
                 ) : (
                   <span
                     className={`text-xs font-bold ${
-                      isSelected ? 'text-[#1878B8] font-black' : 'text-slate-800'
+                      isSelected ? 'text-[#1878B8] dark:text-sky-400 font-black' : 'text-slate-800 dark:text-slate-200'
                     }`}
                   >
                     {dayNumber}
@@ -164,8 +164,8 @@ export function CalendarMonthGrid({
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] font-black shadow-2xs ${
                       dayEvents.length > 3
-                        ? 'bg-sky-100 text-[#0284c7] border border-sky-300'
-                        : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        ? 'bg-sky-100 dark:bg-sky-950/80 text-[#0284c7] dark:text-sky-300 border border-sky-300 dark:border-sky-700'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
                     }`}
                   >
                     {dayEvents.length}
@@ -185,8 +185,8 @@ export function CalendarMonthGrid({
                       title={`${evt.startTime}: ${evt.title} (${evt.assignedToName})`}
                       className={`truncate text-[9px] sm:text-[9.5px] font-semibold px-1.5 py-0.5 rounded-lg border flex items-center gap-1 shadow-2xs transition-colors shrink-0 ${
                         isDone
-                          ? 'bg-slate-100/80 text-slate-400 border-slate-200 line-through'
-                          : 'bg-white/95 border-slate-200/90 text-slate-800 hover:border-sky-300'
+                          ? 'bg-slate-100/80 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-white/5 line-through'
+                          : 'bg-white/95 dark:bg-slate-900/90 border-slate-200/90 dark:border-white/10 text-slate-800 dark:text-slate-200 hover:border-sky-300 dark:hover:border-sky-500'
                       }`}
                     >
                       {/* Priority / Category Dot */}
@@ -204,7 +204,7 @@ export function CalendarMonthGrid({
 
                       {/* Small Assignee Initials */}
                       {evt.assignedToInitials && (
-                        <span className="text-[8.5px] font-bold text-slate-500 shrink-0">
+                        <span className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 shrink-0">
                           [{evt.assignedToInitials}]
                         </span>
                       )}
@@ -217,13 +217,13 @@ export function CalendarMonthGrid({
                 {dayEvents.length > 3 && (
                   <div
                     title={`${dayEvents.length - 3} more operations stacked.`}
-                    className="text-[9px] font-bold text-sky-700 hover:text-sky-900 bg-sky-50/90 hover:bg-sky-100 border border-sky-200/80 rounded-lg px-1.5 py-0.5 flex items-center justify-between transition-colors mt-auto shrink-0 shadow-2xs"
+                    className="text-[9px] font-bold text-sky-700 dark:text-sky-300 hover:text-sky-900 dark:hover:text-white bg-sky-50/90 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200/80 dark:border-sky-800/60 rounded-lg px-1.5 py-0.5 flex items-center justify-between transition-colors mt-auto shrink-0 shadow-2xs"
                   >
                     <span className="flex items-center gap-1">
-                      <Layers size={9} className="text-sky-600 shrink-0" />
+                      <Layers size={9} className="text-sky-600 dark:text-sky-400 shrink-0" />
                       <span>+{dayEvents.length - 3} more</span>
                     </span>
-                    <span className="text-[8px] font-black uppercase tracking-wider text-sky-600">view</span>
+                    <span className="text-[8px] font-black uppercase tracking-wider text-sky-600 dark:text-sky-400">view</span>
                   </div>
                 )}
               </div>

@@ -43,10 +43,10 @@ export function ReviewsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {REVIEWS.map((rev, idx) => (
-          <div key={idx} className="bg-[#0B1E33] border border-slate-800 rounded-3xl p-6 shadow-xl space-y-3">
+          <div key={idx} className="light-glass-card rounded-3xl p-6 shadow-xl space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-xs text-white">{rev.author}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-[#2F9FE3] font-semibold border border-slate-700">
+              <span className="font-bold text-xs text-slate-900 dark:text-white">{rev.author}</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[#0284C7] dark:text-sky-400 font-semibold border border-slate-200 dark:border-white/10">
                 {rev.source}
               </span>
             </div>
@@ -57,11 +57,11 @@ export function ReviewsPage() {
               ))}
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed italic">
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed italic">
               "{rev.text}"
             </p>
 
-            <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+            <div className="text-[11px] text-slate-400 dark:text-slate-500 pt-2 border-t border-slate-100 dark:border-white/10">
               {rev.date}
             </div>
           </div>

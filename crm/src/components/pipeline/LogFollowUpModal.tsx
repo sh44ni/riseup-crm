@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Phone,
   MessageSquare,
@@ -63,9 +64,10 @@ export function LogFollowUpModal({
     }
   }, [isOpen]);
 
-  // Keyboard shortcut: Cmd/Ctrl + Enter to submit, Esc to cancel
+  // Keyboard shortcut: Cmd/Ctrl + Enter to submit, Esc to cancel, body scroll lock
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
@@ -74,8 +76,15 @@ export function LogFollowUpModal({
         handleSubmit();
       }
     };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, method, notes, outcome]);
 
   if (!isOpen || !deal) return null;
@@ -91,63 +100,68 @@ export function LogFollowUpModal({
     });
   };
 
-  // Compute the future date (7 days from today)
-  const nextDueDate = new Date();
-  nextDueDate.setDate(nextDueDate.getDate() + 7);
+  // Compute the future date (48 hours from now)
+  const nextDueDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
   const formattedNextDate = nextDueDate.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+    >
       <div
-        className="w-full max-w-lg rounded-2xl bg-white/95 backdrop-blur-xl border border-white shadow-2xl overflow-hidden flex flex-col transition-all transform animate-in zoom-in-95 duration-200"
+        className="w-full max-w-lg rounded-3xl bg-white/95 dark:bg-[#0B1320]/95 backdrop-blur-2xl border border-white dark:border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.35)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col max-h-[90vh] my-auto transition-all transform animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="p-4 border-b border-slate-200/80 bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-white flex items-center justify-between">
+        <div className="shrink-0 p-4 border-b border-slate-200/80 dark:border-white/10 bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-white dark:to-transparent flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
               <RotateCcw size={18} className="stroke-[2.5]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm text-[#1F1F1F]">Log Follow-Up Contact</h3>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
-                  Resets 7-Day SLA
+                <h3 className="font-extrabold text-sm text-[#1F1F1F] dark:text-white">Log Follow-Up Contact</h3>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                  Resets 48-Hour SLA
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium">
-                Record interaction for <strong className="text-slate-800">{deal.name}</strong>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Record interaction for <strong className="text-slate-800 dark:text-slate-200">{deal.name}</strong>
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X size={16} />
           </button>
         </div>
 
-        <div className="p-4 space-y-4 max-h-[75vh] overflow-y-auto">
+        {/* Scrollable Body */}
+        <div className="p-4 space-y-4 flex-1 overflow-y-auto">
           {/* Target Lead Summary Strip */}
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between text-xs">
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 flex items-center justify-between text-xs">
             <div>
-              <span className="font-black text-slate-900">{deal.name}</span>
-              <span className="text-slate-500 ml-1.5">({deal.service})</span>
-              <div className="text-[10.5px] text-slate-500 mt-0.5">{deal.address}, {deal.city}</div>
+              <span className="font-black text-slate-900 dark:text-white">{deal.name}</span>
+              <span className="text-slate-500 dark:text-slate-400 ml-1.5">({deal.service})</span>
+              <div className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5">{deal.address}, {deal.city}</div>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-xs font-black text-slate-900">${deal.value.toLocaleString()}</span>
+              <span className="text-xs font-black text-slate-900 dark:text-white">${deal.value.toLocaleString()}</span>
               {deal.isFollowupOverdue ? (
-                <span className="block text-[9.5px] font-black text-rose-600 mt-0.5">⚠️ Overdue (7d exceeded)</span>
+                <span className="block text-[9.5px] font-black text-rose-600 dark:text-rose-400 mt-0.5">⚠️ Overdue</span>
               ) : (
-                <span className="block text-[9.5px] font-bold text-purple-700 mt-0.5">
-                  Due in {deal.followupDaysRemaining ?? 0}d
+                <span className="block text-[9.5px] font-bold text-purple-700 dark:text-purple-300 mt-0.5">
+                  Due in {deal.followupHoursRemaining !== undefined && deal.followupHoursRemaining <= 48 ? `${deal.followupHoursRemaining}h` : `${deal.followupDaysRemaining ?? 0}d`}
                 </span>
               )}
             </div>
@@ -155,7 +169,7 @@ export function LogFollowUpModal({
 
           {/* Contact Method Selector */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+            <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
               Contact Method
             </label>
             <div className="grid grid-cols-4 gap-1.5">
@@ -174,11 +188,11 @@ export function LogFollowUpModal({
                     onClick={() => setMethod(m.id as any)}
                     className={`py-2 px-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-purple-50 text-purple-900 border-purple-400 ring-2 ring-purple-300 shadow-2xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        ? 'bg-purple-50 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 border-purple-400 dark:border-purple-500 ring-2 ring-purple-300 dark:ring-purple-700/50 shadow-2xs'
+                        : 'bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                     }`}
                   >
-                    <Icon size={14} className={isSelected ? 'text-purple-600' : 'text-slate-400'} />
+                    <Icon size={14} className={isSelected ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'} />
                     <span className="text-[10.5px]">{m.label}</span>
                   </button>
                 );
@@ -188,7 +202,7 @@ export function LogFollowUpModal({
 
           {/* Call / SMS Outcome Selector */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+            <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
               Outcome
             </label>
             <div className="flex flex-wrap gap-1.5 text-xs">
@@ -206,8 +220,8 @@ export function LogFollowUpModal({
                     onClick={() => setOutcome(o.id)}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                       isSel
-                        ? 'bg-sky-50 text-[#0284c7] border-sky-400 ring-1 ring-sky-300'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        ? 'bg-sky-50 dark:bg-sky-950/40 text-[#0284c7] dark:text-sky-300 border-sky-400 dark:border-sky-500 ring-1 ring-sky-300 dark:ring-sky-700/50'
+                        : 'bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'
                     }`}
                   >
                     {o.label}
@@ -219,7 +233,7 @@ export function LogFollowUpModal({
 
           {/* Quick Note Snippets */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
               <span>Quick Note Snippets</span>
               <span className="text-[9.5px] font-normal text-slate-400">Click to insert</span>
             </label>
@@ -229,7 +243,7 @@ export function LogFollowUpModal({
                   key={idx}
                   type="button"
                   onClick={() => setNotes(q)}
-                  className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-purple-100 hover:text-purple-900 text-slate-600 transition-colors border border-slate-200/60 text-left cursor-pointer"
+                  className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 hover:bg-purple-100 dark:hover:bg-purple-900/40 hover:text-purple-900 dark:hover:text-purple-200 text-slate-600 dark:text-slate-300 transition-colors border border-slate-200/60 dark:border-white/10 text-left cursor-pointer"
                 >
                   + {q}
                 </button>
@@ -240,7 +254,7 @@ export function LogFollowUpModal({
           {/* Notes Textarea */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+              <label className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                 Follow-Up Details &amp; Notes
               </label>
             </div>
@@ -250,34 +264,34 @@ export function LogFollowUpModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="E.g. Spoke to homeowner, answered questions regarding Owens Corning shingles warranty, callback on Thursday..."
-              className="w-full p-2.5 rounded-xl border border-slate-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-xs text-slate-800 transition-all placeholder:text-slate-400 bg-white"
+              className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-white/10 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900/50 outline-none text-xs text-slate-800 dark:text-white transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 bg-white dark:bg-white/5"
             />
           </div>
 
-          {/* 7-Day Timer Reset Assurance Banner */}
-          <div className="p-3 rounded-xl bg-purple-50/80 border border-purple-200/80 flex items-center justify-between text-xs">
+          {/* 48-Hour Timer Reset Assurance Banner */}
+          <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/40 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <Clock size={16} className="text-purple-600 shrink-0" />
+              <Clock size={16} className="text-purple-600 dark:text-purple-400 shrink-0" />
               <div>
-                <span className="font-bold text-purple-950 block">Resets 7-Day Follow-Up Window</span>
-                <span className="text-[10.5px] text-purple-700">
+                <span className="font-bold text-purple-950 dark:text-purple-200 block">Resets 48-Hour Follow-Up Window</span>
+                <span className="text-[10.5px] text-purple-700 dark:text-purple-300">
                   Next follow-up deadline will be <strong>{formattedNextDate}</strong>
                 </span>
               </div>
             </div>
-            <span className="text-xs font-black text-purple-700 px-2 py-0.5 bg-white rounded-md border border-purple-200">
-              +7 Days
+            <span className="text-xs font-black text-purple-700 dark:text-purple-300 px-2 py-0.5 bg-white dark:bg-white/10 rounded-md border border-purple-200 dark:border-purple-800/50">
+              +48 Hours
             </span>
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
+        {/* Modal Sticky Footer */}
+        <div className="shrink-0 p-4 bg-slate-50/60 dark:bg-[#0B1320]/60 border-t border-slate-200/80 dark:border-white/10 flex items-center justify-between text-xs">
           <button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            className="px-3 py-1.5 rounded-xl text-slate-600 hover:bg-slate-200/70 font-bold transition-all cursor-pointer"
+            className="px-3 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-white/10 font-bold transition-all cursor-pointer"
           >
             Cancel (Esc)
           </button>
@@ -303,6 +317,7 @@ export function LogFollowUpModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

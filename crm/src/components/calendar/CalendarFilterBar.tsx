@@ -41,7 +41,7 @@ export function CalendarFilterBar({
   ];
 
   return (
-    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 p-2.5 sm:p-3 rounded-2xl bg-white/80 light-glass-panel border border-white/90 shadow-2xs">
+    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 p-2.5 sm:p-3 rounded-2xl bg-white/80 dark:bg-slate-900/60 light-glass-panel border border-white/90 dark:border-white/10 shadow-2xs">
       {/* Category Pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full xl:w-auto py-0.5">
         {CATEGORIES.map((cat) => {
@@ -59,8 +59,8 @@ export function CalendarFilterBar({
               onClick={() => onSelectCategory(cat.id)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
                 isSelected
-                  ? 'bg-slate-900 text-white shadow-xs scale-[1.02]'
-                  : 'bg-white/85 hover:bg-white text-slate-700 hover:text-slate-900 border border-slate-200/80 hover:border-sky-300 shadow-2xs'
+                  ? 'bg-slate-900 text-white shadow-xs scale-[1.02] dark:bg-sky-600'
+                  : 'bg-white/85 hover:bg-white text-slate-700 hover:text-slate-900 border border-slate-200/80 hover:border-sky-300 shadow-2xs dark:bg-slate-800/80 dark:hover:bg-slate-800 dark:text-slate-300 dark:hover:text-white dark:border-white/10'
               }`}
             >
               <span
@@ -73,7 +73,7 @@ export function CalendarFilterBar({
               {count > 0 && (
                 <span
                   className={`px-1.5 py-0.2 rounded-md text-[10px] font-black ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                   }`}
                 >
                   {count}
@@ -88,7 +88,7 @@ export function CalendarFilterBar({
       <div className="flex items-center gap-2.5 self-end xl:self-auto shrink-0 flex-wrap">
         {/* Status Toggle (All / Active / Done) */}
         {onSelectStatus && (
-          <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80 shadow-2xs">
+          <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
             {(['all', 'active', 'completed'] as const).map((st) => (
               <button
                 key={st}
@@ -96,8 +96,8 @@ export function CalendarFilterBar({
                 onClick={() => onSelectStatus(st)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer ${
                   selectedStatus === st
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 {st === 'all' ? 'All' : st === 'active' ? 'Active' : 'Done'}
@@ -108,14 +108,14 @@ export function CalendarFilterBar({
 
         {/* View Switcher: [Month] [Team Workload] */}
         {viewMode && onViewModeChange && (
-          <div className="flex items-center bg-slate-100/90 p-0.5 rounded-xl border border-slate-200/80 shadow-2xs">
+          <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
             <button
               type="button"
               onClick={() => onViewModeChange('month')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 viewMode === 'month'
                   ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
               <LayoutGrid size={13} />
@@ -127,7 +127,7 @@ export function CalendarFilterBar({
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 viewMode === 'swimlanes'
                   ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
               <Users size={13} />
@@ -138,15 +138,15 @@ export function CalendarFilterBar({
 
         {/* Assignee Filter Dropdown */}
         <div className="flex items-center gap-1.5">
-          <label className="text-xs font-bold text-slate-500 whitespace-nowrap flex items-center gap-1">
-            <Users size={12} className="text-slate-400" />
+          <label className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+            <Users size={12} className="text-slate-400 dark:text-slate-500" />
             <span>Staff:</span>
           </label>
           <div className="relative">
             <select
               value={selectedAssignee}
               onChange={(e) => onSelectAssignee(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 rounded-xl bg-white/95 border border-slate-200/90 text-xs font-bold text-slate-800 shadow-2xs hover:border-sky-400 focus:outline-none focus:border-[#1878B8] cursor-pointer"
+              className="appearance-none pl-3 pr-8 py-1.5 rounded-xl bg-white/95 dark:bg-slate-800 border border-slate-200/90 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white shadow-2xs hover:border-sky-400 focus:outline-none focus:border-[#1878B8] cursor-pointer"
             >
               <option value="all">All Team Members</option>
               {membersList.map((member) => (
@@ -155,7 +155,7 @@ export function CalendarFilterBar({
                 </option>
               ))}
             </select>
-            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 dark:text-slate-400">
               <ChevronDown size={13} />
             </div>
           </div>

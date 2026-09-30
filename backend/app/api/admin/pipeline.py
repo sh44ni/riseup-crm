@@ -1,14 +1,18 @@
+from app.core.logger import get_logger
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Request, Depends, HTTPException, Query
+from fastapi import APIRouter, Request, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.core.audit import record_audit_log
-from app.middlewares.auth import require_auth, require_any_permission
+from app.core.permissions import build_scope_filter, check_resource_access, AuthUser
+from app.middlewares.auth import require_auth, require_permission, require_any_permission
 from app.services.sla import evaluate_lead_sla
+from app.services.reminders import schedule_follow_up_reminder
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin/pipeline", tags=["Pipeline"])
 
@@ -19,6 +23,7 @@ STAGE_DISPLAY_NAMES: Dict[str, str] = {
     "contacted": "Contacted",
     "inspection_scheduled": "Inspection Scheduled",
     "est_scheduled": "Estimate Scheduled",
+    "estimate_scheduled": "Estimate Scheduled",
     "inspection_completed": "Inspection Completed",
     "estimate_building": "Drafting Estimate",
     "estimate_sent": "Estimate Sent",
@@ -27,10 +32,11 @@ STAGE_DISPLAY_NAMES: Dict[str, str] = {
     "followup_2day": "48h Follow-Up",
     "followup_7day": "7-Day Follow-Up",
     "decision_followup": "Decision Follow-Up",
+    "contract_sent": "Contract Sent",
     "contract_signed": "Contract Signed",
     "active_jobs": "Active Job",
     "job_completed": "Job Completed",
-    "completed": "Job Completed",
+    "completed": "Lifetime Warrantied",
     "closed_won": "Closed Won",
     "closed_lost": "Closed Lost",
     "future_followup": "Future Follow-Up",
@@ -48,14 +54,17 @@ GRANULAR_STAGES = [
     "cold_lead",
     "initial_call",
     "inspection_scheduled",
+    "estimate_scheduled",
     "inspection_completed",
     "estimate_building",
     "estimate_sent",
     "follow_up",
+    "contract_sent",
     "future_followup",
     "contract_signed",
     "active_jobs",
     "closed_won",
+    "completed",
     "closed_lost",
 ]
 
@@ -63,6 +72,7 @@ STAGE_TO_MACRO = {
     "cold_lead": "stage_1_lead_gen",
     "initial_call": "stage_2_initial_contact",
     "inspection_scheduled": "stage_3_site_visit_estimate",
+    "estimate_scheduled": "stage_3_site_visit_estimate",
     "inspection_completed": "stage_3_site_visit_estimate",
     "estimate_building": "stage_3_site_visit_estimate",
     "estimate_sent": "stage_3_site_visit_estimate",
@@ -71,6 +81,7 @@ STAGE_TO_MACRO = {
     "followup_7day": "stage_4_closing",     # legacy alias
     "decision_followup": "stage_4_closing", # legacy alias
     "future_followup": "stage_4_closing",
+    "contract_sent": "stage_4_closing",
     "contract_signed": "stage_4_closing",
     "active_jobs": "stage_5_completion_followup",
     "closed_won": "stage_5_completion_followup",
@@ -82,28 +93,56 @@ STAGE_TO_MACRO = {
 ALL_VALID_STAGES = set(
     MACRO_STAGES
     + GRANULAR_STAGES
-    + ["followup_2day", "followup_7day", "decision_followup", "job_completed", "completed"]
+    + ["followup_2day", "followup_7day", "decision_followup", "job_completed", "completed",
+       "contract_sent", "estimate_scheduled"]
 )
 
 def classify_to_granular_stage(row: Dict[str, Any]) -> str:
+    status = (row.get("status") or "").lower()
     st = row.get("pipeline_stage") or "stage_1_lead_gen"
+
+    # 1. Closed lost takes precedence if lead is marked lost
+    if status in ("lost", "closed_lost") or st == "closed_lost":
+        return "closed_lost"
+
+    # 2. Production & Completion stages (deals already advanced beyond contract signing)
+    if st in ("completed", "job_completed") or row.get("job_completed_at") or status == "completed":
+        return "closed_won"
+    if st == "active_jobs" or row.get("job_id") or row.get("job_status") in ("in_progress", "scheduled"):
+        return "active_jobs"
+
+    # 3. Contract Signed: Homeowner electronically signed or contractor counter-signed
+    raw_contract_status = (row.get("raw_contract_status") or "").lower()
+    is_contract_signed = (
+        raw_contract_status in ("signed", "client_signed", "fully_executed")
+        or bool(row.get("contract_signed_at"))
+        or bool(row.get("contract_client_signed_at"))
+        or bool(row.get("contract_counter_signed_at"))
+        or status == "won"
+        or st in ("contract_signed", "closed_won")
+    )
+    if is_contract_signed:
+        return "contract_signed"
+
+    # 4. Future follow-up
+    if status == "future_followup" or st == "future_followup":
+        return "future_followup"
+
+    # 5. Follow-up aliases
     if st in ("followup_2day", "followup_7day", "decision_followup", "follow_up"):
         return "follow_up"
-    if st in ("contract_signed", "active_jobs"):
-        return st
+
+    # 6. Contract Sent (strictly un-signed contracts awaiting signature)
+    if raw_contract_status in ("sent", "out_for_signature") or st == "contract_sent":
+        return "contract_sent"
+
+    # 7. Granular stage match
     if st in GRANULAR_STAGES:
         return st
 
-    status = (row.get("status") or "").lower()
-    if status == "lost":
-        return "closed_lost"
-    if status == "future_followup":
-        return "future_followup"
-
+    # 8. Macro stage fallbacks
     proposal_sent_at = row.get("proposal_sent_at")
     site_visit_completed_at = row.get("site_visit_completed_at")
-    site_visit_scheduled_at = row.get("site_visit_scheduled_at")
-    initial_contacted_at = row.get("initial_contacted_at")
 
     if st == "stage_1_lead_gen":
         return "cold_lead"
@@ -118,20 +157,11 @@ def classify_to_granular_stage(row: Dict[str, Any]) -> str:
             return "inspection_completed"
         return "inspection_scheduled"
     elif st == "stage_4_closing":
-        if row.get("contract_signed_at") or status == "won":
-            return "contract_signed"
+        if raw_contract_status in ("sent", "out_for_signature") or row.get("contract_id"):
+            return "contract_sent"
         return "follow_up"
     elif st == "stage_5_completion_followup":
-        if row.get("job_completed_at") or status == "completed":
-            return "closed_won"
-        if row.get("job_id") or row.get("job_status") in ("in_progress", "scheduled"):
-            return "active_jobs"
-        if row.get("contract_signed_at") or status == "won":
-            return "contract_signed"
-        return "closed_won"
-
-    if status == "won" or row.get("contract_signed_at"):
-        return "contract_signed"
+        return "active_jobs"
 
     return "cold_lead"
 
@@ -164,52 +194,39 @@ async def get_sales_pipeline(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_auth)
 ):
-    # ── 1. AUTOMATED 48-HOUR ESTIMATE SENT -> FOLLOW-UP TRANSITION SWEEP ──────
-    # If a lead has been in estimate_sent for >= 48 hours without being moved,
-    # automatically graduate it to the unified 'follow_up' column!
-    try:
-        auto_transition_sql = text("""
-            UPDATE leads
-            SET pipeline_stage = 'follow_up',
-                stage_entered_at = NOW(),
-                follow_up_at = NOW() + INTERVAL '7 days',
-                status = 'follow_up',
-                notes = CASE 
-                    WHEN notes IS NULL OR notes = '' THEN '[48h Automated Rule]: Review window elapsed. Auto-moved from Estimate Sent to Active Follow-Up (7-day timer initialized).'
-                    ELSE notes || E'\n\n' || '[48h Automated Rule]: Review window elapsed. Auto-moved from Estimate Sent to Active Follow-Up (7-day timer initialized).'
-                END,
-                updated_at = NOW()
-            WHERE status != 'purged' AND status != 'lost' AND status != 'won'
-              AND contract_signed_at IS NULL
-              AND (
-                  pipeline_stage = 'estimate_sent'
-                  OR (pipeline_stage = 'stage_3_site_visit_estimate' AND proposal_sent_at IS NOT NULL)
-              )
-              AND (
-                  (proposal_sent_at IS NOT NULL AND proposal_sent_at <= NOW() - INTERVAL '48 hours')
-                  OR (stage_entered_at IS NOT NULL AND stage_entered_at <= NOW() - INTERVAL '48 hours')
-              )
-            RETURNING id
-        """)
-        res_auto = await db.execute(auto_transition_sql)
-        auto_ids = res_auto.scalars().all()
-        if auto_ids:
-            await db.commit()
-            for aid in auto_ids:
-                try:
-                    await db.execute(text("""
-                        INSERT INTO activities (entity_type, entity_id, activity_type, title, description, created_at)
-                        VALUES ('lead', :lid, 'stage_changed', 'Auto-Moved to Follow-Up', '48-hour review window elapsed. Lead automatically moved to Follow-Up.', NOW())
-                    """), {"lid": aid})
-                except Exception:
-                    pass
-            await db.commit()
-    except Exception as e:
-        print(f"Auto-transition notice: {e}")
-        await db.rollback()
-
     conditions = ["l.status != 'purged'"]
     params: Dict[str, Any] = {}
+
+    # Enforce Pipeline RBAC Data Scope
+    scope = build_scope_filter(
+        user=current_user,
+        permission="pipeline.view",
+        creator_col="l.created_by_user_id",
+        assigned_col="l.assigned_to_user_id",
+        param_prefix="pipe_scope_"
+    )
+    if not scope["allowed"]:
+        return {
+            "ok": True,
+            "stages": {s: [] for s in MACRO_STAGES},
+            "granular_stages": {s: [] for s in GRANULAR_STAGES},
+            "counts": {s: 0 for s in MACRO_STAGES} | {"total": 0, "won": 0, "lost": 0},
+            "summary": {
+                "total_leads": 0,
+                "total_pipeline_value": 0,
+                "unassigned_count": 0,
+                "sla_health_pct": 100,
+                "active_installations": 0,
+                "won_count": 0,
+                "lost_count": 0,
+            },
+            "users": [],
+            "currentUser": current_user.to_dict() if hasattr(current_user, "to_dict") else dict(current_user),
+        }
+
+    if scope["clause"] != "1=1":
+        conditions.append(scope["clause"])
+        params.update(scope["params"])
 
     if assigned_to:
         if assigned_to == "unassigned":
@@ -230,8 +247,8 @@ async def get_sales_pipeline(
             LOWER(l.full_name) LIKE :q OR
             l.phone LIKE :q OR
             LOWER(COALESCE(l.email, '')) LIKE :q OR
-            LOWER(COALESCE(l.address, '')) LIKE :q OR
-            LOWER(COALESCE(l.city, '')) LIKE :q OR
+            LOWER(COALESCE(c.address, l.address, '')) LIKE :q OR
+            LOWER(COALESCE(c.city, l.city, '')) LIKE :q OR
             LOWER(COALESCE(l.service_type, '')) LIKE :q
         )""")
         params["q"] = f"%{search.strip().lower()}%"
@@ -240,7 +257,11 @@ async def get_sales_pipeline(
 
     sql = text(f"""
         SELECT 
-            l.id, l.full_name, l.phone, l.email, l.address, l.city, l.zip, l.service_type,
+            l.id, l.client_id, l.full_name, l.phone, l.email,
+            COALESCE(c.address, l.address) as address,
+            COALESCE(c.city, l.city) as city,
+            COALESCE(c.zip, l.zip) as zip,
+            l.service_type,
             l.lead_source, l.lead_source_detail, COALESCE(l.lead_score, 0) as lead_score,
             COALESCE(l.priority, 'cool') as priority, l.status, l.notes,
             COALESCE(l.pipeline_stage, 'stage_1_lead_gen') as pipeline_stage,
@@ -265,8 +286,10 @@ async def get_sales_pipeline(
             CASE WHEN w.id IS NOT NULL THEN true ELSE false END as has_warranty,
             r.rating as review_rating,
             CASE WHEN r.id IS NOT NULL THEN true ELSE false END as has_review,
-            cnt.id as contract_id, cnt.contract_number, cnt.status as raw_contract_status
+            cnt.id as contract_id, cnt.contract_number, cnt.status as raw_contract_status,
+            cnt.client_signed_at as contract_client_signed_at, cnt.counter_signed_at as contract_counter_signed_at
         FROM leads l
+        LEFT JOIN clients c ON l.client_id = c.id
         LEFT JOIN users u_assigned ON l.assigned_to_user_id = u_assigned.id
         LEFT JOIN users u_creator ON l.created_by_user_id = u_creator.id
         LEFT JOIN LATERAL (
@@ -303,9 +326,19 @@ async def get_sales_pipeline(
             ORDER BY id DESC LIMIT 1
         ) r ON true
         LEFT JOIN LATERAL (
-            SELECT id, contract_number, status
-            FROM contracts WHERE lead_id = l.id OR (e.id IS NOT NULL AND estimate_id = e.id)
-            ORDER BY id DESC LIMIT 1
+            SELECT id, contract_number, status, client_signed_at, counter_signed_at
+            FROM contracts
+            WHERE (lead_id = l.id OR (e.id IS NOT NULL AND estimate_id = e.id) OR (l.client_id IS NOT NULL AND client_id = l.client_id))
+              AND is_archived = false
+            ORDER BY 
+                CASE 
+                    WHEN status = 'signed' THEN 1
+                    WHEN status = 'client_signed' THEN 2
+                    WHEN status = 'sent' THEN 3
+                    ELSE 4
+                END,
+                id DESC 
+            LIMIT 1
         ) cnt ON true
         {where_clause}
         ORDER BY l.stage_entered_at DESC, l.created_at DESC
@@ -351,16 +384,18 @@ async def get_sales_pipeline(
         row = dict(r)
         raw_st = row.get("pipeline_stage") or "stage_1_lead_gen"
         
-        # Determine macro stage
-        if raw_st in stages:
+        # Determine granular stage directly from raw row data
+        granular_st = classify_to_granular_stage(row)
+
+        # Determine macro stage aligned with granular stage
+        if granular_st in STAGE_TO_MACRO:
+            macro_st = STAGE_TO_MACRO[granular_st]
+        elif raw_st in stages:
             macro_st = raw_st
         elif raw_st in STAGE_TO_MACRO:
             macro_st = STAGE_TO_MACRO[raw_st]
         else:
             macro_st = "stage_1_lead_gen"
-
-        # Determine granular stage directly from raw row data
-        granular_st = classify_to_granular_stage(row)
 
         sla = evaluate_lead_sla(
             stage=macro_st,
@@ -377,14 +412,21 @@ async def get_sales_pipeline(
         hours_until_auto_move = None
 
         if granular_st == "estimate_sent":
-            ref_sent = row.get("proposal_sent_at") or row.get("stage_entered_at")
-            if ref_sent:
-                if ref_sent.tzinfo is None:
-                    ref_sent = ref_sent.replace(tzinfo=timezone.utc)
-                hours_since_sent = (now_utc - ref_sent).total_seconds() / 3600.0
-                hours_until_auto_move = max(0, int(48.0 - hours_since_sent))
+            deadline = row.get("follow_up_at")
+            if deadline:
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+                hours_remaining = (deadline - now_utc).total_seconds() / 3600.0
+                hours_until_auto_move = max(0, int(hours_remaining))
             else:
-                hours_until_auto_move = 48
+                ref_sent = row.get("proposal_sent_at") or row.get("stage_entered_at")
+                if ref_sent:
+                    if ref_sent.tzinfo is None:
+                        ref_sent = ref_sent.replace(tzinfo=timezone.utc)
+                    hours_since_sent = (now_utc - ref_sent).total_seconds() / 3600.0
+                    hours_until_auto_move = max(0, int(24.0 - hours_since_sent))
+                else:
+                    hours_until_auto_move = 24
 
         elif granular_st == "follow_up":
             # Reference point: last contact or stage entered
@@ -398,29 +440,38 @@ async def get_sales_pipeline(
                 hours_since_contact = 0.0
                 days_since_contact = 0
 
-            # Follow up deadline
+            # Follow-up deadline from canonical follow_up_at column (48h cadence)
             deadline = row.get("follow_up_at")
             if deadline:
                 if deadline.tzinfo is None:
                     deadline = deadline.replace(tzinfo=timezone.utc)
                 hours_remaining = (deadline - now_utc).total_seconds() / 3600.0
             else:
-                hours_remaining = 168.0 - hours_since_contact
+                hours_remaining = 48.0 - hours_since_contact
 
-            is_followup_overdue = hours_remaining <= 0 or hours_since_contact >= 168.0
+            is_followup_overdue = hours_remaining <= 0
             followup_hours_remaining = int(hours_remaining)
             followup_days_remaining = max(0, int(hours_remaining // 24))
 
             if is_followup_overdue:
-                overdue_days = max(1, int(abs(hours_remaining) // 24)) if hours_remaining < 0 else max(1, days_since_contact - 7)
+                overdue_hours = max(1, int(abs(hours_remaining)))
                 sla["status"] = "overdue"
-                sla["badgeLabel"] = f"Overdue ({overdue_days}d past 7d SLA)"
+                if overdue_hours < 48:
+                    sla["badgeLabel"] = f"Overdue ({overdue_hours}h past SLA)"
+                    sla["alertMessage"] = f"⚠️ Overdue: Follow-up was due {overdue_hours}h ago!"
+                else:
+                    overdue_days = max(1, int(overdue_hours // 24))
+                    sla["badgeLabel"] = f"Overdue ({overdue_days}d past SLA)"
+                    sla["alertMessage"] = f"⚠️ Overdue: No contact in {days_since_contact} days! ({overdue_days}d past SLA)"
                 sla["badgeTone"] = "critical"
-                sla["alertMessage"] = f"⚠️ Overdue: No contact in {days_since_contact} days! (7-day window expired)"
             else:
-                sla["badgeLabel"] = f"Due in {followup_days_remaining}d"
+                if hours_remaining <= 48:
+                    sla["badgeLabel"] = f"Due in {int(hours_remaining)}h"
+                    sla["alertMessage"] = f"Next follow-up due in {int(hours_remaining)}h"
+                else:
+                    sla["badgeLabel"] = f"Due in {followup_days_remaining}d"
+                    sla["alertMessage"] = f"Next follow-up due in {followup_days_remaining}d"
                 sla["badgeTone"] = "cool"
-                sla["alertMessage"] = f"Follow-up window active ({followup_days_remaining}d remaining)"
 
         if macro_st == "stage_2_initial_contact":
             s2_total += 1
@@ -453,11 +504,18 @@ async def get_sales_pipeline(
         financing_offered = bool(row.get("financing_interested") or (row.get("estimate_financing_months") and int(row.get("estimate_financing_months") or 0) > 0))
 
         contract_status = row.get("raw_contract_status")
+        effective_signed_at = (
+            row.get("contract_signed_at")
+            or row.get("contract_counter_signed_at")
+            or row.get("contract_client_signed_at")
+        )
         if not contract_status:
-            if row.get("contract_signed_at") or row.get("estimate_status") == "accepted":
-                contract_status = "fully_executed" if row.get("job_id") else "client_signed"
+            if effective_signed_at or row.get("estimate_status") == "accepted":
+                contract_status = "fully_executed" if (row.get("job_id") or row.get("contract_counter_signed_at")) else "client_signed"
             elif row.get("proposal_sent_at") or row.get("estimate_status") == "sent":
                 contract_status = "action_required"
+        elif granular_st == "contract_signed" and contract_status not in ("signed", "client_signed", "fully_executed"):
+            contract_status = "signed" if row.get("contract_counter_signed_at") else "client_signed"
 
         completed_checklists = checklist_map.get(f"{row['id']}_{macro_st}", 0)
 
@@ -476,6 +534,7 @@ async def get_sales_pipeline(
             "estimated_value": deal_value,
             "financing_offered": financing_offered,
             "contract_status": contract_status,
+            "contract_signed_at": effective_signed_at.isoformat() if effective_signed_at and hasattr(effective_signed_at, "isoformat") else effective_signed_at,
             "hours_in_stage": sla["hoursInStage"],
             "days_in_stage": days_in_stage,
             "sla_hours_remaining": sla["hoursRemaining"],
@@ -525,7 +584,7 @@ async def get_sales_pipeline(
             "lost_count": lost_count,
         },
         "users": [dict(u) for u in active_users],
-        "currentUser": current_user.to_dict(),
+        "currentUser": current_user.to_dict() if hasattr(current_user, "to_dict") else (dict(current_user) if isinstance(current_user, dict) else {"id": getattr(current_user, "id", None), "name": getattr(current_user, "name", None), "email": getattr(current_user, "email", None), "role": getattr(current_user, "role", None)}),
     }
 
 @router.get("/analytics", dependencies=[Depends(require_any_permission(["leads:view", "jobs:view"]))])
@@ -536,7 +595,28 @@ async def get_pipeline_analytics(
     """
     Get pipeline analytics including stage probabilities, velocity, and conversion metrics.
     """
-    stats_query = text("""
+    scope = build_scope_filter(
+        user=user,
+        permission="pipeline.view",
+        creator_col="created_by_user_id",
+        assigned_col="assigned_to_user_id",
+        param_prefix="an_scope_"
+    )
+    if not scope["allowed"]:
+        return {
+            "ok": True,
+            "probabilities": {},
+            "win_rate": 0.0,
+            "active_pipeline_value": 0.0,
+            "realized_completed_value": 0.0,
+            "avg_deal_size": 0,
+            "velocity_days": 14,
+        }
+    scope_where = f"WHERE {scope['clause']}" if scope["clause"] != "1=1" else ""
+    scope_and = f"AND {scope['clause']}" if scope["clause"] != "1=1" else ""
+    scope_params = scope["params"]
+
+    stats_query = text(f"""
         SELECT 
             COUNT(*) AS total_leads,
             COUNT(*) FILTER (WHERE status = 'won' OR contract_signed_at IS NOT NULL) AS won_leads,
@@ -546,24 +626,25 @@ async def get_pipeline_analytics(
             COALESCE(SUM(estimated_value) FILTER (WHERE status = 'completed' OR pipeline_stage IN ('completed', 'job_completed') OR job_completed_at IS NOT NULL), 0) AS realized_completed_value,
             COALESCE(AVG(estimated_value) FILTER (WHERE estimated_value > 0), 0) AS avg_deal_size
         FROM leads
+        {scope_where}
     """)
-    stats_row = (await db.execute(stats_query)).mappings().first()
+    stats_row = (await db.execute(stats_query, scope_params)).mappings().first()
     
     total = stats_row["total_leads"] if stats_row else 0
     won = stats_row["won_leads"] if stats_row else 0
     win_rate = round((won / total), 2) if total > 0 else 0.0
     
     # Compute real probabilities per stage from historical data
-    prob_query = text("""
+    prob_query = text(f"""
         SELECT 
             pipeline_stage,
             COUNT(*) AS total_in_stage,
             COUNT(*) FILTER (WHERE status = 'won' OR contract_signed_at IS NOT NULL) AS won_from_stage
         FROM leads
-        WHERE pipeline_stage IS NOT NULL
+        WHERE pipeline_stage IS NOT NULL {scope_and}
         GROUP BY pipeline_stage
     """)
-    prob_rows = (await db.execute(prob_query)).mappings().all()
+    prob_rows = (await db.execute(prob_query, scope_params)).mappings().all()
     probabilities = {}
     for pr in prob_rows:
         stage = pr["pipeline_stage"]
@@ -572,12 +653,12 @@ async def get_pipeline_analytics(
         probabilities[stage] = round(won_s / total_s, 2) if total_s > 0 else 0.0
     
     # Compute real velocity (avg days from creation to contract signing)
-    vel_query = text("""
+    vel_query = text(f"""
         SELECT AVG(EXTRACT(DAY FROM (contract_signed_at - created_at))) AS avg_days
         FROM leads 
-        WHERE contract_signed_at IS NOT NULL
+        WHERE contract_signed_at IS NOT NULL {scope_and}
     """)
-    vel_row = (await db.execute(vel_query)).mappings().first()
+    vel_row = (await db.execute(vel_query, scope_params)).mappings().first()
     real_velocity = round(float(vel_row["avg_days"])) if vel_row and vel_row["avg_days"] else 14
 
     return {
@@ -591,8 +672,23 @@ async def get_pipeline_analytics(
     }
 
 async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession, user):
+    target = (await db.execute(text("SELECT id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "pipeline.advance_stage", creator_id=target.get("created_by_user_id"), assigned_id=target.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to advance stages for this deal.")
+
     body = await request.json()
     new_stage = body.get("stage")
+
+    # ── Unclaimed Lead Stage Guard ──
+    # If a lead is not claimed, its stage cannot be changed out of initial intake/cold stages.
+    if not target.get("assigned_to_user_id") and new_stage not in ("cold_lead", "stage_1_lead_gen", "new_leads"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please claim the lead first before advancing its stage."
+        )
+
     notes = body.get("notes")
     plain_note = body.get("plainNote")
     author_name = body.get("authorName") or getattr(user, "name", None) or "Staff"
@@ -647,18 +743,41 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
 
         updates.append("proposal_sent_at = COALESCE(proposal_sent_at, NOW())")
         updates.append("status = 'estimate_sent'")
-        updates.append("follow_up_at = NOW() + INTERVAL '48 hours'")
+        updates.append("follow_up_at = NOW() + INTERVAL '24 hours'")
         params["stage"] = "estimate_sent"
     elif new_stage in ("follow_up", "followup_2day", "followup_7day", "decision_followup"):
         updates.append("status = 'follow_up'")
         updates.append("last_contact_at = NOW()")
-        updates.append("follow_up_at = NOW() + INTERVAL '7 days'")
+    elif new_stage == "contract_sent":
+        updates.append("status = 'contract_sent'")
     elif new_stage == "contract_signed":
         updates.append("contract_signed_at = COALESCE(contract_signed_at, NOW())")
         updates.append("status = 'won'")
+
+        # Synchronize associated contracts: transition sent/draft contracts to signed
+        await db.execute(text("""
+            UPDATE contracts
+            SET status = 'signed',
+                client_signed_at = COALESCE(client_signed_at, NOW()),
+                counter_signed_at = COALESCE(counter_signed_at, NOW()),
+                updated_at = NOW()
+            WHERE (lead_id = :lid OR (client_id IS NOT NULL AND client_id = (SELECT client_id FROM leads WHERE id = :lid)))
+              AND status IN ('sent', 'draft', 'client_signed', 'viewed')
+        """), {"lid": int(lead_id)})
     elif new_stage == "active_jobs":
         updates.append("contract_signed_at = COALESCE(contract_signed_at, NOW())")
         updates.append("status = 'won'")
+
+        # Synchronize associated contracts: transition sent/draft contracts to signed
+        await db.execute(text("""
+            UPDATE contracts
+            SET status = 'signed',
+                client_signed_at = COALESCE(client_signed_at, NOW()),
+                counter_signed_at = COALESCE(counter_signed_at, NOW()),
+                updated_at = NOW()
+            WHERE (lead_id = :lid OR (client_id IS NOT NULL AND client_id = (SELECT client_id FROM leads WHERE id = :lid)))
+              AND status IN ('sent', 'draft', 'client_signed', 'viewed')
+        """), {"lid": int(lead_id)})
 
         # ── Auto-provision a job record if one doesn't already exist ──
         existing_job = (await db.execute(text(
@@ -711,7 +830,7 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
                     "service_type": lead_data.get("service_type") or "Residential Roofing",
                     "contract_value": float(lead_data.get("estimated_value") or 0),
                 })
-                print(f"Auto-provisioned job {job_number} for lead {lead_id}")
+                logger.critical(f"Auto-provisioned job {job_number} for lead {lead_id}")
 
     elif new_stage in ("job_completed", "completed"):
         # Enforce job completion authorization: only claimer/assignee, creator, or unassigned (auto-claim)
@@ -799,7 +918,7 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
                 WHERE lead_id = :lid
             """), {"lid": int(lead_id)})
         except Exception as e:
-            print(f"Linked job completion update note: {e}")
+            logger.error(f"Linked job completion update note: {e}")
 
     # Insert into activities table (Permanent historical timeline)
     try:
@@ -839,7 +958,7 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
             "meta": json.dumps(act_meta)
         })
     except Exception as e:
-        print(f"Failed to record stage move activity: {e}")
+        logger.error(f"Failed to record stage move activity: {e}")
 
     await record_audit_log(
         db, "pipeline.stage_changed", "lead", lead_id, user.id, user.email, user.role,
@@ -880,15 +999,20 @@ async def log_lead_follow_up(
 ):
     """
     Action: Log a follow-up interaction with a homeowner.
-    Immediately resets the 7-day timer to +7 days from now, appends note,
-    and logs communication activity.
+    Immediately resets the timer to +48 hours from now, appends note,
+    schedules the next follow-up reminder, and logs communication activity.
     """
-    check = await db.execute(text("SELECT id, full_name, notes, pipeline_stage FROM leads WHERE id = :id"), {"id": lead_id})
+    check = await db.execute(text("SELECT id, full_name, notes, pipeline_stage, created_by_user_id, assigned_to_user_id, client_id FROM leads WHERE id = :id"), {"id": lead_id})
     lead = check.mappings().first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "pipeline.view", creator_id=lead.get("created_by_user_id"), assigned_id=lead.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to access this deal")
 
     now = datetime.now(timezone.utc)
+    next_deadline_dt = now + timedelta(hours=48)
+    next_deadline = next_deadline_dt.isoformat()
+
     method_icons = {"call": "📞 Call", "sms": "💬 SMS", "email": "✉️ Email", "in_person": "🤝 Meeting"}
     method_label = method_icons.get(payload.method.lower(), payload.method.upper())
     timestamp_str = now.strftime("%b %d, %Y %I:%M %p")
@@ -897,12 +1021,12 @@ async def log_lead_follow_up(
     note_line = f"[{timestamp_str} by {user_name}] {method_label}: {payload.notes.strip() or 'Follow-up contact logged'}"
     if payload.outcome:
         note_line += f" • Outcome: {payload.outcome.replace('_', ' ').title()}"
-    note_line += " ➔ [Timer reset to 7 days]"
+    note_line += " ➔ [Timer reset to 48 hours]"
 
     await db.execute(text("""
         UPDATE leads
         SET last_contact_at = NOW(),
-            follow_up_at = NOW() + INTERVAL '7 days',
+            follow_up_at = :due_at,
             pipeline_stage = 'follow_up',
             status = 'follow_up',
             notes = CASE 
@@ -911,7 +1035,22 @@ async def log_lead_follow_up(
             END,
             updated_at = NOW()
         WHERE id = :id
-    """), {"id": lead_id, "entry": note_line})
+    """), {"id": lead_id, "entry": note_line, "due_at": next_deadline_dt})
+
+    # Schedule next follow-up reminder task and replace any pending reminder
+    try:
+        await schedule_follow_up_reminder(
+            db=db,
+            lead_id=lead_id,
+            due_at=next_deadline_dt,
+            title=f"Follow-Up Reminder ({method_label})",
+            description=payload.notes.strip() or f"Follow-up contact logged via {method_label}. Next outreach scheduled in 48 hours.",
+            assigned_to_user_id=lead.get("assigned_to_user_id"),
+            created_by_user_id=user.id if user else None,
+            client_id=lead.get("client_id")
+        )
+    except Exception as ex:
+        logger.error(f"Error scheduling reminder: {ex}")
 
     try:
         await db.execute(text("""
@@ -920,7 +1059,7 @@ async def log_lead_follow_up(
         """), {
             "lid": lead_id,
             "title": f"Follow-Up Logged: {method_label}",
-            "desc": payload.notes or f"Follow-up contact logged via {method_label}. 7-day timer reset.",
+            "desc": payload.notes or f"Follow-up contact logged via {method_label}. 48-hour timer reset.",
             "uid": user.id if user else None,
             "uname": user_name,
         })
@@ -934,7 +1073,6 @@ async def log_lead_follow_up(
         {"method": payload.method, "notes": payload.notes, "outcome": payload.outcome}, request
     )
 
-    next_deadline = (now + timedelta(days=7)).isoformat()
     try:
         from app.core.redis import cache_delete
         await cache_delete("crm:dashboard:stats")
@@ -945,16 +1083,151 @@ async def log_lead_follow_up(
         "lead_id": lead_id,
         "last_contact_at": now.isoformat(),
         "follow_up_at": next_deadline,
-        "message": f"Follow-up recorded! Next follow-up reset to 7 days from now."
+        "message": "Follow-up recorded! Next reminder reset to 48 hours from now."
     }
 
-@router.post("/{lead_id}/claim")
+@router.post("/{lead_id}/claim", dependencies=[Depends(require_any_permission(["leads.claim", "leads.manage", "pipeline.view"]))])
 async def claim_pipeline_lead(
     lead_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
     user = Depends(require_auth)
 ):
+    check_lead = (await db.execute(text("""
+        SELECT l.id, l.full_name, l.assigned_to_user_id, u.name as prev_user_name, u.email as prev_user_email
+        FROM leads l
+        LEFT JOIN users u ON l.assigned_to_user_id = u.id
+        WHERE l.id = :id
+    """), {"id": lead_id})).mappings().first()
+    if not check_lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    current_assignee_id = check_lead.get("assigned_to_user_id")
+    can_reassign = check_resource_access(user, "leads.reassign", assigned_id=current_assignee_id) if current_assignee_id else True
+
+    if current_assignee_id and str(current_assignee_id) != str(user.id) and not can_reassign:
+        raise HTTPException(
+            status_code=403,
+            detail="This lead is already claimed by another team member. Reassignment requires additional permissions."
+        )
+
+    # Atomic conditional update prevents TOCTOU race conditions
+    if can_reassign:
+        sql = text("""
+            UPDATE leads
+            SET assigned_to_user_id = :uid,
+                assigned_at = NOW(),
+                updated_at = NOW()
+            WHERE id = :id
+            RETURNING id, full_name, assigned_to_user_id
+        """)
+        res = (await db.execute(sql, {"uid": user.id, "id": lead_id})).mappings().first()
+        if not res:
+            raise HTTPException(status_code=404, detail="Lead not found")
+    else:
+        sql = text("""
+            UPDATE leads
+            SET assigned_to_user_id = :uid,
+                assigned_at = NOW(),
+                updated_at = NOW()
+            WHERE id = :id AND (assigned_to_user_id IS NULL OR assigned_to_user_id = :uid)
+            RETURNING id, full_name, assigned_to_user_id
+        """)
+        res = (await db.execute(sql, {"uid": user.id, "id": lead_id})).mappings().first()
+        if not res:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This lead was just claimed by another team member. Please refresh the page."
+            )
+
+    user_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Staff")
+    author_role = getattr(user, "role", "Staff")
+    if author_role:
+        author_role = str(author_role).replace("_", " ").title()
+    perf_by = f"{user_name} ({author_role})" if author_role else str(user_name)
+    lead_name = res["full_name"] if res and res.get("full_name") else f"Lead #{lead_id}"
+    
+    prev_name = check_lead.get("prev_user_name") or (f"User #{current_assignee_id}" if current_assignee_id else "Unassigned")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    meta_dict = {
+        "lead_id": lead_id,
+        "lead_name": lead_name,
+        "previous_assignee_id": current_assignee_id,
+        "previous_assignee_name": prev_name,
+        "new_assignee_id": user.id,
+        "new_assignee_name": user_name,
+        "acting_user_id": user.id,
+        "acting_user_name": user_name,
+        "timestamp": now_iso
+    }
+    import json
+    try:
+        activity_type = 'lead_reassigned' if current_assignee_id else 'lead_claimed'
+        title = 'Lead Reassigned' if current_assignee_id else 'Lead Claimed'
+        desc = (f"{user_name} claimed lead {lead_name} (previously assigned to {prev_name})"
+                if current_assignee_id else f"{user_name} claimed lead {lead_name}")
+        await db.execute(text("""
+            INSERT INTO activities (entity_type, entity_id, activity_type, title, description, performed_by, user_id, user_name, metadata, created_at)
+            VALUES ('lead', :lid, :act_type, :title, :desc, :pby, :uid, :uname, CAST(:meta AS jsonb), NOW())
+        """), {
+            "lid": int(lead_id),
+            "act_type": activity_type,
+            "title": title,
+            "desc": desc,
+            "pby": perf_by,
+            "uid": user.id if getattr(user, "id", None) else None,
+            "uname": user_name,
+            "meta": json.dumps(meta_dict)
+        })
+    except Exception as ex:
+        logger.error(f"Failed to record lead_claimed activity: {ex}")
+
+    try:
+        await record_audit_log(
+            db, "pipeline.lead_claimed", "lead", lead_id, user.id, user.email, user.role,
+            meta_dict, request
+        )
+    except Exception as ex:
+        logger.error(f"Failed to record lead_claimed audit log: {ex}")
+
+    await db.commit()
+
+    try:
+        from app.core.redis import cache_delete
+        await cache_delete("crm:dashboard:stats")
+    except Exception:
+        pass
+    return {"ok": True, "lead": dict(res)}
+
+class ReassignLeadPayload(BaseModel):
+    new_user_id: int
+    notes: Optional[str] = None
+
+@router.post("/{lead_id}/reassign", dependencies=[Depends(require_any_permission(["leads.reassign", "leads.manage", "pipeline.view"]))])
+async def reassign_pipeline_lead(
+    lead_id: int,
+    payload: ReassignLeadPayload,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user = Depends(require_auth)
+):
+    check_lead = (await db.execute(text("""
+        SELECT l.id, l.full_name, l.assigned_to_user_id, u.name as prev_user_name, u.email as prev_user_email
+        FROM leads l
+        LEFT JOIN users u ON l.assigned_to_user_id = u.id
+        WHERE l.id = :id
+    """), {"id": lead_id})).mappings().first()
+    if not check_lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    target_user = (await db.execute(text("""
+        SELECT id, name, email, is_active, role FROM users WHERE id = :uid
+    """), {"uid": payload.new_user_id})).mappings().first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user not found")
+    if target_user.get("is_active") is False:
+        raise HTTPException(status_code=400, detail="Cannot assign lead to an inactive user")
+
     sql = text("""
         UPDATE leads
         SET assigned_to_user_id = :uid,
@@ -963,37 +1236,71 @@ async def claim_pipeline_lead(
         WHERE id = :id
         RETURNING id, full_name, assigned_to_user_id
     """)
-    res = (await db.execute(sql, {"uid": user.id, "id": lead_id})).mappings().first()
+    res = (await db.execute(sql, {"uid": payload.new_user_id, "id": lead_id})).mappings().first()
     if not res:
         raise HTTPException(status_code=404, detail="Lead not found")
 
+    user_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Staff")
+    author_role = getattr(user, "role", "Staff")
+    if author_role:
+        author_role = str(author_role).replace("_", " ").title()
+    perf_by = f"{user_name} ({author_role})" if author_role else str(user_name)
+    lead_name = res["full_name"] if res and res.get("full_name") else f"Lead #{lead_id}"
+
+    current_assignee_id = check_lead.get("assigned_to_user_id")
+    prev_name = check_lead.get("prev_user_name") or (f"User #{current_assignee_id}" if current_assignee_id else "Unassigned")
+    new_assignee_name = target_user.get("name") or target_user.get("email") or f"User #{payload.new_user_id}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if payload.notes and payload.notes.strip():
+        now_dt = datetime.now()
+        now_str = now_dt.strftime("%b %d, %Y • %I:%M %p")
+        note_entry = f"[{now_str} — {perf_by}]\n➔ Reassigned to {new_assignee_name}: {payload.notes.strip()}"
+        await db.execute(text("""
+            UPDATE leads
+            SET notes = CASE WHEN notes IS NULL OR notes = '' THEN CAST(:entry AS TEXT) ELSE CONCAT(notes, E'\\n\\n', CAST(:entry AS TEXT)) END
+            WHERE id = :id
+        """), {"entry": note_entry, "id": lead_id})
+
+    meta_dict = {
+        "lead_id": lead_id,
+        "lead_name": lead_name,
+        "previous_assignee_id": current_assignee_id,
+        "previous_assignee_name": prev_name,
+        "new_assignee_id": payload.new_user_id,
+        "new_assignee_name": new_assignee_name,
+        "acting_user_id": user.id,
+        "acting_user_name": user_name,
+        "notes": payload.notes,
+        "timestamp": now_iso
+    }
+
+    import json
     try:
-        user_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Staff")
-        author_role = getattr(user, "role", "Staff")
-        if author_role:
-            author_role = str(author_role).replace("_", " ").title()
-        perf_by = f"{user_name} ({author_role})" if author_role else str(user_name)
-        lead_name = res["full_name"] if res and res.get("full_name") else f"Lead #{lead_id}"
-        meta_dict = {"lead_name": lead_name}
-        import json
         await db.execute(text("""
             INSERT INTO activities (entity_type, entity_id, activity_type, title, description, performed_by, user_id, user_name, metadata, created_at)
-            VALUES ('lead', :lid, 'lead_claimed', 'Lead Claimed', :desc, :pby, :uid, :uname, CAST(:meta AS jsonb), NOW())
+            VALUES ('lead', :lid, 'lead_reassigned', 'Lead Reassigned', :desc, :pby, :uid, :uname, CAST(:meta AS jsonb), NOW())
         """), {
             "lid": int(lead_id),
-            "desc": f"{user_name} claimed lead {lead_name}",
+            "desc": f"{user_name} reassigned {lead_name} from {prev_name} to {new_assignee_name}",
             "pby": perf_by,
             "uid": user.id if getattr(user, "id", None) else None,
             "uname": user_name,
             "meta": json.dumps(meta_dict)
         })
     except Exception as ex:
-        print(f"Failed to record lead_claimed activity: {ex}")
+        logger.error(f"Failed to record lead_reassigned activity: {ex}")
 
-    await record_audit_log(
-        db, "pipeline.lead_claimed", "lead", lead_id, user.id, user.email, user.role,
-        {"claimedBy": user.email}, request
-    )
+    try:
+        await record_audit_log(
+            db, "pipeline.lead_reassigned", "lead", lead_id, user.id, user.email, user.role,
+            meta_dict, request
+        )
+    except Exception as ex:
+        logger.error(f"Failed to record lead_reassigned audit log: {ex}")
+
+    await db.commit()
+
     try:
         from app.core.redis import cache_delete
         await cache_delete("crm:dashboard:stats")
@@ -1006,7 +1313,7 @@ class ChecklistItemPayload(BaseModel):
     stage: Optional[str] = "stage_1_lead_gen"
     notes: Optional[str] = None
 
-@router.put("/{lead_id}/checklist/{item_key}")
+@router.put("/{lead_id}/checklist/{item_key}", dependencies=[Depends(require_permission("pipeline.view"))])
 async def update_pipeline_checklist_item(
     lead_id: int,
     item_key: str,
@@ -1019,6 +1326,12 @@ async def update_pipeline_checklist_item(
     Action: Toggle or update a checklist item for a pipeline deal.
     Persists completion state, user ID, and timestamp into lead_stage_checklists.
     """
+    lead = (await db.execute(text("SELECT id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not check_resource_access(user, "pipeline.view", creator_id=lead.get("created_by_user_id"), assigned_id=lead.get("assigned_to_user_id")):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have permission to access this deal")
+
     now = datetime.now(timezone.utc)
     stage = payload.stage or "stage_1_lead_gen"
     user_id = getattr(user, "id", None)

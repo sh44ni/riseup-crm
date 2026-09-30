@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Sliders,
@@ -15,6 +16,8 @@ import {
 import { WeatherWidgetConfig, WeatherTextColors, DEFAULT_TEXT_COLORS } from '@/lib/weatherStore';
 import { WeatherData } from '@/api/weatherApi';
 import { VolumetricWeatherIcon } from './VolumetricWeatherIcon';
+import { useToast } from '@/context/ToastContext';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface WeatherCustomizerModalProps {
   isOpen: boolean;
@@ -142,7 +145,9 @@ export function WeatherCustomizerModal({
   onSave,
   onReset,
 }: WeatherCustomizerModalProps) {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'image' | 'colors'>('image');
+  const [isConfirmResetOpen, setIsConfirmResetOpen] = useState(false);
 
   // Image & Framing state
   const [location, setLocation] = useState(currentConfig.location);
@@ -174,11 +179,28 @@ export function WeatherCustomizerModal({
     }
   }, [isOpen, currentConfig]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleFileUpload = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image file (JPG, PNG, WEBP, SVG).');
+      toast.warning('Please upload a valid image file (JPG, PNG, WEBP, SVG).');
       return;
     }
     const reader = new FileReader();
@@ -216,10 +238,7 @@ export function WeatherCustomizerModal({
   };
 
   const handleReset = () => {
-    if (confirm('Reset weather widget to original defaults?')) {
-      onReset();
-      onClose();
-    }
+    setIsConfirmResetOpen(true);
   };
 
   // Unit-aware metrics for live preview
@@ -231,26 +250,34 @@ export function WeatherCustomizerModal({
   const conditionLabel = weatherData.condition_text || 'Sunny';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-[#090E17] border border-white/15 rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[92vh] text-slate-200 select-none">
-        {/* ========================================================
-            MODAL HEADER
-            ======================================================== */}
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-amber-400 to-sky-400 flex items-center justify-center text-slate-950 shadow-md shadow-amber-500/20 border border-amber-300/40">
-              <Sliders size={18} className="stroke-[2.5]" />
-            </div>
+    <>
+      {createPortal(
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200 select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl bg-white/95 dark:bg-[#090E17] border border-slate-200/80 dark:border-white/15 rounded-3xl shadow-[0_25px_70px_rgba(15,23,42,0.2)] dark:shadow-[0_25px_70px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col max-h-[90vh] my-auto text-slate-800 dark:text-slate-200 select-none animate-in zoom-in-95 duration-200"
+          >
+            {/* ========================================================
+                MODAL HEADER
+                ======================================================== */}
+            <div className="px-6 py-4 border-b border-slate-200/80 dark:border-white/10 flex items-center justify-between bg-slate-50/50 dark:bg-white/[0.02] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-amber-400 to-sky-400 flex items-center justify-center text-slate-950 shadow-md shadow-amber-500/20 border border-amber-300/40 shrink-0">
+                  <Sliders size={18} className="stroke-[2.5]" />
+                </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-tight">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                   Weather Widget Customizer
                 </h2>
-                <span className="px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-300 text-[10px] font-black uppercase tracking-wider">
+                <span className="px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-400/30 text-[#1878B8] dark:text-sky-300 text-[10px] font-black uppercase tracking-wider">
                   IMAGE &amp; TEXT COLORS
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Customize background wallpaper, clarity, and individual text colors. Weather data is live from the API.
               </p>
             </div>
@@ -258,7 +285,7 @@ export function WeatherCustomizerModal({
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center border border-white/10 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white flex items-center justify-center border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
           >
             <X size={16} />
           </button>
@@ -267,10 +294,10 @@ export function WeatherCustomizerModal({
         {/* ========================================================
             LIVE INTERACTIVE PREVIEW CARD
             ======================================================== */}
-        <div className="p-6 bg-[#060910] border-b border-white/10">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+        <div className="p-6 bg-slate-100/60 dark:bg-[#060910] border-b border-slate-200/80 dark:border-white/10">
+          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
-              <Sparkles size={12} className="text-amber-400" />
+              <Sparkles size={12} className="text-amber-500 dark:text-amber-400" />
               <span>Live Responsive Preview</span>
             </span>
             <span className="text-[10px] text-slate-500 font-mono">
@@ -279,7 +306,7 @@ export function WeatherCustomizerModal({
           </div>
 
           {/* Rendered Widget Card Preview */}
-          <div className="relative rounded-2xl overflow-hidden border border-white/85 shadow-sm p-4 min-h-[162px] flex flex-col justify-between max-w-sm mx-auto bg-slate-900 select-none">
+          <div className="relative rounded-2xl overflow-hidden border border-white/85 dark:border-white/10 shadow-sm p-4 min-h-[162px] flex flex-col justify-between max-w-sm mx-auto bg-slate-900 select-none">
             {/* Dynamic Background Image */}
             <div
               className="absolute inset-0 bg-cover bg-[position:65%_center] transition-transform duration-700 pointer-events-none"
@@ -371,14 +398,14 @@ export function WeatherCustomizerModal({
         {/* ========================================================
             NAVIGATION TABS
             ======================================================== */}
-        <div className="flex items-center gap-2 px-6 pt-2 border-b border-white/10 bg-white/[0.01]">
+        <div className="flex items-center gap-2 px-6 pt-2 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/30 dark:bg-white/[0.01]">
           <button
             type="button"
             onClick={() => setActiveTab('image')}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'image'
-                ? 'border-sky-400 text-sky-300'
-                : 'border-transparent text-slate-400 hover:text-white'
+                ? 'border-[#1878B8] text-[#1878B8] dark:border-sky-400 dark:text-sky-300'
+                : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             <ImageIcon size={14} />
@@ -389,8 +416,8 @@ export function WeatherCustomizerModal({
             onClick={() => setActiveTab('colors')}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
               activeTab === 'colors'
-                ? 'border-sky-400 text-sky-300'
-                : 'border-transparent text-slate-400 hover:text-white'
+                ? 'border-[#1878B8] text-[#1878B8] dark:border-sky-400 dark:text-sky-300'
+                : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             <Palette size={14} />
@@ -406,8 +433,8 @@ export function WeatherCustomizerModal({
             <div className="space-y-6">
               {/* 1. Location Settings */}
               <div className="space-y-2.5">
-                <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <MapPin size={13} className="text-sky-400" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <MapPin size={13} className="text-[#1878B8] dark:text-sky-400" />
                   <span>Weather Location (Live API Target)</span>
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -418,8 +445,8 @@ export function WeatherCustomizerModal({
                       onClick={() => setLocation(loc)}
                       className={`px-3 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                         location === loc
-                          ? 'bg-sky-500/20 border-sky-400 text-sky-300 shadow-xs'
-                          : 'bg-white/5 border-white/10 hover:border-white/20 text-slate-300'
+                          ? 'bg-sky-500/20 border-sky-400 text-[#1878B8] dark:text-sky-300 shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/5 border-slate-200 dark:border-white/10 dark:hover:border-white/20 text-slate-700 dark:text-slate-300'
                       }`}
                     >
                       {loc}
@@ -431,13 +458,13 @@ export function WeatherCustomizerModal({
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Or enter city, state or ZIP code..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 focus:border-sky-400 focus:outline-none text-xs text-white placeholder:text-slate-600 font-medium"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-black/40 border border-slate-200 dark:border-white/15 focus:border-[#1878B8] dark:focus:border-sky-400 focus:outline-none text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
                 />
               </div>
 
               {/* 2. Temperature Units Toggle */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
                   Temperature Unit Display
                 </label>
                 <div className="flex items-center gap-2">
@@ -446,8 +473,8 @@ export function WeatherCustomizerModal({
                     onClick={() => setTempUnit('F')}
                     className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       tempUnit === 'F'
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                        : 'bg-white/5 border-white/10 text-slate-400'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
+                        : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     Fahrenheit (°F Primary)
@@ -457,8 +484,8 @@ export function WeatherCustomizerModal({
                     onClick={() => setTempUnit('C')}
                     className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       tempUnit === 'C'
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-300'
-                        : 'bg-white/5 border-white/10 text-slate-400'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-300'
+                        : 'bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400'
                     }`}
                   >
                     Celsius (°C Primary)
@@ -467,16 +494,16 @@ export function WeatherCustomizerModal({
               </div>
 
               {/* 3. Background Imagery */}
-              <div className="space-y-4 pt-2 border-t border-white/10">
+              <div className="space-y-4 pt-2 border-t border-slate-200/80 dark:border-white/10">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                    <ImageIcon size={13} className="text-sky-400" />
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <ImageIcon size={13} className="text-[#1878B8] dark:text-sky-400" />
                     <span>Choose Wallpaper / Upload Photo</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-[11px] text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-[#1878B8] dark:text-sky-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                   >
                     <Upload size={12} />
                     <span>Upload Any Photo</span>
@@ -504,18 +531,18 @@ export function WeatherCustomizerModal({
                         onClick={() => setCustomImage(preset.url)}
                         className={`rounded-xl overflow-hidden border p-1 text-left cursor-pointer transition-all ${
                           isSelected
-                            ? 'border-sky-400 bg-sky-500/20 shadow-xs'
-                            : 'border-white/10 hover:border-white/30 bg-black/40'
+                            ? 'border-[#1878B8] bg-sky-50 dark:bg-sky-500/20 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 dark:border-white/10 dark:hover:border-white/30 bg-slate-100 dark:bg-black/40'
                         }`}
                       >
-                        <div className="aspect-[2/1] rounded-lg overflow-hidden bg-slate-900">
+                        <div className="aspect-[2/1] rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-900">
                           <img
                             src={preset.thumb}
                             alt={preset.name}
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div className="text-[10px] font-bold text-slate-300 truncate mt-1">
+                        <div className="text-[10px] font-bold text-slate-700 dark:text-slate-300 truncate mt-1">
                           {preset.name}
                         </div>
                       </button>
@@ -524,19 +551,19 @@ export function WeatherCustomizerModal({
                 </div>
 
                 {/* Custom URL Input */}
-                <div className="flex items-center gap-2 p-2 rounded-xl border border-white/15 bg-white/[0.02]">
+                <div className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-white/15 bg-slate-50/70 dark:bg-white/[0.02]">
                   <input
                     type="url"
                     value={customUrlInput}
                     onChange={(e) => setCustomUrlInput(e.target.value)}
                     placeholder="Or paste image URL (https://...)"
-                    className="flex-1 bg-transparent px-2.5 py-1 text-xs text-white placeholder:text-slate-500 focus:outline-none"
+                    className="flex-1 bg-transparent px-2.5 py-1 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={handleApplyCustomUrl}
                     disabled={!customUrlInput.trim()}
-                    className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
+                    className="px-3 py-1 rounded-lg bg-[#1878B8] hover:bg-[#14649a] dark:bg-sky-600 dark:hover:bg-sky-500 disabled:opacity-40 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
                   >
                     Apply
                   </button>
@@ -545,8 +572,8 @@ export function WeatherCustomizerModal({
                 {/* Image Opacity Slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-300">Photo Clarity &amp; Opacity</span>
-                    <span className="font-mono text-sky-400 font-bold">{imageOpacity}%</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Photo Clarity &amp; Opacity</span>
+                    <span className="font-mono text-[#1878B8] dark:text-sky-400 font-bold">{imageOpacity}%</span>
                   </div>
                   <input
                     type="range"
@@ -555,9 +582,9 @@ export function WeatherCustomizerModal({
                     step="5"
                     value={imageOpacity}
                     onChange={(e) => setImageOpacity(Number(e.target.value))}
-                    className="w-full accent-sky-400 cursor-pointer"
+                    className="w-full accent-[#1878B8] dark:accent-sky-400 cursor-pointer"
                   />
-                  <div className="flex justify-between text-[10px] text-slate-500">
+                  <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
                     <span>Subtle (40%)</span>
                     <span>Crisp &amp; Highly Visible (100%)</span>
                   </div>
@@ -566,8 +593,8 @@ export function WeatherCustomizerModal({
                 {/* Liquid Glass Overlay Wash Slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-300">Frosted Glass Wash Strength</span>
-                    <span className="font-mono text-sky-400 font-bold">{overlayStrength}%</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">Frosted Glass Wash Strength</span>
+                    <span className="font-mono text-[#1878B8] dark:text-sky-400 font-bold">{overlayStrength}%</span>
                   </div>
                   <input
                     type="range"
@@ -576,9 +603,9 @@ export function WeatherCustomizerModal({
                     step="5"
                     value={overlayStrength}
                     onChange={(e) => setOverlayStrength(Number(e.target.value))}
-                    className="w-full accent-sky-400 cursor-pointer"
+                    className="w-full accent-[#1878B8] dark:accent-sky-400 cursor-pointer"
                   />
-                  <div className="flex justify-between text-[10px] text-slate-500">
+                  <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
                     <span>Clean / No Wash (0%)</span>
                     <span>Heavy Frosted (90%)</span>
                   </div>
@@ -592,8 +619,8 @@ export function WeatherCustomizerModal({
             <div className="space-y-6">
               {/* 1-Click Color Themes */}
               <div className="space-y-2.5">
-                <label className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles size={13} className="text-amber-400" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles size={13} className="text-amber-500 dark:text-amber-400" />
                   <span>1-Click Curated Color Themes</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -602,27 +629,27 @@ export function WeatherCustomizerModal({
                       key={preset.name}
                       type="button"
                       onClick={() => setTextColors(preset.colors)}
-                      className="p-3 rounded-xl border border-white/10 hover:border-white/30 bg-white/[0.02] hover:bg-white/[0.05] transition-all flex items-center justify-between cursor-pointer group text-left"
+                      className="p-3 rounded-xl border border-slate-200 dark:border-white/10 hover:border-[#1878B8] dark:hover:border-white/30 bg-slate-50/70 hover:bg-sky-50/50 dark:bg-white/[0.02] dark:hover:bg-white/[0.05] transition-all flex items-center justify-between cursor-pointer group text-left"
                     >
                       <div>
-                        <div className="text-xs font-bold text-slate-200 group-hover:text-white">
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-[#1878B8] dark:group-hover:text-white">
                           {preset.name}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
                           Pre-balanced contrast for readability
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
                         <span
-                          className="w-3.5 h-3.5 rounded-full border border-white/30 shadow-xs"
+                          className="w-3.5 h-3.5 rounded-full border border-slate-300 dark:border-white/30 shadow-xs"
                           style={{ backgroundColor: preset.colors.tempColor }}
                         />
                         <span
-                          className="w-3.5 h-3.5 rounded-full border border-white/30 shadow-xs"
+                          className="w-3.5 h-3.5 rounded-full border border-slate-300 dark:border-white/30 shadow-xs"
                           style={{ backgroundColor: preset.colors.locationColor }}
                         />
                         <span
-                          className="w-3.5 h-3.5 rounded-full border border-white/30 shadow-xs"
+                          className="w-3.5 h-3.5 rounded-full border border-slate-300 dark:border-white/30 shadow-xs"
                           style={{ backgroundColor: preset.colors.conditionBadgeColor }}
                         />
                       </div>
@@ -632,16 +659,16 @@ export function WeatherCustomizerModal({
               </div>
 
               {/* Granular Individual Text Color Controls */}
-              <div className="space-y-4 pt-3 border-t border-white/10">
-                <div className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Palette size={13} className="text-sky-400" />
+              <div className="space-y-4 pt-3 border-t border-slate-200/80 dark:border-white/10">
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <Palette size={13} className="text-[#1878B8] dark:text-sky-400" />
                   <span>Granular Individual Text Colors</span>
                 </div>
 
                 {/* Color Row 1: Main Temp Number */}
-                <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.02] space-y-2">
+                <div className="p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-200">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                       1. Main Temperature Number (72°)
                     </span>
                     <input
@@ -660,7 +687,7 @@ export function WeatherCustomizerModal({
                         className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${
                           textColors.tempColor === color
                             ? 'scale-125 border-sky-400 ring-2 ring-sky-400/40'
-                            : 'border-white/20 hover:scale-110'
+                            : 'border-slate-300 dark:border-white/20 hover:scale-110'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -669,9 +696,9 @@ export function WeatherCustomizerModal({
                 </div>
 
                 {/* Color Row 2: Secondary Temp (/ 22°C) */}
-                <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.02] space-y-2">
+                <div className="p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-200">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                       2. Secondary Temperature (/ 22°C)
                     </span>
                     <input
@@ -690,7 +717,7 @@ export function WeatherCustomizerModal({
                         className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${
                           textColors.secondaryTempColor === color
                             ? 'scale-125 border-sky-400 ring-2 ring-sky-400/40'
-                            : 'border-white/20 hover:scale-110'
+                            : 'border-slate-300 dark:border-white/20 hover:scale-110'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -699,9 +726,9 @@ export function WeatherCustomizerModal({
                 </div>
 
                 {/* Color Row 3: Metrics (High / Low / Feels Like) */}
-                <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.02] space-y-2">
+                <div className="p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-200">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                       3. Metrics Line (H: 76° • L: 62° • Feels 74°)
                     </span>
                     <input
@@ -720,7 +747,7 @@ export function WeatherCustomizerModal({
                         className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${
                           textColors.metricsColor === color
                             ? 'scale-125 border-sky-400 ring-2 ring-sky-400/40'
-                            : 'border-white/20 hover:scale-110'
+                            : 'border-slate-300 dark:border-white/20 hover:scale-110'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -729,9 +756,9 @@ export function WeatherCustomizerModal({
                 </div>
 
                 {/* Color Row 4: Location Name */}
-                <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.02] space-y-2">
+                <div className="p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-200">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                       4. Location Badge Text (Oceanside, CA)
                     </span>
                     <input
@@ -750,7 +777,7 @@ export function WeatherCustomizerModal({
                         className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${
                           textColors.locationColor === color
                             ? 'scale-125 border-sky-400 ring-2 ring-sky-400/40'
-                            : 'border-white/20 hover:scale-110'
+                            : 'border-slate-300 dark:border-white/20 hover:scale-110'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -759,9 +786,9 @@ export function WeatherCustomizerModal({
                 </div>
 
                 {/* Color Row 5: Condition Badge Text & Pill Background */}
-                <div className="p-3 rounded-2xl border border-white/10 bg-white/[0.02] space-y-2">
+                <div className="p-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-200">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                       5. Condition Badge Text ({conditionLabel})
                     </span>
                     <input
@@ -780,7 +807,7 @@ export function WeatherCustomizerModal({
                         className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${
                           textColors.conditionBadgeColor === color
                             ? 'scale-125 border-sky-400 ring-2 ring-sky-400/40'
-                            : 'border-white/20 hover:scale-110'
+                            : 'border-slate-300 dark:border-white/20 hover:scale-110'
                         }`}
                         style={{ backgroundColor: color }}
                       />
@@ -795,11 +822,11 @@ export function WeatherCustomizerModal({
         {/* ========================================================
             MODAL FOOTER ACTIONS
             ======================================================== */}
-        <div className="px-6 py-4 border-t border-white/10 flex items-center justify-between bg-white/[0.02]">
+        <div className="px-6 py-4 border-t border-slate-200/80 dark:border-white/10 flex items-center justify-between bg-slate-50/60 dark:bg-white/[0.02]">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 font-semibold transition-colors cursor-pointer"
           >
             <RotateCcw size={13} />
             <span>Reset to Factory Defaults</span>
@@ -809,7 +836,7 @@ export function WeatherCustomizerModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold border border-white/10 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -821,9 +848,27 @@ export function WeatherCustomizerModal({
               <Check size={14} className="stroke-[3]" />
               <span>Apply &amp; Save Changes</span>
             </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      </div>,
+      document.body
+    )}
+
+    {/* Reset Confirmation Dialog */}
+    <ConfirmDialog
+      isOpen={isConfirmResetOpen}
+      title="Reset Weather Widget"
+      message="Reset weather widget configuration back to original defaults?"
+      confirmLabel="Reset to Defaults"
+      variant="warning"
+      onConfirm={() => {
+        onReset();
+        setIsConfirmResetOpen(false);
+        onClose();
+      }}
+      onCancel={() => setIsConfirmResetOpen(false)}
+    />
+    </>
   );
 }

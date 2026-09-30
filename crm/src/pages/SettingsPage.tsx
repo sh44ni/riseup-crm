@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, RotateCcw, Save, ShieldCheck } from 'lucide-react';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
@@ -8,10 +8,10 @@ import { CompanyProfileTab } from '@/components/settings/CompanyProfileTab';
 import { PricingFormulasTab } from '@/components/settings/PricingFormulasTab';
 import { PipelineSettingsTab } from '@/components/settings/PipelineSettingsTab';
 import { NotificationSettingsTab } from '@/components/settings/NotificationSettingsTab';
-import { SecurityBackupsTab } from '@/components/settings/SecurityBackupsTab';
-import { InviteUserModal } from '@/components/settings/InviteUserModal';
 import { UserProfileTab } from '@/components/settings/UserProfileTab';
+import { AuthorizedSignatoriesTab } from '@/components/settings/AuthorizedSignatoriesTab';
 import { useCompany } from '@/context/CompanyContext';
+import { useToast } from '@/context/ToastContext';
 import { getSettings, updateSettings } from '@/api/systemApi';
 import { api } from '@/lib/api';
 
@@ -48,22 +48,25 @@ export function SettingsPage() {
   const validTabs: SettingsTab[] = [
     'profile',
     'users',
+    'signatories',
     'company',
     'pricing',
     'pipeline',
     'notifications',
-    'security' as SettingsTab,
   ];
 
   const initialTab =
     queryTab && validTabs.includes(queryTab) ? queryTab : 'profile';
 
   // Master State
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [search, setSearch] = useState<string>('');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   // Global Company State from context (applies everywhere across the CRM)
   const { company, updateCompany, resetCompany } = useCompany();
@@ -79,6 +82,21 @@ export function SettingsPage() {
   const [sessions, setSessions] = useState<SecuritySession[]>(INITIAL_SECURITY_SESSIONS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
 
+  // Baseline settings storage to support discarding changes to server values
+  const baselineSettingsRef = useRef<{
+    members: TeamMember[];
+    roles: UserRole[];
+    pricing: PricingConfig;
+    pipeline: PipelineAutomation;
+    notifications: NotificationSettings;
+  }>({
+    members: INITIAL_TEAM_MEMBERS,
+    roles: INITIAL_USER_ROLES,
+    pricing: INITIAL_PRICING_CONFIG,
+    pipeline: INITIAL_PIPELINE_AUTOMATION,
+    notifications: INITIAL_NOTIFICATION_SETTINGS,
+  });
+
   // Load Settings from API on mount
   useEffect(() => {
     async function loadSettings() {
@@ -89,47 +107,77 @@ export function SettingsPage() {
           api.getRoles().catch(() => null),
         ]);
 
-        if (usersRes?.users) setMembers(usersRes.users as any);
-        else if (backendSettings.team_members) setMembers(backendSettings.team_members);
+        let loadedMembers = INITIAL_TEAM_MEMBERS;
+        if (usersRes?.users) {
+          loadedMembers = usersRes.users as any;
+          setMembers(loadedMembers);
+        } else if (backendSettings.team_members) {
+          loadedMembers = backendSettings.team_members;
+          setMembers(loadedMembers);
+        }
 
-        if (rolesRes?.roles) setRoles(rolesRes.roles as any);
-        else if (backendSettings.user_roles) setRoles(backendSettings.user_roles);
-        if (backendSettings.pipeline_config) setPipeline(backendSettings.pipeline_config);
-        if (backendSettings.notification_config) setNotifications(backendSettings.notification_config);
+        let loadedRoles = INITIAL_USER_ROLES;
+        if (rolesRes?.roles) {
+          loadedRoles = rolesRes.roles as any;
+          setRoles(loadedRoles);
+        } else if (backendSettings.user_roles) {
+          loadedRoles = backendSettings.user_roles;
+          setRoles(loadedRoles);
+        }
 
+        let loadedPipeline = INITIAL_PIPELINE_AUTOMATION;
+        if (backendSettings.pipeline_config) {
+          loadedPipeline = backendSettings.pipeline_config;
+          setPipeline(loadedPipeline);
+        }
+
+        let loadedNotifications = INITIAL_NOTIFICATION_SETTINGS;
+        if (backendSettings.notification_config) {
+          loadedNotifications = backendSettings.notification_config;
+          setNotifications(loadedNotifications);
+        }
+
+        let loadedPricing = INITIAL_PRICING_CONFIG;
         const pricingRes = await api.request<any>('/admin/estimator').catch(() => null);
         if (pricingRes) {
-          setPricing((prev) => {
-            let rules = pricingRes.pricingRules;
-            if ((!rules || rules.length === 0) && pricingRes.services) {
-              rules = pricingRes.services.map((s: any) => ({
-                service_id: s.id,
-                slug: s.slug,
-                name: s.name,
-                price_per_sqft_low: s.pricing?.pricePerSqftLow ?? 4.0,
-                price_per_sqft_high: s.pricing?.pricePerSqftHigh ?? 6.2,
-                base_fee_low: s.pricing?.baseFeeLow ?? 500,
-                base_fee_high: s.pricing?.baseFeeHigh ?? 950,
-                min_sqft: s.pricing?.minSqft ?? 500,
-                max_sqft: s.pricing?.maxSqft ?? 12000,
-                apr_available: s.pricing?.aprAvailable ?? true,
-                financing_apr: s.pricing?.financingApr ?? 0.0,
-                financing_term_months: s.pricing?.financingTermMonths ?? 60,
-              }));
-            }
-            return {
-              ...prev,
-              ...pricingRes,
-              pricingRules: rules && rules.length > 0 ? rules : prev.pricingRules,
-              marginGuardrails: pricingRes.marginGuardrails || prev.marginGuardrails,
-              pitchMultipliers: pricingRes.pitchMultipliers || prev.pitchMultipliers,
-              storyMultipliers: pricingRes.storyMultipliers || prev.storyMultipliers,
-              tearOffRates: pricingRes.tearOffRates || prev.tearOffRates,
-              permitFees: pricingRes.permitFees || prev.permitFees,
-              wasteFactors: pricingRes.wasteFactors || prev.wasteFactors,
-            };
-          });
+          let rules = pricingRes.pricingRules;
+          if ((!rules || rules.length === 0) && pricingRes.services) {
+            rules = pricingRes.services.map((s: any) => ({
+              service_id: s.id,
+              slug: s.slug,
+              name: s.name,
+              price_per_sqft_low: s.pricing?.pricePerSqftLow ?? 4.0,
+              price_per_sqft_high: s.pricing?.pricePerSqftHigh ?? 6.2,
+              base_fee_low: s.pricing?.baseFeeLow ?? 500,
+              base_fee_high: s.pricing?.baseFeeHigh ?? 950,
+              min_sqft: s.pricing?.minSqft ?? 500,
+              max_sqft: s.pricing?.maxSqft ?? 12000,
+              apr_available: s.pricing?.aprAvailable ?? true,
+              financing_apr: s.pricing?.financingApr ?? 0.0,
+              financing_term_months: s.pricing?.financingTermMonths ?? 60,
+            }));
+          }
+          loadedPricing = {
+            ...INITIAL_PRICING_CONFIG,
+            ...pricingRes,
+            pricingRules: rules && rules.length > 0 ? rules : INITIAL_PRICING_CONFIG.pricingRules,
+            marginGuardrails: pricingRes.marginGuardrails || INITIAL_PRICING_CONFIG.marginGuardrails,
+            pitchMultipliers: pricingRes.pitchMultipliers || INITIAL_PRICING_CONFIG.pitchMultipliers,
+            storyMultipliers: pricingRes.storyMultipliers || INITIAL_PRICING_CONFIG.storyMultipliers,
+            tearOffRates: pricingRes.tearOffRates || INITIAL_PRICING_CONFIG.tearOffRates,
+            permitFees: pricingRes.permitFees || INITIAL_PRICING_CONFIG.permitFees,
+            wasteFactors: pricingRes.wasteFactors || INITIAL_PRICING_CONFIG.wasteFactors,
+          };
+          setPricing(loadedPricing);
         }
+
+        baselineSettingsRef.current = {
+          members: loadedMembers,
+          roles: loadedRoles,
+          pricing: loadedPricing,
+          pipeline: loadedPipeline,
+          notifications: loadedNotifications,
+        };
 
         const logsRes = await api.request<{ logs: AuditLogEntry[] }>('/admin/audit-logs').catch(() => null);
         if (logsRes?.logs) setAuditLogs(logsRes.logs);
@@ -204,14 +252,19 @@ export function SettingsPage() {
 
   const handleInviteMember = async (newMemberData: any) => {
     try {
-      await api.createInvitation({
+      const res = await api.createInvitation({
         email: newMemberData.email,
       });
-      alert(`Invitation sent to ${newMemberData.email}`);
+      // Save the invite link so the user can copy it (works on local too)
+      if (res?.accept_url) {
+        setLastInviteLink(res.accept_url);
+        setInviteLinkCopied(false);
+      }
+      toast.success(`Invitation sent to ${newMemberData.email}${res?.email_sent ? ' via email' : ' — copy the link below!'}`);
       const usersRes = await api.getUsers().catch(() => null);
       if (usersRes?.users) setMembers(usersRes.users as any);
     } catch (e: any) {
-      alert(`Failed to send invite: ${e.message}`);
+      toast.error(`Failed to send invite: ${e.message}`);
     }
   };
 
@@ -239,8 +292,9 @@ export function SettingsPage() {
         // Find existing role permissions and update
         const currentRole = roles.find(r => r.id === roleId);
         if (currentRole) {
+           const currentPerms = currentRole.permissions as Record<string, boolean>;
            await api.updateRole(Number(roleId), {
-             permissions: Object.keys(currentRole.permissions).filter(k => k !== permKey ? currentRole.permissions[k] : val).map(k => ({ permission_id: 1, scope: k }))
+             permissions: Object.keys(currentRole.permissions).filter(k => k !== permKey ? currentPerms[k] : val).map(k => ({ permission_id: 1, scope: k }))
            });
         }
       }
@@ -256,9 +310,10 @@ export function SettingsPage() {
   const handleCreateBackup = async () => {
     try {
       await api.request('/admin/backups', { method: 'POST' });
-      alert('Encrypted backup successfully created and pushed to cloud storage.');
+      toast.success('Encrypted backup successfully created and pushed to cloud storage.');
     } catch (e) {
       console.error(e);
+      toast.error('Failed to create encrypted backup.');
     }
   };
 
@@ -278,23 +333,32 @@ export function SettingsPage() {
       // Update users and roles (for this demo, we'll sync the arrays as settings or rely on individual handlers, but here we save them to settings as a fallback if endpoints aren't fully matching)
       await updateSettings('team_members', members);
       await updateSettings('user_roles', roles);
+      baselineSettingsRef.current = {
+        members,
+        roles,
+        pricing,
+        pipeline,
+        notifications,
+      };
 
       setHasUnsavedChanges(false);
+      toast.success('All settings saved and synchronized.');
     } catch (err) {
       console.error('Failed to save settings:', err);
-      alert('Failed to save settings to the server.');
+      toast.error('Failed to save settings to the server.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDiscard = () => {
-    setMembers(INITIAL_TEAM_MEMBERS);
-    setRoles(INITIAL_USER_ROLES);
+    const baseline = baselineSettingsRef.current;
+    setMembers(baseline.members);
+    setRoles(baseline.roles);
     resetCompany();
-    setPricing(INITIAL_PRICING_CONFIG);
-    setPipeline(INITIAL_PIPELINE_AUTOMATION);
-    setNotifications(INITIAL_NOTIFICATION_SETTINGS);
+    setPricing(baseline.pricing);
+    setPipeline(baseline.pipeline);
+    setNotifications(baseline.notifications);
     setHasUnsavedChanges(false);
   };
 
@@ -331,7 +395,7 @@ export function SettingsPage() {
         pageId="settings"
         defaultEyebrow={`Operations & Contractor Infrastructure • ${company.dba || 'Oceanside HQ'}`}
         defaultTitle="BUSINESS SETTINGS & TEAM SUITE"
-        defaultSubtitle="Centralized operations, contractor licensing, estimator pricing multipliers, team user roles, and security policies."
+        defaultSubtitle="Centralized operations, contractor licensing, estimator pricing multipliers, and team user roles."
         showSearch={true}
         searchPlaceholder="Search settings, team members..."
         searchValue={search}
@@ -342,10 +406,10 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={handleExportConfig}
-              className="h-9 px-3.5 rounded-xl liquid-glass-btn text-slate-700 hover:text-slate-900 hover:border-sky-400 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              className="h-9 px-3.5 rounded-xl liquid-glass-btn text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:border-sky-400 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               title="Export complete configuration JSON snapshot"
             >
-              <Download size={13} className="text-[#1878B8]" />
+              <Download size={13} className="text-[#1878B8] dark:text-sky-400" />
               <span>Export</span>
             </button>
 
@@ -353,7 +417,7 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={handleDiscard}
-                className="h-9 px-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                className="h-9 px-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               >
                 <RotateCcw size={13} />
                 <span>Discard</span>
@@ -384,17 +448,18 @@ export function SettingsPage() {
           </div>
         }
         bottomRightBadges={
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 border border-emerald-200/90 text-[10px] font-bold text-emerald-800 shadow-2xs shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-200/90 dark:border-emerald-800/60 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>{company.licenseNumber || 'CSLB #1115874'} Active</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 border border-sky-200/90 text-[10px] font-bold text-sky-800 shadow-2xs shrink-0">
-              <ShieldCheck size={11} className="text-sky-600" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 dark:bg-sky-950/60 border border-sky-200/90 dark:border-sky-800/60 text-[10px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs shrink-0">
+              <ShieldCheck size={11} className="text-sky-600 dark:text-sky-400" />
               <span>{company.dba || 'Rise Up Roofing'}</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 border border-slate-200/90 text-[10px] font-bold text-slate-700 shadow-2xs shrink-0">
-              <span>Backups: Hourly</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/90 dark:border-white/10 text-[10px] font-bold text-slate-700 dark:text-slate-300 shadow-2xs shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+              <span>Cloud Sync: Real-time</span>
             </span>
           </div>
         }
@@ -415,6 +480,10 @@ export function SettingsPage() {
 
         {activeTab === 'users' && (
           <TeamRolesPermissionMatrix />
+        )}
+
+        {activeTab === 'signatories' && (
+          <AuthorizedSignatoriesTab onNavigateToRoles={() => handleTabChange('users')} />
         )}
 
         {activeTab === 'company' && (
@@ -444,24 +513,7 @@ export function SettingsPage() {
             onChange={(updated) => { setNotifications(updated); setHasUnsavedChanges(true); }}
           />
         )}
-
-        {activeTab === 'security' && (
-          <SecurityBackupsTab
-            sessions={sessions}
-            auditLogs={auditLogs}
-            onRevokeSession={handleRevokeSession}
-            onCreateBackup={handleCreateBackup}
-          />
-        )}
       </div>
-
-      {/* 4. Invite User Modal Dialog */}
-      <InviteUserModal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        onInvite={handleInviteMember}
-        roles={roles}
-      />
     </div>
   );
 }

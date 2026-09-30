@@ -1,5 +1,4 @@
-import hashlib
-import hmac
+import bcrypt
 import secrets
 import time
 from typing import Optional
@@ -11,7 +10,7 @@ from app.core.redis import cache_get, cache_set, cache_delete, check_rate_limit
 
 async def verify_seedphrase(seedphrase: str, client_ip: str = "unknown") -> bool:
     """
-    Verify the developer seedphrase in constant time.
+    Verify the developer seedphrase using bcrypt constant-time comparison.
     Strictly rate-limited to 5 attempts per minute per IP to prevent brute forcing.
     """
     # Rate limit check: 5 attempts per 60 seconds
@@ -22,25 +21,41 @@ async def verify_seedphrase(seedphrase: str, client_ip: str = "unknown") -> bool
             detail=f"Too many developer unlock attempts. Try again in {retry_after} seconds."
         )
 
-    if not seedphrase:
+    if not seedphrase or not settings.DEVELOPER_SEEDPHRASE_HASH:
         return False
 
-    # Compute SHA-256 digest
-    entered_hash = hashlib.sha256(seedphrase.strip().encode("utf-8")).hexdigest()
-    expected_hash = settings.DEVELOPER_SEEDPHRASE_HASH
-
-    # Constant time comparison against configured hash
-    match = hmac.compare_digest(entered_hash, expected_hash)
-    if not match and settings.DEVELOPER_SEEDPHRASE:
-        # Fallback comparison if plain string configured
-        match = hmac.compare_digest(seedphrase.strip(), settings.DEVELOPER_SEEDPHRASE)
-
-    return match
+    stored_hash = settings.DEVELOPER_SEEDPHRASE_HASH.strip()
+    
+    # Support both bcrypt hashes ($2b$ prefix) and legacy SHA-256 (64 hex chars)
+    # This allows a graceful migration period
+    if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$") or stored_hash.startswith("$2y$"):
+        # Modern bcrypt verification
+        try:
+            return bcrypt.checkpw(seedphrase.strip().encode("utf-8"), stored_hash.encode("utf-8"))
+        except Exception:
+            return False
+    else:
+        # Legacy SHA-256 fallback (to be removed after migration)
+        import hashlib
+        import hmac as _hmac
+        entered_hash = hashlib.sha256(seedphrase.strip().encode("utf-8")).hexdigest()
+        return _hmac.compare_digest(entered_hash, stored_hash)
 
 _in_memory_dev_sessions = {}
 
+def _prune_dev_sessions():
+    now = time.time()
+    expired = [k for k, exp in list(_in_memory_dev_sessions.items()) if exp <= now]
+    for k in expired:
+        _in_memory_dev_sessions.pop(k, None)
+    if len(_in_memory_dev_sessions) > 500:
+        oldest = sorted(_in_memory_dev_sessions.items(), key=lambda x: x[1])[:100]
+        for k, _ in oldest:
+            _in_memory_dev_sessions.pop(k, None)
+
 async def create_developer_session(ip_address: Optional[str] = None) -> str:
     """Generate and store a secure 12-hour developer session in Redis with in-memory fallback."""
+    _prune_dev_sessions()
     token = secrets.token_hex(32)
     session_data = {
         "created_at": time.time(),

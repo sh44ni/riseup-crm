@@ -137,13 +137,13 @@ export function StormPromoModal() {
         body: JSON.stringify({
           fullName: fullName.trim(),
           phone: phone.trim(),
-          city: city.trim() || 'San Diego',
+          city: city.trim() || undefined,
           serviceType,
           formType: 'storm_promo',
           priority: 'hot',
           leadScore: 95,
           leadSource: 'storm_promo_popup',
-          notes: `⚡ El Niño Storm Promo Claim: $1,000 Off voucher claimed for ${serviceType} in ${city}. Free 21-point storm inspection requested.`,
+          notes: `⚡ El Niño Storm Promo Claim: $1,000 Off voucher claimed for ${serviceType}${city.trim() ? ` in ${city.trim()}` : ''}. Free 21-point storm inspection requested.`,
         }),
       });
 

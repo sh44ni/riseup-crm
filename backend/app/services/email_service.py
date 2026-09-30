@@ -1,4 +1,5 @@
 import base64
+import html
 import os
 from typing import Dict, Any, Optional, List
 import httpx
@@ -28,8 +29,13 @@ async def send_estimate_proposal_email(
             "recipient": to_email,
         }
 
+    customer_name = html.escape(str(customer_name or "Valued Homeowner"))
+    clean_custom_msg = html.escape(str(custom_message.strip())) if custom_message and custom_message.strip() else ""
+    estimate_number = html.escape(str(estimate_number or ""))
     if not pdf_filename:
         pdf_filename = f"RiseUp_Roofing_Proposal_{estimate_number}.pdf"
+    else:
+        pdf_filename = html.escape(str(pdf_filename))
 
     if not subject:
         subject = f"Your Official Roofing Estimate & Proposal - Rise Up Roofing ({estimate_number})"
@@ -39,8 +45,8 @@ async def send_estimate_proposal_email(
 
     # Email HTML body
     message_paragraphs = ""
-    if custom_message and custom_message.strip():
-        message_paragraphs = f"<div style='background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 12px 16px; margin: 16px 0; font-style: italic; color: #334155;'>{custom_message.strip()}</div>"
+    if clean_custom_msg:
+        message_paragraphs = f"<div style='background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 12px 16px; margin: 16px 0; font-style: italic; color: #334155;'>{clean_custom_msg}</div>"
 
     html_body = f"""
     <!DOCTYPE html>
@@ -158,26 +164,32 @@ async def send_customer_welcome_inquiry_email(
     if not key or not to_email:
         return {"success": False, "missing_key": True, "error": "Missing key or email"}
 
+    customer_name = html.escape(str(customer_name or "Valued Homeowner"))
+    service_type = html.escape(str(service_type or "Roofing Inquiry"))
+    city_or_address = html.escape(str(city_or_address or "San Diego County, CA"))
+    clean_custom_msg = html.escape(str(custom_message.strip())) if custom_message and custom_message.strip() else ""
+    clean_estimate_range = html.escape(str(estimate_range)) if estimate_range else None
+
     subject = f"Thank you for contacting Rise Up Roofing - Project Inquiry Received"
     if form_type in ("estimator", "estimator_full", "calculator"):
         subject = f"Your Instant Roofing Estimate Details - Rise Up Roofing & Construction"
 
     range_banner = ""
-    if estimate_range:
+    if clean_estimate_range:
         range_banner = f"""
         <div style="margin: 20px 0; padding: 16px; background-color: #f0f9ff; border-radius: 10px; border: 1px solid #bae6fd; text-align: center;">
           <span style="font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; letter-spacing: 0.08em; display: block;">Preliminary Estimate Range</span>
-          <span style="font-size: 20px; font-weight: 900; color: #0c4a6e; display: block; margin-top: 4px;">{estimate_range}</span>
+          <span style="font-size: 20px; font-weight: 900; color: #0c4a6e; display: block; margin-top: 4px;">{clean_estimate_range}</span>
           <span style="font-size: 11px; color: #0284c7; display: block; margin-top: 2px;">Subject to on-site roof inspection &amp; scope verification</span>
         </div>
         """
 
     notes_section = ""
-    if custom_message and custom_message.strip():
+    if clean_custom_msg:
         notes_section = f"""
         <div style="margin: 16px 0; padding: 12px 16px; background-color: #f8fafc; border-left: 4px solid #0284c7; border-radius: 4px;">
           <strong style="font-size: 11px; text-transform: uppercase; color: #64748b; display: block; letter-spacing: 0.05em;">Your Project Notes:</strong>
-          <span style="font-size: 13px; color: #334155; font-style: italic;">{custom_message.strip()}</span>
+          <span style="font-size: 13px; color: #334155; font-style: italic;">{clean_custom_msg}</span>
         </div>
         """
 
@@ -269,6 +281,155 @@ async def send_customer_welcome_inquiry_email(
         return {"success": False, "error": str(e)}
 
 
+async def send_contract_email(
+    to_email: str,
+    customer_name: str,
+    contract_number: str,
+    pdf_bytes: bytes,
+    pdf_filename: Optional[str] = None,
+    subject: Optional[str] = None,
+    custom_message: Optional[str] = None,
+    signing_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Sends a Home Improvement Contract email with the PDF attached via the Resend API,
+    and a direct link to the digital contract signing wizard.
+    """
+    key = api_key or getattr(settings, "RESEND_API_KEY", "") or os.environ.get("RESEND_API_KEY", "")
+    if not key:
+        return {
+            "success": False,
+            "missing_key": True,
+            "error": "Resend API key is not configured in server environment (RESEND_API_KEY).",
+            "recipient": to_email,
+        }
+
+    customer_name = html.escape(str(customer_name or "Valued Homeowner"))
+    contract_number = html.escape(str(contract_number or ""))
+    clean_custom_msg = html.escape(str(custom_message.strip())) if custom_message and custom_message.strip() else ""
+
+    if not pdf_filename:
+        pdf_filename = f"RiseUp_Contract_{contract_number}.pdf"
+    else:
+        pdf_filename = html.escape(str(pdf_filename))
+
+    if not subject:
+        subject = f"Your Home Improvement Contract – Rise Up Roofing ({contract_number})"
+
+    encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    message_paragraphs = ""
+    if clean_custom_msg:
+        message_paragraphs = (
+            f"<div style='background-color:#f8fafc;border-left:4px solid #0284c7;"
+            f"padding:12px 16px;margin:16px 0;font-style:italic;color:#334155;'>"
+            f"{clean_custom_msg}</div>"
+        )
+
+    signing_cta_html = ""
+    if signing_url:
+        signing_cta_html = f"""
+          <div style="margin:28px 0 24px;text-align:center;">
+            <a href="{signing_url}" target="_blank" style="background-color:#1a5ba5;color:#ffffff;padding:15px 32px;border-radius:10px;font-weight:700;font-size:15px;text-decoration:none;display:inline-block;box-shadow:0 4px 12px rgba(26,91,165,0.25);">
+              Review &amp; Sign Contract Online &rarr;
+            </a>
+            <div style="margin-top:8px;font-size:12px;color:#64748b;">
+              California UETA &amp; ESIGN compliant electronic signature portal
+            </div>
+          </div>
+        """
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>{subject}</title>
+    </head>
+    <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.6;color:#0f172a;margin:0;padding:24px;background-color:#f1f5f9;">
+      <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.06);border:1px solid #e2e8f0;">
+        <div style="background-color:#091b36;padding:24px;text-align:center;color:#ffffff;">
+          <h1 style="margin:0;font-size:20px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;">Rise Up Roofing &amp; Construction</h1>
+          <p style="margin:4px 0 0 0;font-size:11px;color:#38bdf8;font-weight:600;text-transform:uppercase;letter-spacing:0.15em;">Roofing | Solar | General Construction &bull; Lic #1096492</p>
+        </div>
+        <div style="padding:28px 24px;">
+          <p style="font-size:15px;margin-top:0;">Dear <strong>{customer_name}</strong>,</p>
+          <p style="font-size:14px;color:#334155;">
+            Please find attached your official <strong>Home Improvement Contract</strong> from
+            <strong>Rise Up Roofing &amp; Construction</strong>. You may review the complete contract specifications,
+            progress payment milestones, and statutory cancellation notices step-by-step and sign securely online:
+          </p>
+          {signing_cta_html}
+          {message_paragraphs}
+          <div style="margin:24px 0;padding:16px;background-color:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
+            <div style="font-size:12px;font-weight:800;color:#166534;text-transform:uppercase;letter-spacing:0.05em;">Contract Attachment Included</div>
+            <div style="font-size:13px;color:#15803d;margin-top:4px;">
+              Your official copy (<strong>{pdf_filename}</strong>) is attached to this email for your offline records.
+            </div>
+          </div>
+          <div style="margin:20px 0;padding:14px 16px;background-color:#fff7ed;border-radius:8px;border:1px solid #fed7aa;">
+            <div style="font-size:12px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:0.05em;">Three-Day Right to Cancel</div>
+            <div style="font-size:13px;color:#7c2d12;margin-top:4px;">
+              Under California law, you have the right to cancel this contract within
+              <strong>three business days</strong> of signing. A Notice of Cancellation form is
+              included as Exhibit A at the end of the contract document.
+            </div>
+          </div>
+          <p style="font-size:14px;color:#334155;">
+            If you have any questions, please reply to this email or call us at <strong>(760) 622 - 1230</strong>.
+          </p>
+          <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+            <strong>Rise Up Roofing &amp; Construction</strong><br>
+            2182 S El Camino Real, Ste 202, Oceanside, CA 92054<br>
+            Phone: (760) 622 - 1230 &bull; Email: marc@riseuprac.com<br>
+            Website: <a href="https://riseuprac.com" style="color:#0284c7;text-decoration:none;">https://riseuprac.com</a>
+          </div>
+        </div>
+        <div style="background-color:#f8fafc;padding:12px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.06em;">
+          Owens Corning Preferred Contractor &bull; Veteran Owned &bull; BBB A+ Accredited
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    from_email = getattr(settings, "RESEND_FROM_EMAIL", "Rise Up Roofing <estimates@riseuprac.com>")
+    resend_payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "attachments": [{"filename": pdf_filename, "content": encoded_pdf}],
+    }
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(RESEND_API_URL, json=resend_payload, headers=headers)
+        if resp.status_code in (200, 201):
+            return {
+                "success": True,
+                "data": resp.json(),
+                "recipient": to_email,
+                "filename": pdf_filename,
+            }
+        else:
+            error_data = (
+                resp.json()
+                if resp.headers.get("content-type", "").startswith("application/json")
+                else {"error": resp.text}
+            )
+            return {
+                "success": False,
+                "status_code": resp.status_code,
+                "error": error_data,
+                "recipient": to_email,
+            }
+
+
 async def send_internal_lead_alert_email(
     lead_id: int | str,
     customer_name: str,
@@ -295,10 +456,17 @@ async def send_internal_lead_alert_email(
     # Filter unique valid recipients
     to_emails = list(dict.fromkeys(to_emails))
 
-    val_str = f"${estimated_value:,.0f}" if estimated_value and estimated_value > 0 else "Pending Inspection"
-    subject = f"🚨 New Lead Alert: {customer_name} – {service_type} ({val_str})"
+    safe_name = html.escape(str(customer_name or "New Lead"))
+    safe_phone = html.escape(str(phone or "Not provided"))
+    safe_email = html.escape(str(email or "Not provided"))
+    safe_service = html.escape(str(service_type or "Roofing Project"))
+    safe_notes = html.escape(str(notes.strip())) if notes and notes.strip() else "None provided"
+    safe_source = html.escape(str(source_detail or "Website Form"))
 
-    location_str = f"{address or ''}, {city or 'Oceanside'}".strip(", ")
+    val_str = f"${estimated_value:,.0f}" if estimated_value and estimated_value > 0 else "Pending Inspection"
+    subject = f"🚨 New Lead Alert: {safe_name} – {safe_service} ({val_str})"
+
+    location_str = html.escape(f"{address or ''}, {city or 'Oceanside'}".strip(", "))
     crm_pipeline_url = f"https://crm.riseuprac.com/pipeline"
 
     html_body = f"""
@@ -408,6 +576,115 @@ async def send_internal_lead_alert_email(
             resp = await client.post(RESEND_API_URL, json=payload, headers=headers)
             if resp.status_code in (200, 201):
                 return {"success": True, "data": resp.json(), "recipients": to_emails}
+            return {"success": False, "status_code": resp.status_code, "error": resp.text}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+async def send_team_invitation_email(
+    to_email: str,
+    inviter_name: str,
+    role_name: str,
+    accept_url: str,
+    expires_at: str,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Sends a branded team invitation email via Resend to a newly invited user.
+    From: verification@riseuprac.com
+    """
+    key = api_key or getattr(settings, "RESEND_API_KEY", "") or os.environ.get("RESEND_API_KEY", "")
+    if not key:
+        return {"success": False, "missing_key": True, "error": "Missing Resend API key"}
+
+    inviter_name = html.escape(str(inviter_name or "A team administrator"))
+    role_name = html.escape(str(role_name or "Team Member"))
+    expires_at = html.escape(str(expires_at or "48 hours"))
+
+    subject = "You've been invited to join Rise Up Roofing"
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>{subject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; margin: 0; padding: 24px; background-color: #f1f5f9;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+
+        <!-- Header with Logo -->
+        <div style="background-color: #091b36; padding: 28px 24px; text-align: center; color: #ffffff;">
+          <img src="https://riseuprac.com/logo-white.svg" alt="Rise Up Roofing" style="height: 42px; margin-bottom: 10px; display: inline-block;">
+          <p style="margin: 0; font-size: 11px; color: #38bdf8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em;">
+            Roofing | Solar | General Construction &bull; Lic #1096492
+          </p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 28px;">
+          <h2 style="font-size: 22px; font-weight: 800; color: #091b36; margin: 0 0 16px 0;">You're Invited to Join the Team!</h2>
+
+          <p style="font-size: 14px; color: #334155; margin: 0 0 12px 0;">
+            <strong>{inviter_name}</strong> has invited you to join <strong>Rise Up Roofing &amp; Construction</strong> on our team management platform.
+          </p>
+
+          <!-- Role Assignment Card -->
+          <div style="margin: 20px 0; padding: 16px; background-color: #f0f9ff; border-radius: 10px; border: 1px solid #bae6fd;">
+            <div style="font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; letter-spacing: 0.08em;">Your Assigned Role</div>
+            <div style="font-size: 18px; font-weight: 900; color: #0c4a6e; margin-top: 4px;">{role_name}</div>
+            <div style="font-size: 11px; color: #0284c7; margin-top: 2px;">You'll inherit this role's permissions immediately upon joining.</div>
+          </div>
+
+          <p style="font-size: 14px; color: #334155; margin: 16px 0;">
+            Click the button below to set up your name, profile photo, and password. It only takes a minute.
+          </p>
+
+          <!-- CTA Button -->
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="{accept_url}" style="display: inline-block; background: linear-gradient(135deg, #E06800, #FF8A00); color: #ffffff; font-size: 15px; font-weight: 800; text-decoration: none; padding: 16px 36px; border-radius: 10px; box-shadow: 0 4px 16px rgba(224,104,0,0.35); text-transform: uppercase; letter-spacing: 0.05em;">
+              Accept Invitation &amp; Join Team
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 8px 0 0 0;">
+            This invitation link will expire on <strong style="color: #64748b;">{expires_at}</strong>.
+          </p>
+
+          <!-- Footer Contact -->
+          <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+            <strong>Rise Up Roofing &amp; Construction</strong><br>
+            2182 S El Camino Real, Ste 202, Oceanside, CA 92054<br>
+            Phone: <a href="tel:7606221230" style="color: #0284c7; text-decoration: none;">(760) 622 - 1230</a> &bull; Email: <a href="mailto:marc@riseuprac.com" style="color: #0284c7; text-decoration: none;">marc@riseuprac.com</a><br>
+            Website: <a href="https://riseuprac.com" style="color: #0284c7; text-decoration: none;">https://riseuprac.com</a>
+          </div>
+        </div>
+
+        <!-- Trust Badges Strip -->
+        <div style="background-color: #f8fafc; padding: 12px 24px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.06em;">
+          Owens Corning Preferred Contractor &bull; Veteran Owned &bull; BBB A+ Accredited
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    from_email = getattr(settings, "RESEND_VERIFICATION_EMAIL", "Rise Up Roofing <verification@riseuprac.com>")
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+    }
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(RESEND_API_URL, json=payload, headers=headers)
+            if resp.status_code in (200, 201):
+                return {"success": True, "data": resp.json(), "recipient": to_email}
             return {"success": False, "status_code": resp.status_code, "error": resp.text}
     except Exception as e:
         return {"success": False, "error": str(e)}

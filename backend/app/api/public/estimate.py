@@ -1,12 +1,14 @@
+from app.core.logger import get_logger
 import re
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.middlewares.rate_limit import rate_limit
-from app.services.sync import find_or_create_client
+from app.services.sync import find_or_create_client, parse_address_components
 from app.services.scoring import calculate_lead_score
 from app.services.calculator import calculate_lead_estimated_value
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Public"])
 
@@ -23,12 +25,20 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
     if not full_name or not phone:
         raise HTTPException(status_code=400, detail="Name and phone are required")
 
-    address = body.get("address")
-    city = body.get("city") or "San Diego"
-    zip_code = body.get("zip") or body.get("zipCode")
+    # Parse and normalize address, city, and zip cleanly
+    parsed_addr = parse_address_components(
+        body.get("address"),
+        body.get("city"),
+        body.get("zip") or body.get("zipCode")
+    )
+    address = parsed_addr["address"]
+    city = parsed_addr["city"]
+    zip_code = parsed_addr["zip"]
+
     service_type = body.get("serviceType") or "Roof Replacement"
     notes = body.get("notes") or ""
-    email = body.get("email")
+    raw_email = (body.get("email") or "").strip().lower()
+    email = raw_email if raw_email else None
     form_type = body.get("formType") or "estimate"
     lead_source = body.get("leadSource") or "website"
 
@@ -174,7 +184,7 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
             priority=priority,
         )
     except Exception as e:
-        print(f"Automated estimate email dispatch notice: {e}")
+        logger.warning(f"Automated estimate email dispatch notice: {e}")
 
     return {
         "ok": True,

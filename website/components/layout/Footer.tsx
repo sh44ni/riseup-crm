@@ -44,7 +44,7 @@ const COMPANY_LINKS = [
   { label: 'Knowledge Hub & Guides', href: '/guides' },
   { label: 'Roof Tear-Off Guide', href: '/about/roof-tear-off-process' },
   { label: 'Featured Projects', href: '/projects' },
-  { label: 'Customer Reviews', href: '/reviews' },
+  { label: 'Client Reviews', href: '/reviews' },
   { label: 'Warranties & Certifications', href: '/#certifications' },
   { label: 'Careers', href: '/careers' },
   { label: 'Contact Us', href: '/contact' },
@@ -90,7 +90,7 @@ export function Footer({ stats }: { stats?: ReviewStats } = {}) {
                 </a>
               </Tooltip>
 
-              <Tooltip content="Direct customer email">
+              <Tooltip content="Direct client email">
                 <a
                   href="mailto:info@riseuprac.com"
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white text-xs border border-white/15 transition-all"

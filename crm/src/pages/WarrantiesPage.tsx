@@ -14,8 +14,10 @@ import {
 import { DevelopmentInProgressBanner } from '@/components/common/DevelopmentInProgressBanner';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
 import { useCompany } from '@/context/CompanyContext';
+import { useToast } from '@/context/ToastContext';
 
 export function WarrantiesPage() {
+  const { toast } = useToast();
   const { dba, licenseNumber } = useCompany();
   const companyName = dba || 'Rise Up';
   const licenseBadgeText = licenseNumber || 'CSLB #1115874';
@@ -155,8 +157,9 @@ export function WarrantiesPage() {
 
             <div className="flex items-center justify-end gap-2 pt-1">
               <button
-                onClick={() => alert(`Downloading official warranty certificate for ${w.client}...`)}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                type="button"
+                onClick={() => toast.success(`Downloading official warranty certificate for ${w.client}...`)}
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
               >
                 <Download size={13} />
                 <span>Download Certificate (PDF)</span>

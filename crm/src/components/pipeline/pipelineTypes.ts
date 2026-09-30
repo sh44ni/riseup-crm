@@ -1,9 +1,11 @@
 export interface DealCard {
   id: string;
+  clientId?: number | string | null;
   name: string;
   location: string;
   address?: string;
   city?: string;
+  zip?: string;
   service: string;
   serviceColor: 'sky' | 'amber' | 'emerald' | 'purple' | 'coral' | 'indigo' | 'blue';
   time: string;
@@ -14,6 +16,8 @@ export interface DealCard {
   isFollowupOverdue?: boolean;
   hoursUntilAutoMove?: number | null;
   followupDaysRemaining?: number;
+  followupHoursRemaining?: number;
+  followUpAt?: string | null;
   leadSource?: string;
   leadSourceDetail?: string;
   sourceType?: string;
@@ -21,6 +25,11 @@ export interface DealCard {
   assignedToName?: string | null;
   createdByUserId?: number | null;
   createdByName?: string | null;
+  contractSignedAt?: string | null;
+  contractStatus?: string | null;
+  isContractSigned?: boolean;
+  granularStage?: string;
+  pipelineStage?: string;
 }
 
 export interface ColumnData {
@@ -146,19 +155,12 @@ export function enrichDeals(columns: ColumnData[]): EnrichedDeal[] {
 export type PipelineStageId =
   | 'cold_lead'
   | 'initial_call'
-  | 'inspection_scheduled'
-  | 'inspection_completed'
-  | 'estimate_building'
+  | 'estimate_scheduled'
   | 'estimate_sent'
   | 'follow_up'
-  | 'followup_2day'
-  | 'followup_7day'
-  | 'decision_followup'
-  | 'future_followup'
+  | 'contract_sent'
   | 'contract_signed'
   | 'active_jobs'
-  | 'job_completed'
-  | 'closed_won'
   | 'closed_lost';
 
 export interface StageDefinition {
@@ -179,7 +181,7 @@ export const PIPELINE_STAGES: StageDefinition[] = [
   {
     stepNumber: 1,
     id: 'cold_lead',
-    title: 'Day 0 — Cold Lead Comes In',
+    title: 'Day 0 — Lead Comes In',
     shortTitle: 'Cold Lead',
     timingLabel: 'Day 0',
     sopGoal: 'Lead enters the CRM from website, ads, referral, cold outreach, Yelp, Google, or other sources.',
@@ -192,10 +194,10 @@ export const PIPELINE_STAGES: StageDefinition[] = [
   {
     stepNumber: 2,
     id: 'initial_call',
-    title: 'Same Day — Initial Call',
-    shortTitle: 'Initial Call',
+    title: 'Same Day — Contacted',
+    shortTitle: 'Contacted',
     timingLabel: 'Same Day',
-    sopGoal: 'Call the lead, introduce Rise Up, understand their needs, confirm property address, and schedule roof inspection appointment.',
+    sopGoal: 'Call the lead, introduce Rise Up, understand their needs, confirm property address, and schedule estimate appointment.',
     iconType: 'phone',
     accentColor: '#0EA5E9',
     pillBg: 'bg-cyan-500/15 border-cyan-500/30',
@@ -204,11 +206,11 @@ export const PIPELINE_STAGES: StageDefinition[] = [
   },
   {
     stepNumber: 3,
-    id: 'inspection_scheduled',
-    title: 'Appointment Day — Inspection Scheduled',
-    shortTitle: 'Inspection Booked',
+    id: 'estimate_scheduled',
+    title: 'Appointment Day — Estimate Scheduled',
+    shortTitle: 'Estimate Scheduled',
     timingLabel: 'Appt Day',
-    sopGoal: 'Estimator arrives at the property, meets the client when possible, and discusses roof concerns and homeowner goals.',
+    sopGoal: 'Estimator arrives at the property, meets the client, measures the roof, and builds the estimate same day.',
     iconType: 'calendar',
     accentColor: '#8B5CF6',
     pillBg: 'bg-purple-500/15 border-purple-500/30',
@@ -217,50 +219,24 @@ export const PIPELINE_STAGES: StageDefinition[] = [
   },
   {
     stepNumber: 4,
-    id: 'inspection_completed',
-    title: 'Same Visit — Roof Inspection & Photos',
-    shortTitle: 'Inspection & Photos',
-    timingLabel: 'Same Visit',
-    sopGoal: 'Inspect the roof, take measurements, document issues, and capture clear photos of all problem areas.',
-    iconType: 'camera',
-    accentColor: '#6366F1',
-    pillBg: 'bg-indigo-500/15 border-indigo-500/30',
-    pillText: 'text-indigo-700',
-    dotColor: 'bg-indigo-500',
-  },
-  {
-    stepNumber: 5,
-    id: 'estimate_building',
-    title: 'Same Day Goal — Build & Send Estimate',
-    shortTitle: 'Building Estimate',
-    timingLabel: 'Same Day Goal',
-    sopGoal: 'Create proposal with scope of work, photos, options, pricing, warranties, and project details. Goal: send estimate same day whenever possible.',
-    iconType: 'file-text',
-    accentColor: '#F59E0B',
-    pillBg: 'bg-amber-500/15 border-amber-500/30',
-    pillText: 'text-amber-700',
-    dotColor: 'bg-amber-500',
-  },
-  {
-    stepNumber: 6,
     id: 'estimate_sent',
     title: 'Proposal Delivered — 48h Review Window',
     shortTitle: 'Estimate Sent',
     timingLabel: '48h Review Window',
     sopGoal: 'Text or call client to let them know proposal was sent. 48-hour review buffer before auto-moving to active Follow-Up.',
-    iconType: 'message-square',
+    iconType: 'file-text',
     accentColor: '#10B981',
     pillBg: 'bg-emerald-500/15 border-emerald-500/30',
     pillText: 'text-emerald-700',
     dotColor: 'bg-emerald-500',
   },
   {
-    stepNumber: 7,
+    stepNumber: 5,
     id: 'follow_up',
     title: 'Active Follow-Up — 7-Day Automated Cadence',
     shortTitle: 'Follow-Up',
     timingLabel: '7-Day Reset Cycle',
-    sopGoal: 'Automated 7-day follow-up cycle. Log contact to reset 7-day timer; stays in column and moves to the end. Turns bold red if untouched for 7+ days.',
+    sopGoal: 'Automated 7-day follow-up cycle. Log contact to reset 7-day timer. Turns bold red if untouched for 7+ days.',
     iconType: 'repeat',
     accentColor: '#7C3AED',
     pillBg: 'bg-purple-500/15 border-purple-500/30',
@@ -268,23 +244,48 @@ export const PIPELINE_STAGES: StageDefinition[] = [
     dotColor: 'bg-purple-500',
   },
   {
-    stepNumber: 8,
-    id: 'closed_won',
-    title: 'Closed / Job Sold',
-    shortTitle: 'Closed Won',
+    stepNumber: 6,
+    id: 'contract_sent',
+    title: 'Contract Sent — Awaiting Client Signature',
+    shortTitle: 'Contract Sent',
+    timingLabel: 'Awaiting Signature',
+    sopGoal: 'Contract has been sent to the client. Follow up to confirm receipt and answer any questions before signing.',
+    iconType: 'message-square',
+    accentColor: '#F59E0B',
+    pillBg: 'bg-amber-500/15 border-amber-500/30',
+    pillText: 'text-amber-700',
+    dotColor: 'bg-amber-500',
+  },
+  {
+    stepNumber: 7,
+    id: 'contract_signed',
+    title: 'Contract Signed — Job Sold',
+    shortTitle: 'Contract Signed',
     timingLabel: 'Job Sold 🎉',
-    sopGoal: 'Collect approval, scheduling payment if needed, finalize materials and colors, schedule the project, and hand off to project management.',
+    sopGoal: 'Client signed the contract. Collect deposit, schedule the project, finalize materials and colors, and hand off to project management.',
     iconType: 'award',
     accentColor: '#059669',
     pillBg: 'bg-emerald-600/15 border-emerald-600/35',
     pillText: 'text-emerald-800',
     dotColor: 'bg-emerald-600',
   },
+  {
+    stepNumber: 8,
+    id: 'active_jobs',
+    title: 'Active Job — In Progress',
+    shortTitle: 'Active Job',
+    timingLabel: 'In Production',
+    sopGoal: 'Job is actively being worked on by the crew. Monitor progress, communicate with client, and ensure quality completion.',
+    iconType: 'users',
+    accentColor: '#0891B2',
+    pillBg: 'bg-cyan-600/15 border-cyan-600/35',
+    pillText: 'text-cyan-800',
+    dotColor: 'bg-cyan-600',
+  },
 ];
 
 export const THREE_OUTCOMES = [
-  { id: 'closed_won', label: 'Closed Won', icon: 'award', color: 'emerald', description: 'Signed contract, deposit paid, handoff to PM.' },
-  { id: 'closed_lost', label: 'Closed Lost', icon: 'x-circle', color: 'rose', description: 'Document root-cause loss reason & autopsy notes.' },
+  { id: 'closed_lost', label: 'Mark Lost', icon: 'x-circle', color: 'rose', description: 'Document root-cause loss reason & autopsy notes.' },
 ] as const;
 
 export const LOSS_REASONS = [
@@ -296,17 +297,10 @@ export const LOSS_REASONS = [
   'Out of Service Area',
 ] as const;
 
-export const FUTURE_FOLLOWUP_BUCKETS = [
-  '30-Day Follow-Up',
-  '60-Day Follow-Up',
-  '90-Day Follow-Up',
-  'Insurance Claim Pending Adjuster',
-  'HOA Architectural Committee Review',
-  'Pending Home Escrow / Closing',
-] as const;
 
 export interface PipelineDealItem {
   id: string;
+  clientId?: number | null;
   name: string;
   phone: string;
   email: string;
@@ -426,7 +420,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     ],
   },
 
-  // 3. Appointment Day — Inspection Scheduled
+  // 3. Appointment Day — Estimate Scheduled
   {
     id: 'dl-104',
     name: 'Elena Rostova',
@@ -437,7 +431,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Flat TPO Commercial',
     serviceColor: 'indigo',
     value: 48000,
-    stageId: 'inspection_scheduled',
+    stageId: 'estimate_scheduled',
     daysInStage: 1,
     score: 94,
     estimator: { name: 'Jake Miller', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100', role: 'Senior Estimator' },
@@ -454,7 +448,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     ],
   },
 
-  // 4. Same Visit — Roof Inspection & Photos
+  // 4. Same Visit — Estimate Building
   {
     id: 'dl-105',
     name: 'Marcus & Beverly Vance',
@@ -465,7 +459,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Tile Relay & Underlayment',
     serviceColor: 'coral',
     value: 32000,
-    stageId: 'inspection_completed',
+    stageId: 'estimate_scheduled',
     daysInStage: 1,
     score: 91,
     estimator: { name: 'Carlos Ramirez', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', role: 'Field Estimator' },
@@ -480,7 +474,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     ],
   },
 
-  // 5. Same Day Goal — Build & Send Estimate
+  // 5. Proposal Delivered — Estimate Sent
   {
     id: 'dl-106',
     name: 'Robert & Clara Sterling',
@@ -491,7 +485,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Architectural Shingle',
     serviceColor: 'emerald',
     value: 26800,
-    stageId: 'estimate_building',
+    stageId: 'estimate_sent',
     daysInStage: 0,
     score: 93,
     estimator: { name: 'Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100', role: 'Architectural Specialist' },
@@ -544,7 +538,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Standing Seam Metal',
     serviceColor: 'sky',
     value: 52000,
-    stageId: 'followup_2day',
+    stageId: 'follow_up',
     daysInStage: 2,
     score: 96,
     estimator: { name: 'Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100', role: 'Architectural Specialist' },
@@ -569,7 +563,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Architectural Shingle',
     serviceColor: 'emerald',
     value: 21500,
-    stageId: 'followup_2day',
+    stageId: 'follow_up',
     daysInStage: 2,
     score: 88,
     estimator: { name: 'Carlos Ramirez', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', role: 'Field Estimator' },
@@ -595,7 +589,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Tile Relay & Underlayment',
     serviceColor: 'coral',
     value: 29800,
-    stageId: 'followup_7day',
+    stageId: 'follow_up',
     daysInStage: 6,
     score: 84,
     estimator: { name: 'Jake Miller', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100', role: 'Senior Estimator' },
@@ -622,7 +616,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Spanish S-Tile Restoration',
     serviceColor: 'coral',
     value: 46000,
-    stageId: 'decision_followup',
+    stageId: 'follow_up',
     daysInStage: 12,
     score: 82,
     estimator: { name: 'Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100', role: 'Architectural Specialist' },
@@ -648,7 +642,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Tile Relay & Underlayment',
     serviceColor: 'coral',
     value: 74000,
-    stageId: 'future_followup',
+    stageId: 'follow_up',
     daysInStage: 28,
     score: 78,
     estimator: { name: 'Jake Miller', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100', role: 'Senior Estimator' },
@@ -673,7 +667,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Architectural Shingle',
     serviceColor: 'emerald',
     value: 19400,
-    stageId: 'future_followup',
+    stageId: 'follow_up',
     daysInStage: 42,
     score: 75,
     estimator: { name: 'Carlos Ramirez', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', role: 'Field Estimator' },
@@ -700,7 +694,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Spanish S-Tile Restoration',
     serviceColor: 'coral',
     value: 31000,
-    stageId: 'closed_won',
+    stageId: 'contract_signed',
     daysInStage: 14,
     score: 99,
     estimator: { name: 'Jake Miller', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100', role: 'Senior Estimator' },
@@ -725,7 +719,7 @@ export const INITIAL_PIPELINE_DEALS: PipelineDealItem[] = [
     service: 'Flat TPO Commercial',
     serviceColor: 'indigo',
     value: 82500,
-    stageId: 'closed_won',
+    stageId: 'contract_signed',
     daysInStage: 18,
     score: 100,
     estimator: { name: 'Sarah Lin', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100', role: 'Architectural Specialist' },

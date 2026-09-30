@@ -39,7 +39,7 @@ interface ProposalData {
   signatureName?: string;
 }
 
-export default function CustomerProposalPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ClientProposalPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const proposalId = resolvedParams.id;
 
@@ -165,7 +165,7 @@ export default function CustomerProposalPage({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        {/* Customer & Project Header */}
+        {/* Client & Project Header */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-amber-950/20 border border-white/10 rounded-3xl p-6 space-y-3">
           <span className="text-xs uppercase font-bold text-amber-400 tracking-wider">
             Official Roofing Proposal

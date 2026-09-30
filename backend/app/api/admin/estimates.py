@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Query
+from app.core.logger import get_logger
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 import secrets
 import os
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
+
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.permissions import require_permission, require_any_permission, has_permission, build_scope_filter
@@ -13,8 +16,48 @@ from app.services.calculator import calculate_roof_estimate
 from app.services.sync import find_or_create_client, recalculate_client_stats
 from app.services.pdf_generator import generate_estimate_proposal_pdf, save_estimate_pdf_file
 from app.services.email_service import send_estimate_proposal_email
+from app.services.reminders import schedule_follow_up_reminder
+from app.schemas.estimates import EstimateCreate, EstimateUpdate, EstimateResponse
 import orjson
 import json
+
+class GenerateEstimatePdfPayload(BaseModel):
+    proposalData: Optional[Any] = None
+    estimateId: Optional[int] = None
+    templateKey: Optional[str] = None
+    template_key: Optional[str] = None
+
+class SendEstimateEmailPayload(BaseModel):
+    customerEmail: str = Field(..., min_length=1)
+    customerName: Optional[str] = "Valued Homeowner"
+    estimateNumber: Optional[str] = None
+    estimateId: Optional[int] = None
+    templateKey: Optional[str] = "multi_option_proposal"
+    proposalData: Optional[Any] = None
+    subject: Optional[str] = None
+    message: Optional[str] = None
+    pdfUrl: Optional[str] = None
+    leadId: Optional[int] = None
+    clientId: Optional[int] = None
+    customerPhone: Optional[str] = None
+
+class CalculateUniversalPricingPayload(BaseModel):
+    roofSquares: Optional[float] = 25.0
+    subcontractorLabor: Optional[float] = 8500.0
+    roofingMaterials: Optional[float] = 7200.0
+    disposalFees: Optional[float] = 850.0
+    permitFees: Optional[float] = 650.0
+    plywoodAllowance: Optional[float] = 500.0
+    otherCosts: Optional[float] = 400.0
+    salesCommission: Optional[float] = 10.0
+    commissionIsPct: Optional[bool] = True
+    marginPct: Optional[float] = 30.0
+
+class SendTwoOptionsEstimatePayload(BaseModel):
+    customerEmail: Optional[str] = None
+    customerName: Optional[str] = None
+    leadId: Optional[int] = None
+
 
 router = APIRouter()
 
@@ -46,9 +89,13 @@ async def get_estimates(
         conditions.append(scope["clause"])
         params.update(scope["params"])
 
-    if status and status != "all":
-        params["status"] = status
-        conditions.append("status = :status")
+    if status == "archived":
+        conditions.append("is_archived = true")
+    else:
+        conditions.append("is_archived = false")
+        if status and status != "all":
+            params["status"] = status
+            conditions.append("status = :status")
 
     if lead_id:
         params["lead_id"] = lead_id
@@ -57,26 +104,35 @@ async def get_estimates(
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
     estimates_query = text(f"SELECT * FROM estimates {where_clause} ORDER BY created_at DESC")
-    stats_query = text("""
+    stats_query = text(f"""
         SELECT 
             COUNT(*) as total_count,
             COALESCE(SUM(total), 0) as pipeline_value,
             COUNT(CASE WHEN status = 'accepted' THEN 1 END) as accepted_count,
-            COALESCE(SUM(CASE WHEN status = 'accepted' THEN total ELSE 0 END), 0) as accepted_value
+            COALESCE(SUM(CASE WHEN status = 'accepted' THEN total ELSE 0 END), 0) as accepted_value,
+            COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft_count,
+            COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent_count
         FROM estimates
+        {where_clause}
     """)
 
     res = await db.execute(estimates_query, params)
     estimates_rows = [dict(r._mapping) for r in res.fetchall()]
 
-    stats_res = await db.execute(stats_query)
+    stats_res = await db.execute(stats_query, params)
     s_row = stats_res.first()
+
+    archived_res = await db.execute(text("SELECT COUNT(*) FROM estimates WHERE is_archived = true"))
+    archived_count = int(archived_res.scalar() or 0)
 
     summary = {
         "totalCount": int(s_row.total_count or 0) if s_row else 0,
         "pipelineValue": float(s_row.pipeline_value or 0) if s_row else 0.0,
         "acceptedCount": int(s_row.accepted_count or 0) if s_row else 0,
         "acceptedValue": float(s_row.accepted_value or 0) if s_row else 0.0,
+        "draftCount": int(s_row.draft_count or 0) if s_row else 0,
+        "sentCount": int(s_row.sent_count or 0) if s_row else 0,
+        "archivedCount": archived_count,
     }
 
     sanitized = []
@@ -92,36 +148,36 @@ async def get_estimates(
 
 @router.post("/estimates")
 async def create_estimate(
-    payload: Dict[str, Any],
+    payload: EstimateCreate,
     user: Dict[str, Any] = Depends(require_permission("estimates:create")),
     db: AsyncSession = Depends(get_db)
 ):
-    customer_name = payload.get("customerName")
+    customer_name = payload.customer_name
     if not customer_name:
         raise HTTPException(status_code=400, detail="Customer name is required")
 
-    lead_id = int(payload["leadId"]) if payload.get("leadId") else None
-    client_id = int(payload["clientId"]) if payload.get("clientId") else None
-    service_type = payload.get("serviceType", "Residential Roofing")
-    roof_squares = float(payload.get("roofSquares", 25))
-    roof_pitch = payload.get("roofPitch", "4:12")
-    stories = int(payload.get("stories", 1))
-    tearoff_layers = int(payload.get("tearoffLayers", 1))
-    material_id = payload.get("materialId", "oc_duration")
-    addons = payload.get("addons") or []
-    margin_pct = float(payload.get("marginPct", 30))
-    financing_months = int(payload.get("financingMonths", 60))
-    valid_days = int(payload.get("validDays", 30))
-    notes = payload.get("notes")
-    template_key = payload.get("templateKey") or payload.get("template_key", "multi_option_proposal")
-    proposal_data = payload.get("proposalData") or payload.get("proposal_data")
-    pdf_url = payload.get("pdfUrl") or payload.get("pdf_url")
+    lead_id = payload.lead_id
+    client_id = payload.client_id
+    service_type = payload.service_type or "Residential Roofing"
+    roof_squares = float(payload.roof_squares or 25)
+    roof_pitch = payload.roof_pitch or "4:12"
+    stories = int(payload.stories or 1)
+    tearoff_layers = int(payload.tearoff_layers or 1)
+    material_id = payload.material_id or "oc_duration"
+    addons = payload.addons or []
+    margin_pct = float(payload.margin_pct if payload.margin_pct is not None else 30)
+    financing_months = int(payload.financing_months or 60)
+    valid_days = int(payload.valid_days or 30)
+    notes = payload.notes
+    template_key = payload.template_key or "multi_option_proposal"
+    proposal_data = payload.proposal_data
+    pdf_url = payload.pdf_url
 
-    customer_phone = payload.get("customerPhone")
-    customer_email = payload.get("customerEmail")
-    customer_address = payload.get("customerAddress")
-    customer_city = payload.get("customerCity")
-    customer_zip = payload.get("customerZip")
+    customer_phone = payload.customer_phone
+    customer_email = payload.customer_email
+    customer_address = payload.customer_address
+    customer_city = payload.customer_city
+    customer_zip = payload.customer_zip
 
     calc = calculate_roof_estimate(
         roof_squares=roof_squares,
@@ -272,6 +328,8 @@ async def create_estimate(
 
     if target_lead_id:
         if is_sent:
+            now_dt = datetime.now(timezone.utc)
+            first_due_at = now_dt + timedelta(hours=24)
             await db.execute(
                 text("""
                     UPDATE leads 
@@ -279,12 +337,21 @@ async def create_estimate(
                         status = 'estimate_sent',
                         proposal_sent_at = NOW(),
                         stage_entered_at = NOW(),
-                        follow_up_at = NOW() + INTERVAL '48 hours',
+                        follow_up_at = :due_at,
                         estimated_value = GREATEST(COALESCE(estimated_value, 0), :total),
                         updated_at = NOW()
                     WHERE id = :lid
                 """),
-                {"lid": target_lead_id, "total": final_total}
+                {"lid": target_lead_id, "total": final_total, "due_at": first_due_at}
+            )
+            await schedule_follow_up_reminder(
+                db=db,
+                lead_id=target_lead_id,
+                due_at=first_due_at,
+                title=f"First Follow-Up: Estimate {estimate_number}",
+                description=f"First follow-up reminder (24h after estimate sent). Proposal ({calc['squares']} sq, ${final_total:,.2f}) sent to customer.",
+                client_id=final_client_id,
+                created_by_user_id=user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
             )
             await db.execute(
                 text("""
@@ -294,7 +361,7 @@ async def create_estimate(
                 {
                     "lid": target_lead_id,
                     "title": f"Estimate Sent: {estimate_number}",
-                    "desc": f"Official proposal ({calc['squares']} sq, ${final_total:,.2f}) sent to customer. Auto-moved to Estimate Sent (48h review).",
+                    "desc": f"Official proposal ({calc['squares']} sq, ${final_total:,.2f}) sent to customer. First follow-up scheduled for 24h.",
                     "pby": user.get("name") or "Staff",
                     "cid": final_client_id
                 }
@@ -364,10 +431,11 @@ async def get_estimate(
 @router.patch("/estimates/{estimate_id}")
 async def update_estimate(
     estimate_id: int,
-    payload: Dict[str, Any],
+    payload: EstimateUpdate,
     user: Dict[str, Any] = Depends(require_permission("estimates:create")),
     db: AsyncSession = Depends(get_db)
 ):
+    payload_dict = payload.model_dump(exclude_unset=True)
     allowed = [
         "status", "customer_name", "customer_phone", "customer_email",
         "customer_address", "customer_city", "customer_zip", "service_type",
@@ -381,8 +449,8 @@ async def update_estimate(
     params: Dict[str, Any] = {"id": estimate_id}
 
     for f in allowed:
-        if f in payload:
-            val = payload[f]
+        if f in payload_dict:
+            val = payload_dict[f]
             if f in ("addons", "proposal_data") and isinstance(val, (list, dict)):
                 val = orjson.dumps(val).decode("utf-8")
             params[f] = val
@@ -391,7 +459,7 @@ async def update_estimate(
             else:
                 updates.append(f"{f} = :{f}")
 
-    if payload.get("status") == "sent" and not payload.get("sent_at"):
+    if payload_dict.get("status") == "sent" and not payload_dict.get("sent_at"):
         updates.append("sent_at = NOW()")
 
     updates.append("updated_at = NOW()")
@@ -415,6 +483,8 @@ async def update_estimate(
 
         if target_lead_id:
             total_val = float(est.get("total") or 0)
+            now_dt = datetime.now(timezone.utc)
+            first_due_at = now_dt + timedelta(hours=24)
             await db.execute(
                 text("""
                     UPDATE leads
@@ -423,12 +493,21 @@ async def update_estimate(
                         stage_entered_at = NOW(),
                         proposal_sent_at = NOW(),
                         status = 'estimate_sent',
-                        follow_up_at = NOW() + INTERVAL '48 hours',
+                        follow_up_at = :due_at,
                         estimated_value = GREATEST(COALESCE(estimated_value, 0), :total),
                         updated_at = NOW()
                     WHERE id = :lid
                 """),
-                {"total": total_val, "lid": target_lead_id}
+                {"total": total_val, "lid": target_lead_id, "due_at": first_due_at}
+            )
+            await schedule_follow_up_reminder(
+                db=db,
+                lead_id=target_lead_id,
+                due_at=first_due_at,
+                title=f"First Follow-Up: Estimate {est.get('estimate_number')}",
+                description=f"First follow-up reminder (24h after estimate marked as sent). Proposal total: ${total_val:,.2f}.",
+                client_id=est.get("client_id"),
+                created_by_user_id=user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
             )
             await db.execute(
                 text("""
@@ -437,7 +516,7 @@ async def update_estimate(
                 """),
                 {
                     "lid": target_lead_id,
-                    "desc": f"{user.get('name') or 'Staff'} marked official estimate {est.get('estimate_number')} (${total_val:,.2f}) as sent. Lead auto-moved to Estimate Sent (48h review window).",
+                    "desc": f"{user.get('name') or 'Staff'} marked official estimate {est.get('estimate_number')} (${total_val:,.2f}) as sent. First follow-up scheduled for 24h.",
                     "pby": user.get("name") or "Staff",
                     "cid": est.get("client_id")
                 }
@@ -446,15 +525,6 @@ async def update_estimate(
     await db.commit()
     return {"ok": True, "estimate": est}
 
-@router.delete("/estimates/{estimate_id}")
-async def delete_estimate(
-    estimate_id: int,
-    user: Dict[str, Any] = Depends(require_permission("estimates:create")),
-    db: AsyncSession = Depends(get_db)
-):
-    await db.execute(text("DELETE FROM estimates WHERE id = :id"), {"id": estimate_id})
-    await db.commit()
-    return {"ok": True}
 
 @router.post("/estimates/{estimate_id}/convert")
 async def convert_estimate_to_job(
@@ -606,14 +676,15 @@ async def convert_estimate_to_job(
 
 @router.post("/estimates/generate-pdf")
 async def generate_estimate_pdf_endpoint(
-    payload: Dict[str, Any],
+    payload: GenerateEstimatePdfPayload,
     download: bool = False,
     user: Dict[str, Any] = Depends(require_permission("estimates:create")),
     db: AsyncSession = Depends(get_db)
 ):
-    proposal_data = payload.get("proposalData") or payload
-    estimate_id = payload.get("estimateId")
-    template_key = payload.get("templateKey") or payload.get("template_key") or proposal_data.get("templateKey") or "multi_option_proposal"
+    payload_dict = payload.model_dump(exclude_unset=True)
+    proposal_data = payload_dict.get("proposalData") or payload_dict
+    estimate_id = payload_dict.get("estimateId")
+    template_key = payload_dict.get("templateKey") or payload_dict.get("template_key") or (proposal_data.get("templateKey") if isinstance(proposal_data, dict) else None) or "multi_option_proposal"
     
     try:
         # Generate PDF via Playwright
@@ -621,7 +692,7 @@ async def generate_estimate_pdf_endpoint(
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        print("GENERATE_PDF_ERROR:\n", tb)
+        logger.error("GENERATE_PDF_ERROR:\n", tb)
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)} | {tb}")
     
     # Save file
@@ -736,19 +807,20 @@ async def get_estimate_pdf(
 
 @router.post("/estimates/calculate")
 async def calculate_universal_pricing(
-    payload: Dict[str, Any],
+    payload: CalculateUniversalPricingPayload,
     user: Dict[str, Any] = Depends(require_permission("estimates:view")),
 ):
-    squares = float(payload.get("roofSquares", 25))
-    labor = float(payload.get("subcontractorLabor", 8500))
-    materials = float(payload.get("roofingMaterials", 7200))
-    disposal = float(payload.get("disposalFees", 850))
-    permit = float(payload.get("permitFees", 650))
-    plywood = float(payload.get("plywoodAllowance", 500))
-    other = float(payload.get("otherCosts", 400))
+    payload_dict = payload.model_dump(exclude_unset=True)
+    squares = float(payload_dict.get("roofSquares", 25))
+    labor = float(payload_dict.get("subcontractorLabor", 8500))
+    materials = float(payload_dict.get("roofingMaterials", 7200))
+    disposal = float(payload_dict.get("disposalFees", 850))
+    permit = float(payload_dict.get("permitFees", 650))
+    plywood = float(payload_dict.get("plywoodAllowance", 500))
+    other = float(payload_dict.get("otherCosts", 400))
     
-    commission_val = payload.get("salesCommission", 10)
-    commission_is_pct = payload.get("commissionIsPct", True)
+    commission_val = payload_dict.get("salesCommission", 10)
+    commission_is_pct = payload_dict.get("commissionIsPct", True)
     
     true_job_cost = labor + materials + disposal + permit + plywood + other
     
@@ -767,7 +839,7 @@ async def calculate_universal_pricing(
             "commission": round(comm_amount)
         }
         
-    chosen_margin = float(payload.get("marginPct", 30)) / 100.0
+    chosen_margin = float(payload_dict.get("marginPct", 30)) / 100.0
     chosen_base = true_job_cost / (1.0 - chosen_margin) if chosen_margin < 1.0 else true_job_cost * 2
     chosen_comm = (chosen_base * (float(commission_val) / 100.0)) if commission_is_pct else float(commission_val)
     chosen_price = round(chosen_base + chosen_comm)
@@ -807,13 +879,14 @@ async def upload_estimate_client_photo(
     valid_exts = {"jpg", "jpeg", "png", "webp", "avif", "heic", "heif"}
     allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/heic", "image/heif"}
     
-    if (file.content_type and file.content_type.lower() not in allowed_types) and (ext not in valid_exts):
+    if (not file.content_type or file.content_type.lower() not in allowed_types) or (ext not in valid_exts):
         raise HTTPException(
             status_code=400,
             detail="Unsupported image format. Please upload JPG, PNG, WebP, or AVIF."
         )
 
-    unique_name = f"client_roof_{uuid.uuid4().hex[:10]}.{ext}"
+    safe_ext = "jpg" if ext in ("jpg", "jpeg") else ("png" if ext == "png" else ("webp" if ext == "webp" else "jpg"))
+    unique_name = f"client_roof_{uuid.uuid4().hex[:10]}.{safe_ext}"
 
     from app.services.pdf_generator import STATIC_DIR
     upload_dir = os.path.join(STATIC_DIR, "uploads", "estimates", "client_photos")
@@ -835,25 +908,26 @@ async def upload_estimate_client_photo(
 
 @router.post("/estimates/send-email")
 async def send_estimate_email(
-    payload: Dict[str, Any],
+    payload: SendEstimateEmailPayload,
     user: Dict[str, Any] = Depends(require_permission("estimates:create")),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Generates official 2-page proposal PDF and transmits it attached via Resend email service.
     """
-    customer_email = payload.get("customerEmail")
+    payload_dict = payload.model_dump(exclude_unset=True)
+    customer_email = payload_dict.get("customerEmail")
     if not customer_email:
         raise HTTPException(status_code=400, detail="Customer email address is required.")
 
-    customer_name = payload.get("customerName", "Valued Homeowner")
-    estimate_number = payload.get("estimateNumber", f"EST-{datetime.now().year}-{secrets.token_hex(2).upper()}")
-    estimate_id = payload.get("estimateId")
-    template_key = payload.get("templateKey", "multi_option_proposal")
-    proposal_data = payload.get("proposalData")
-    subject = payload.get("subject")
-    message = payload.get("message")
-    pdf_url = payload.get("pdfUrl")
+    customer_name = payload_dict.get("customerName", "Valued Homeowner")
+    estimate_number = payload_dict.get("estimateNumber", f"EST-{datetime.now().year}-{secrets.token_hex(2).upper()}")
+    estimate_id = payload_dict.get("estimateId")
+    template_key = payload_dict.get("templateKey", "multi_option_proposal")
+    proposal_data = payload_dict.get("proposalData")
+    subject = payload_dict.get("subject")
+    message = payload_dict.get("message")
+    pdf_url = payload_dict.get("pdfUrl")
 
     # 1. Compile or load PDF
     pdf_bytes = None
@@ -865,18 +939,14 @@ async def send_estimate_email(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF generation error: {str(e)}")
     elif pdf_url:
-        clean_path = pdf_url.lstrip("/")
-        backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        full_path = os.path.join(backend_root, clean_path)
-        if os.path.exists(full_path):
+        from app.services.pdf_generator import STATIC_UPLOADS_DIR
+        clean_name = os.path.basename(pdf_url.strip())
+        full_path = os.path.abspath(os.path.join(STATIC_UPLOADS_DIR, clean_name))
+        if full_path.startswith(os.path.abspath(STATIC_UPLOADS_DIR)) and os.path.exists(full_path):
             with open(full_path, "rb") as f:
                 pdf_bytes = f.read()
         else:
-            from app.services.pdf_generator import STATIC_DIR
-            alt_path = os.path.join(STATIC_DIR, clean_path.replace("static/", "", 1) if clean_path.startswith("static/") else clean_path)
-            if os.path.exists(alt_path):
-                with open(alt_path, "rb") as f:
-                    pdf_bytes = f.read()
+            raise HTTPException(status_code=400, detail="Invalid estimate PDF attachment location.")
 
     if not pdf_bytes:
         raise HTTPException(status_code=400, detail="Could not compile or locate estimate PDF.")
@@ -898,8 +968,8 @@ async def send_estimate_email(
                 pass
 
         # 2. Find target lead
-        t_lead_id = payload.get("leadId")
-        t_client_id = payload.get("clientId")
+        t_lead_id = payload_dict.get("leadId")
+        t_client_id = payload_dict.get("clientId")
         est_amount = 0.0
         if estimate_id:
             est_row = (await db.execute(text("SELECT lead_id, client_id, total FROM estimates WHERE id = :id"), {"id": int(estimate_id)})).mappings().first()
@@ -919,10 +989,10 @@ async def send_estimate_email(
             if l_r:
                 t_lead_id = int(l_r[0])
 
-        if not t_lead_id and (customer_email or payload.get("customerPhone")):
+        if not t_lead_id and (customer_email or payload_dict.get("customerPhone")):
             find_l = await db.execute(
                 text("SELECT id, client_id FROM leads WHERE email = :em OR (phone IS NOT NULL AND phone = :ph) ORDER BY created_at DESC LIMIT 1"),
-                {"em": customer_email, "ph": payload.get("customerPhone")}
+                {"em": customer_email, "ph": payload_dict.get("customerPhone")}
             )
             l_r = find_l.first()
             if l_r:
@@ -941,6 +1011,8 @@ async def send_estimate_email(
         # 3. Advance lead to estimate_sent stage
         if t_lead_id:
             try:
+                now_dt = datetime.now(timezone.utc)
+                first_due_at = now_dt + timedelta(hours=24)
                 await db.execute(
                     text("""
                         UPDATE leads 
@@ -948,11 +1020,20 @@ async def send_estimate_email(
                             status = 'estimate_sent',
                             proposal_sent_at = NOW(),
                             stage_entered_at = NOW(),
-                            follow_up_at = NOW() + INTERVAL '48 hours',
+                            follow_up_at = :due_at,
                             updated_at = NOW()
                         WHERE id = :lid
                     """),
-                    {"lid": t_lead_id}
+                    {"lid": t_lead_id, "due_at": first_due_at}
+                )
+                await schedule_follow_up_reminder(
+                    db=db,
+                    lead_id=t_lead_id,
+                    due_at=first_due_at,
+                    title=f"First Follow-Up: Estimate {estimate_number}",
+                    description=f"First follow-up reminder (24h after estimate sent). Proposal dispatched to {customer_email}.",
+                    client_id=t_client_id,
+                    created_by_user_id=author_id
                 )
                 await db.execute(
                     text("""
@@ -962,7 +1043,7 @@ async def send_estimate_email(
                     {
                         "lid": t_lead_id,
                         "title": f"Estimate Sent: {estimate_number}",
-                        "desc": f"Official proposal sent to {customer_email}. Auto-moved to Estimate Sent (48h review window).",
+                        "desc": f"Official proposal sent to {customer_email}. First follow-up scheduled for 24h.",
                         "pby": author_name,
                         "uid": author_id,
                         "uname": author_name,
@@ -971,7 +1052,7 @@ async def send_estimate_email(
                     }
                 )
             except Exception as ex:
-                print(f"[send_estimate_email] Lead sync error: {ex}")
+                logger.error(f"Lead sync error: {ex}")
 
         # 4. Log client activity
         if t_client_id:
@@ -1041,12 +1122,322 @@ async def send_estimate_email(
     }
 
 
+@router.post("/estimates/upload-and-send")
+async def upload_and_send_estimate(
+    file: UploadFile = File(...),
+    customerEmail: str = Form(default=""),
+    customerName: str = Form(default="Valued Homeowner"),
+    customerPhone: str = Form(default=""),
+    subject: str = Form(default=""),
+    message: str = Form(default=""),
+    leadId: Optional[Any] = Form(default=None),
+    clientId: Optional[Any] = Form(default=None),
+    user: Dict[str, Any] = Depends(require_permission("estimates:create")),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Accept a user-uploaded PDF file and send it directly to a client as a roofing estimate.
+    No PDF generation required — the uploaded file is attached as-is.
+    """
+    # ── Validate file ──────────────────────────────────────────────────────────
+    if not customerEmail or not customerEmail.strip():
+        raise HTTPException(status_code=400, detail="Customer email address is required.")
+
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    # Accept if extension is pdf; content_type may be application/octet-stream in some browsers
+    content_type_ok = not file.content_type or "pdf" in file.content_type.lower() or file.content_type == "application/octet-stream"
+    if ext != "pdf" or not content_type_ok:
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted for upload and send.")
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded PDF file is empty.")
+    if len(content) > 50 * 1024 * 1024:  # 50 MB cap
+        raise HTTPException(status_code=400, detail="PDF file exceeds the 50 MB size limit.")
+
+    # ── Parse IDs safely ─────────────────────────────────────────────────────
+    clean_lead_id: Optional[int] = None
+    if leadId is not None and str(leadId).strip():
+        try:
+            clean_lead_id = int(str(leadId).strip())
+        except (ValueError, TypeError):
+            clean_lead_id = None
+
+    clean_client_id: Optional[int] = None
+    if clientId is not None and str(clientId).strip():
+        try:
+            clean_client_id = int(str(clientId).strip())
+        except (ValueError, TypeError):
+            clean_client_id = None
+
+    customer_addr: Optional[str] = None
+    if clean_lead_id:
+        try:
+            l_row = (await db.execute(
+                text("SELECT client_id, address, city, zip FROM leads WHERE id = :lid"),
+                {"lid": clean_lead_id}
+            )).mappings().first()
+            if l_row:
+                if clean_client_id is None:
+                    clean_client_id = l_row.get("client_id")
+                parts = [l_row.get("address"), l_row.get("city"), l_row.get("zip")]
+                non_empty = [p for p in parts if p]
+                if non_empty:
+                    customer_addr = ", ".join(non_empty)
+        except Exception as _lex:
+            logger.warning(f"Could not load lead info: {_lex}")
+
+    # ── Save uploaded PDF to static directory ────────────────────────────────
+    from app.services.pdf_generator import STATIC_UPLOADS_DIR
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = f"Uploaded_Proposal_{timestamp}_{uuid.uuid4().hex[:8]}.pdf"
+    file_path = os.path.join(STATIC_UPLOADS_DIR, safe_name)
+    os.makedirs(STATIC_UPLOADS_DIR, exist_ok=True)
+    with open(file_path, "wb") as fp:
+        fp.write(content)
+    saved_url = f"/static/uploads/estimates/{safe_name}"
+
+    # ── Generate an estimate number ──────────────────────────────────────────
+    year = datetime.now().year
+    count_res = await db.execute(text("SELECT COUNT(*) FROM estimates"))
+    count_val = (count_res.scalar() or 0) + 1
+    est_num = f"EST-{year}-{count_val:04d}-U"  # '-U' marks it as uploaded
+
+    # ── Insert estimate record with all required non-null fields ─────────────
+    author_id = user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
+    clean_email = customerEmail.strip().lower()
+    access_token = secrets.token_urlsafe(32)
+
+    logger.info(f"[upload-and-send] Inserting estimate record. email={clean_email!r} leadId={clean_lead_id!r}")
+    try:
+        ins_res = await db.execute(
+            text("""
+                INSERT INTO estimates (
+                    estimate_number, status, customer_name, customer_email, customer_phone,
+                    customer_address, service_type,
+                    roof_squares, roof_pitch, stories, tearoff_layers,
+                    material_type, material_cost, labor_cost, addons, subtotal, margin_pct, total,
+                    pdf_url, template_key, lead_id, client_id, access_token, created_by,
+                    proposal_data, created_at, updated_at, sent_at
+                ) VALUES (
+                    :est_num, 'sent', :name, :email, :phone,
+                    :addr, 'Roofing',
+                    0, '4:12', 1, 0,
+                    'Uploaded Proposal', 0, 0, CAST('[]' AS jsonb), 0, 30.00, 0,
+                    :pdf_url, 'uploaded', :lead_id, :client_id, :access_token, :created_by,
+                    CAST('{}' AS jsonb), NOW(), NOW(), NOW()
+                ) RETURNING id
+            """),
+            {
+                "est_num": est_num,
+                "name": customerName.strip() or "Valued Homeowner",
+                "email": clean_email,
+                "phone": customerPhone.strip() or None,
+                "addr": customer_addr,
+                "pdf_url": saved_url,
+                "lead_id": clean_lead_id,
+                "client_id": clean_client_id,
+                "access_token": access_token,
+                "created_by": author_id,
+            }
+        )
+        new_id = ins_res.scalar()
+        logger.info(f"[upload-and-send] INSERT OK, new_id={new_id}")
+    except Exception as _ins_err:
+        logger.error(f"[upload-and-send] INSERT FAILED: {_ins_err}", exc_info=True)
+        raise
+
+    # ── Determine if test email ──────────────────────────────────────────────
+    is_test_email = any(
+        clean_email.endswith(d)
+        for d in ("@example.com", "@example.org", "@example.net", "@test.com", "@demo.com", "@dummy.com")
+    ) or clean_email in ("client@example.com", "test@example.com")
+
+    is_simulated = False
+    logger.info(f"[upload-and-send] Sending email to {clean_email!r}, is_test={is_test_email}")
+    if is_test_email:
+        is_simulated = True
+    else:
+        final_subject = subject.strip() if subject.strip() else f"Your Roofing Estimate from Rise Up Roofing ({est_num})"
+        try:
+            email_res = await send_estimate_proposal_email(
+                to_email=clean_email,
+                customer_name=customerName.strip() or "Valued Homeowner",
+                estimate_number=est_num,
+                pdf_bytes=content,
+                pdf_filename=f"RiseUp_Roofing_Proposal_{est_num}.pdf",
+                subject=final_subject,
+                custom_message=message.strip() if message.strip() else None,
+            )
+            logger.info(f"[upload-and-send] email_res={email_res}")
+        except Exception as _em_err:
+            logger.error(f"[upload-and-send] email send FAILED: {_em_err}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Email error: {_em_err}")
+        if not email_res.get("success"):
+            if email_res.get("missing_key"):
+                is_simulated = True
+            else:
+                err = email_res.get("error")
+                err_msg = err.get("message") if isinstance(err, dict) else str(err)
+                raise HTTPException(status_code=502, detail=f"Email dispatch error: {err_msg}")
+
+    # ── Advance lead stage if linked ─────────────────────────────────────────
+    if clean_lead_id:
+        try:
+            author_name = (user.get("name") if isinstance(user, dict) else getattr(user, "name", None)) or "Staff"
+            now_dt = datetime.now(timezone.utc)
+            first_due_at = now_dt + timedelta(hours=24)
+            logger.info(f"[upload-and-send] Updating lead {clean_lead_id} stage")
+            await db.execute(
+                text("""
+                    UPDATE leads
+                    SET pipeline_stage = 'estimate_sent', status = 'estimate_sent',
+                        proposal_sent_at = NOW(), stage_entered_at = NOW(),
+                        follow_up_at = :due_at, updated_at = NOW()
+                    WHERE id = :lid
+                """),
+                {"lid": clean_lead_id, "due_at": first_due_at}
+            )
+            logger.info(f"[upload-and-send] Lead updated, scheduling reminder")
+            await schedule_follow_up_reminder(
+                db=db, lead_id=clean_lead_id, due_at=first_due_at,
+                title=f"First Follow-Up: Estimate {est_num}",
+                description=f"Follow-up after uploaded proposal sent to {clean_email}.",
+                client_id=clean_client_id, created_by_user_id=author_id
+            )
+            meta_dict = {"estimate_number": est_num, "customer_email": clean_email, "simulated": is_simulated, "source": "upload"}
+            logger.info(f"[upload-and-send] Inserting activity log")
+            await db.execute(
+                text("""
+                    INSERT INTO activities (entity_type, entity_id, activity_type, title, description,
+                        performed_by, user_id, user_name, metadata, created_at)
+                    VALUES ('lead', :lid, 'estimate_sent', :title, :desc, :pby, :uid, :uname, CAST(:meta AS jsonb), NOW())
+                """),
+                {
+                    "lid": clean_lead_id, "title": f"Estimate Sent (Uploaded): {est_num}",
+                    "desc": f"Uploaded proposal {'dispatched' if not is_simulated else 'simulated'} to {clean_email}.",
+                    "pby": author_name, "uid": author_id, "uname": author_name,
+                    "meta": orjson.dumps(meta_dict).decode("utf-8")
+                }
+            )
+            logger.info(f"[upload-and-send] Lead sync complete")
+        except Exception as ex:
+            logger.error(f"[upload-and-send] Lead sync error: {ex}", exc_info=True)
+
+    logger.info(f"[upload-and-send] Committing transaction")
+    await db.commit()
+
+    msg = (
+        f"Proposal marked as sent! (Simulated delivery for test address '{clean_email}'. Use a real email for live delivery.)"
+        if is_simulated else
+        f"Proposal PDF successfully delivered to {clean_email}"
+    )
+    return {
+        "ok": True,
+        "estimateId": new_id,
+        "estimateNumber": est_num,
+        "pdfUrl": saved_url,
+        "simulated": is_simulated,
+        "message": msg,
+    }
+
+
+
+
 from app.services.estimate_template_registry import get_all_templates
 from app.services.estimate_caps import validate_estimate_data
+
+logger = get_logger(__name__)
 
 @router.get("/estimates/templates")
 async def get_estimate_templates(user: Dict[str, Any] = Depends(require_permission("estimates:view"))):
     return {"ok": True, "templates": get_all_templates()}
+
+@router.get("/estimates/draft-by-lead/{lead_id}")
+async def get_draft_estimate_by_lead(
+    lead_id: int,
+    user: Dict[str, Any] = Depends(require_permission("estimates:view")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Return the single active unarchived draft estimate for a lead, if one exists.
+    """
+    res = await db.execute(
+        text("""
+            SELECT * FROM estimates
+            WHERE lead_id = :lead_id AND status = 'draft' AND is_archived = false
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """),
+        {"lead_id": lead_id}
+    )
+    row = res.first()
+    if not row:
+        return {"exists": False, "estimate": None}
+
+    est = dict(row._mapping)
+    for k, v in est.items():
+        if isinstance(v, (datetime, date)):
+            est[k] = v.isoformat()
+    return {"exists": True, "estimate": est}
+
+@router.patch("/estimates/{estimate_id}/archive")
+async def archive_estimate(
+    estimate_id: int,
+    user: Dict[str, Any] = Depends(require_permission("estimates:create")),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(text("SELECT id FROM estimates WHERE id = :id"), {"id": estimate_id})
+    if not res.first():
+        raise HTTPException(status_code=404, detail="Estimate not found")
+
+    await db.execute(text("UPDATE estimates SET is_archived = true, updated_at = NOW() WHERE id = :id"), {"id": estimate_id})
+    await db.commit()
+    return {"ok": True, "estimate_id": estimate_id, "is_archived": True}
+
+@router.patch("/estimates/{estimate_id}/unarchive")
+async def unarchive_estimate(
+    estimate_id: int,
+    user: Dict[str, Any] = Depends(require_permission("estimates:create")),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(text("SELECT id FROM estimates WHERE id = :id"), {"id": estimate_id})
+    if not res.first():
+        raise HTTPException(status_code=404, detail="Estimate not found")
+
+    await db.execute(text("UPDATE estimates SET is_archived = false, updated_at = NOW() WHERE id = :id"), {"id": estimate_id})
+    await db.commit()
+    return {"ok": True, "estimate_id": estimate_id, "is_archived": False}
+
+@router.delete("/estimates/{estimate_id}")
+async def delete_estimate(
+    estimate_id: int,
+    request: Request,
+    user: Dict[str, Any] = Depends(require_permission("estimates:create")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete an estimate draft. Only draft estimates can be hard-deleted.
+    Sent or accepted estimates must be archived instead.
+    """
+    res = await db.execute(
+        text("SELECT id, estimate_number, status, lead_id FROM estimates WHERE id = :id"),
+        {"id": estimate_id}
+    )
+    est = res.mappings().first()
+    if not est:
+        raise HTTPException(status_code=404, detail=f"Estimate {estimate_id} not found")
+
+    if est["status"] != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete estimate in '{est['status']}' status. Sent or accepted estimates should be archived instead.",
+        )
+
+    await db.execute(text("DELETE FROM estimates WHERE id = :id"), {"id": estimate_id})
+    await db.commit()
+
+    return {"ok": True, "deleted_id": estimate_id}
 
 @router.post("/estimates/two-options")
 async def create_two_options_estimate(
@@ -1055,14 +1446,8 @@ async def create_two_options_estimate(
     db: AsyncSession = Depends(get_db)
 ):
     payload = await request.json()
-    year = datetime.now(timezone.utc).year
-    count_res = await db.execute(text("SELECT COUNT(*) FROM estimates"))
-    seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
-    estimate_number = f"EST-{year}-{seq}"
-
-    access_token = secrets.token_hex(16)
     proposal_data = payload if isinstance(payload, dict) else {}
-    
+
     # Extract client info from proposal data or use defaults
     client = proposal_data.get("client", {})
     customer_name = client.get("name") or "Draft"
@@ -1070,7 +1455,67 @@ async def create_two_options_estimate(
     customer_email = client.get("email") or ""
     customer_address = client.get("property") or ""
     lead_id = client.get("leadId")
+    parsed_lead_id = int(lead_id) if lead_id and str(lead_id).isdigit() else None
 
+    pricing = proposal_data.get("pricing", {})
+    total_val = 0.0
+    if pricing.get("total") is not None:
+        try:
+            total_val = float(pricing.get("total"))
+        except Exception:
+            pass
+    elif proposal_data.get("plans") and len(proposal_data["plans"]) > 0:
+        try:
+            total_val = float(proposal_data["plans"][0].get("price") or 0)
+        except Exception:
+            pass
+
+    # 1-Draft-Per-Lead Enforcement: Check if an active unarchived draft already exists for this lead
+    if parsed_lead_id:
+        existing_res = await db.execute(
+            text("""
+                SELECT * FROM estimates
+                WHERE lead_id = :lead_id AND status = 'draft' AND is_archived = false
+                ORDER BY updated_at DESC
+                LIMIT 1
+            """),
+            {"lead_id": parsed_lead_id}
+        )
+        existing_est = existing_res.mappings().first()
+        if existing_est:
+            # Reuse & update existing draft instead of creating a duplicate
+            await db.execute(
+                text("""
+                    UPDATE estimates
+                    SET customer_name = :c_name,
+                        customer_phone = :c_phone,
+                        customer_email = :c_email,
+                        customer_address = :c_addr,
+                        total = :total,
+                        proposal_data = CAST(:proposal_data AS jsonb),
+                        updated_at = NOW()
+                    WHERE id = :id
+                """),
+                {
+                    "id": existing_est["id"],
+                    "c_name": customer_name,
+                    "c_phone": customer_phone,
+                    "c_email": customer_email,
+                    "c_addr": customer_address,
+                    "total": total_val,
+                    "proposal_data": orjson.dumps(proposal_data).decode("utf-8"),
+                }
+            )
+            await db.commit()
+            updated_res = await db.execute(text("SELECT * FROM estimates WHERE id = :id"), {"id": existing_est["id"]})
+            return {"ok": True, "estimate": dict(updated_res.first()._mapping)}
+
+    year = datetime.now(timezone.utc).year
+    count_res = await db.execute(text("SELECT COUNT(*) FROM estimates"))
+    seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
+    estimate_number = f"EST-{year}-{seq}"
+
+    access_token = secrets.token_hex(16)
     valid_until = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)).date()
 
     insert_stmt = text("""
@@ -1087,19 +1532,20 @@ async def create_two_options_estimate(
             :c_name, :c_phone, :c_email, :c_addr,
             'Roofing',
             0, '4:12', 1, 0, 'N/A',
-            0, 0, CAST('[]' AS jsonb), 0, 0, 0,
+            0, 0, CAST('[]' AS jsonb), 0, 0, :total,
             :valid_until,
             CAST(:proposal_data AS jsonb), :token, :creator
         ) RETURNING *
     """)
 
     res = await db.execute(insert_stmt, {
-        "lead_id": int(lead_id) if lead_id else None,
+        "lead_id": parsed_lead_id,
         "est_num": estimate_number,
         "c_name": customer_name,
         "c_phone": customer_phone,
         "c_email": customer_email,
         "c_addr": customer_address,
+        "total": total_val,
         "valid_until": valid_until,
         "proposal_data": orjson.dumps(proposal_data).decode("utf-8"),
         "token": access_token,
@@ -1132,19 +1578,58 @@ async def autosave_two_options_estimate(
 ):
     payload = await request.json()
     errors = validate_estimate_data(payload)
-    
+
+    # Extract syncable columns from payload
+    client = payload.get("client", {}) if isinstance(payload, dict) else {}
+    pricing = payload.get("pricing", {}) if isinstance(payload, dict) else {}
+    lead_id = client.get("leadId")
+    parsed_lead_id = int(lead_id) if lead_id and str(lead_id).isdigit() else None
+    customer_name = client.get("name")
+    customer_phone = client.get("phone")
+    customer_email = client.get("email")
+    customer_address = client.get("property")
+
+    total_val = None
+    if pricing.get("total") is not None:
+        try:
+            total_val = float(pricing.get("total"))
+        except Exception:
+            pass
+    elif payload.get("plans") and len(payload["plans"]) > 0:
+        try:
+            total_val = float(payload["plans"][0].get("price") or 0)
+        except Exception:
+            pass
+
     updates = ["proposal_data = CAST(:proposal_data AS jsonb)", "updated_at = NOW()"]
-    
+    params = {"id": estimate_id, "proposal_data": orjson.dumps(payload).decode("utf-8")}
+
+    if parsed_lead_id is not None:
+        updates.append("lead_id = :lead_id")
+        params["lead_id"] = parsed_lead_id
+    if customer_name:
+        updates.append("customer_name = :c_name")
+        params["c_name"] = customer_name
+    if customer_phone is not None:
+        updates.append("customer_phone = :c_phone")
+        params["c_phone"] = customer_phone
+    if customer_email is not None:
+        updates.append("customer_email = :c_email")
+        params["c_email"] = customer_email
+    if customer_address is not None:
+        updates.append("customer_address = :c_addr")
+        params["c_addr"] = customer_address
+    if total_val is not None:
+        updates.append("total = :total")
+        params["total"] = total_val
+
     stmt = text(f"UPDATE estimates SET {', '.join(updates)} WHERE id = :id RETURNING *")
-    res = await db.execute(stmt, {
-        "id": estimate_id,
-        "proposal_data": orjson.dumps(payload).decode("utf-8")
-    })
-    
+    res = await db.execute(stmt, params)
+
     row = res.first()
     if not row:
         raise HTTPException(status_code=404, detail="Estimate not found")
-        
+
     await db.commit()
     return {"ok": True, "errors": errors}
 
@@ -1186,7 +1671,7 @@ async def generate_two_options_pdf(
         raise HTTPException(status_code=404, detail="Estimate not found")
     est = dict(row._mapping)
     
-    from app.services.pdf_generator import render_two_options_html, _generate_pdf_worker, save_estimate_pdf_file
+    from app.services.pdf_generator import render_two_options_html, _sync_generate_pdf_worker, save_estimate_pdf_file
     import asyncio
     
     rows_res = await db.execute(text("SELECT key, value FROM app_settings WHERE key = 'company_profile'"))
@@ -1200,7 +1685,7 @@ async def generate_two_options_pdf(
         settings={"company_profile": company},
         for_preview=False
     )
-    pdf_bytes = await asyncio.to_thread(_generate_pdf_worker, html_content)
+    pdf_bytes = await asyncio.to_thread(_sync_generate_pdf_worker, html_content)
     
     est_num = est.get("estimate_number") or f"EST_{estimate_id}"
     saved_url = save_estimate_pdf_file(est_num, pdf_bytes)
@@ -1216,12 +1701,11 @@ async def generate_two_options_pdf(
 @router.post("/estimates/{estimate_id}/send-estimate")
 async def send_two_options_estimate(
     estimate_id: int,
-    payload: Optional[Dict[str, Any]] = None,
+    payload: Optional[SendTwoOptionsEstimatePayload] = None,
     user: Dict[str, Any] = Depends(require_permission("estimates:create")),
     db: AsyncSession = Depends(get_db)
 ):
-    if payload is None:
-        payload = {}
+    payload_dict = payload.model_dump(exclude_unset=True) if payload else {}
 
     res = await db.execute(text("SELECT * FROM estimates WHERE id = :id"), {"id": estimate_id})
     row = res.first()
@@ -1255,7 +1739,7 @@ async def send_two_options_estimate(
                     pdf_bytes = f.read()
 
     if not pdf_bytes:
-        from app.services.pdf_generator import render_two_options_html, _generate_pdf_worker, save_estimate_pdf_file
+        from app.services.pdf_generator import render_two_options_html, _sync_generate_pdf_worker, save_estimate_pdf_file
         import asyncio
         rows_res = await db.execute(text("SELECT key, value FROM app_settings WHERE key = 'company_profile'"))
         sett_row = rows_res.first()
@@ -1268,7 +1752,7 @@ async def send_two_options_estimate(
             settings={"company_profile": company},
             for_preview=False
         )
-        pdf_bytes = await asyncio.to_thread(_generate_pdf_worker, html_content)
+        pdf_bytes = await asyncio.to_thread(_sync_generate_pdf_worker, html_content)
         est_num = est.get("estimate_number") or f"EST_{estimate_id}"
         pdf_url = save_estimate_pdf_file(est_num, pdf_bytes)
         
@@ -1280,16 +1764,19 @@ async def send_two_options_estimate(
     # Send via Resend / email service
     from app.services.email_service import send_estimate_proposal_email
     customer_email = (
-        payload.get("customerEmail") 
+        payload_dict.get("customerEmail") 
         or est.get("customer_email") 
         or (prop_data.get("client", {}).get("email") if isinstance(prop_data, dict) else None)
     )
-    if not customer_email:
-        customer_email = "client@example.com"
+    if not customer_email or not str(customer_email).strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Customer email address is required to send estimate proposal. Please provide an email address."
+        )
         
     est_num = est.get("estimate_number") or f"EST-{estimate_id}"
     customer_name = (
-        payload.get("customerName") 
+        payload_dict.get("customerName") 
         or est.get("customer_name") 
         or (prop_data.get("client", {}).get("name") if isinstance(prop_data, dict) else None)
         or "Valued Homeowner"
@@ -1340,10 +1827,12 @@ async def send_two_options_estimate(
         {"id": estimate_id, "pd": orjson.dumps(prop_data).decode("utf-8")}
     )
     
-    t_lead_id = est.get("lead_id") or payload.get("leadId") or (prop_data.get("client", {}).get("leadId") if isinstance(prop_data, dict) else None)
+    t_lead_id = est.get("lead_id") or payload_dict.get("leadId") or (prop_data.get("client", {}).get("leadId") if isinstance(prop_data, dict) else None)
     if t_lead_id:
         try:
             lid_int = int(t_lead_id)
+            now_dt = datetime.now(timezone.utc)
+            first_due_at = now_dt + timedelta(hours=24)
             await db.execute(
                 text("""
                     UPDATE leads 
@@ -1351,15 +1840,25 @@ async def send_two_options_estimate(
                         status = 'estimate_sent',
                         proposal_sent_at = NOW(),
                         stage_entered_at = NOW(),
-                        follow_up_at = NOW() + INTERVAL '48 hours',
+                        follow_up_at = :due_at,
                         updated_at = NOW()
                     WHERE id = :lid
                 """),
-                {"lid": lid_int}
+                {"lid": lid_int, "due_at": first_due_at}
+            )
+            author_id = user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
+            author_name = user.get("name") if isinstance(user, dict) else (getattr(user, "name", None) or "Staff")
+
+            await schedule_follow_up_reminder(
+                db=db,
+                lead_id=lid_int,
+                due_at=first_due_at,
+                title=f"First Follow-Up: Estimate {est_num}",
+                description=f"First follow-up reminder (24h after estimate dispatched). Proposal dispatched to {customer_email}.",
+                client_id=est.get("client_id"),
+                created_by_user_id=author_id
             )
             
-            author_name = user.get("name") if isinstance(user, dict) else (getattr(user, "name", None) or "Staff")
-            author_id = user.get("id") if isinstance(user, dict) else getattr(user, "id", None)
             meta_dict = {
                 "estimate_number": est_num,
                 "customer_email": customer_email,
@@ -1373,7 +1872,7 @@ async def send_two_options_estimate(
                 {
                     "lid": lid_int,
                     "title": f"Estimate Sent: {est_num}",
-                    "desc": f"Official proposal {'dispatched' if not is_simulated else 'simulated'} to {customer_email}.",
+                    "desc": f"Official proposal {'dispatched' if not is_simulated else 'simulated'} to {customer_email}. First follow-up scheduled for 24h.",
                     "pby": author_name,
                     "uid": author_id,
                     "uname": author_name,
@@ -1381,7 +1880,7 @@ async def send_two_options_estimate(
                 }
             )
         except Exception as ex:
-            print(f"[send_two_options_estimate] Lead sync error: {ex}")
+            logger.error(f"Lead sync error: {ex}")
         
     await db.commit()
     

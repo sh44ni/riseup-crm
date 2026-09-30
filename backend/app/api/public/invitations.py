@@ -25,10 +25,10 @@ async def get_invitation_details(token: str, db: AsyncSession = Depends(get_db))
     """)
     inv = (await db.execute(sql, {"token": clean_token})).mappings().first()
     if not inv:
-        raise HTTPException(status_code=404, detail="Invitation link not found or invalid.")
-
-    if inv["status"] == "accepted":
-        raise HTTPException(status_code=400, detail="This invitation has already been accepted.")
+        raise HTTPException(
+            status_code=404,
+            detail="This invite link is invalid, has already been used, or has expired."
+        )
 
     if inv["status"] == "revoked":
         raise HTTPException(status_code=400, detail="This invitation has been revoked by an administrator.")
@@ -68,6 +68,7 @@ async def accept_invitation(
     name = (body.get("name") or "").strip()
     password = body.get("password") or ""
     phone = (body.get("phone") or "").strip() or None
+    avatar_url = (body.get("avatar_url") or "").strip() or None
 
     if not name:
         raise HTTPException(status_code=400, detail="Full name is required.")
@@ -103,22 +104,24 @@ async def accept_invitation(
             primary_role_slug = r_name.lower().replace(" ", "_")
 
     # Check if user already exists
-    user_row = (await db.execute(text("SELECT id FROM users WHERE LOWER(email) = :e"), {"e": email})).mappings().first()
+    user_row = (await db.execute(text("SELECT id, status, password_hash FROM users WHERE LOWER(email) = :e"), {"e": email})).mappings().first()
     if user_row:
+        if user_row["status"] == "active" and user_row.get("password_hash"):
+            raise HTTPException(status_code=400, detail="An account with this email is already active. Please sign in.")
         user_id = user_row["id"]
         await db.execute(text("""
             UPDATE users
-            SET name = :name, phone = COALESCE(:phone, phone), password_hash = :phash,
+            SET name = :name, phone = COALESCE(:phone, phone), avatar_url = COALESCE(:avatar_url, avatar_url), password_hash = :phash,
                 salt = :salt, role = :role, status = 'active', updated_at = NOW()
             WHERE id = :id
-        """), {"name": name, "phone": phone, "phash": p_hash, "salt": salt, "role": primary_role_slug, "id": user_id})
+        """), {"name": name, "phone": phone, "avatar_url": avatar_url, "phash": p_hash, "salt": salt, "role": primary_role_slug, "id": user_id})
     else:
         new_u = (await db.execute(text("""
-            INSERT INTO users (name, email, phone, role, password_hash, salt, status, created_at, updated_at)
-            VALUES (:name, :email, :phone, :role, :phash, :salt, 'active', NOW(), NOW())
+            INSERT INTO users (name, email, phone, avatar_url, role, password_hash, salt, status, created_at, updated_at)
+            VALUES (:name, :email, :phone, :avatar_url, :role, :phash, :salt, 'active', NOW(), NOW())
             RETURNING id
         """), {
-            "name": name, "email": email, "phone": phone, "role": primary_role_slug,
+            "name": name, "email": email, "phone": phone, "avatar_url": avatar_url, "role": primary_role_slug,
             "phash": p_hash, "salt": salt
         })).mappings().first()
         user_id = new_u["id"]
@@ -133,12 +136,12 @@ async def accept_invitation(
                 ON CONFLICT (user_id, role_id) DO NOTHING
             """), {"uid": user_id, "rid": rid})
 
-    # Mark invitation accepted
+    # Delete the invitation row — it's been redeemed, no need to keep it.
+    # Also clean up any other pending invites for the same email (edge case from before dedup guard).
     await db.execute(text("""
-        UPDATE invitations
-        SET status = 'accepted', accepted_at = NOW()
-        WHERE id = :id
-    """), {"id": inv["id"]})
+        DELETE FROM invitations
+        WHERE LOWER(email) = LOWER(:email)
+    """), {"email": inv["email"]})
 
     # Create active admin session
     session_token = generate_session_token()

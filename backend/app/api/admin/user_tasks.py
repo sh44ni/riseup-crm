@@ -58,49 +58,6 @@ async def get_my_personal_tasks(
     result = await db.execute(stmt)
     tasks = list(result.scalars().all())
 
-    # Seed default personal tasks if database has none for this user
-    if len(tasks) == 0:
-        seed_items = [
-            UserPersonalTask(
-                id=f"task_{uuid.uuid4().hex[:12]}",
-                user_id=user_id,
-                title="Submit Carlsbad City Sheathing & Flashing Nail Permit",
-                priority="urgent",
-                work_category="Rise Up",
-                due_date="Today",
-                completed=False,
-                sort_order=0,
-                notes="Upload architectural plan revision to City of Carlsbad online portal before 4 PM cutoff.",
-            ),
-            UserPersonalTask(
-                id=f"task_{uuid.uuid4().hex[:12]}",
-                user_id=user_id,
-                title="Follow-up on $24,850 Duration Shingles Proposal",
-                priority="high",
-                work_category="Rise Up",
-                due_date="Today",
-                completed=False,
-                sort_order=0,
-                notes="Review Good / Better / Best options and check if homeowner wants 120-mo financing walkthrough.",
-            ),
-            UserPersonalTask(
-                id=f"task_{uuid.uuid4().hex[:12]}",
-                user_id=user_id,
-                title="Drone 4K Roof Audit Report Delivery",
-                priority="normal",
-                work_category="Content Creation",
-                due_date="Tomorrow",
-                completed=False,
-                sort_order=0,
-                notes="Sent PDF inspection certificate to homeowner via email.",
-            ),
-        ]
-        db.add_all(seed_items)
-        await db.commit()
-        for item in seed_items:
-            await db.refresh(item)
-        tasks = seed_items
-
     completed_count = sum(1 for t in tasks if t.completed)
 
     return PersonalTaskListResponse(

@@ -1,8 +1,10 @@
+from app.core.logger import get_logger
 from typing import Any, Dict, Optional, Union
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import orjson
+logger = get_logger(__name__)
 
 def get_client_ip(request: Optional[Request]) -> str:
     if not request:
@@ -59,20 +61,21 @@ async def record_audit_log(
     """)
 
     try:
-        await db.execute(
-            stmt,
-            {
-                "user_id": user_id,
-                "user_email": user_email,
-                "user_role": user_role,
-                "action": action,
-                "resource_type": resource_type,
-                "resource_id": str(resource_id),
-                "ip_address": ip_addr,
-                "user_agent": ua,
-                "changes": changes_json,
-            }
-        )
+        async with db.begin_nested():
+            await db.execute(
+                stmt,
+                {
+                    "user_id": user_id,
+                    "user_email": user_email,
+                    "user_role": user_role,
+                    "action": action,
+                    "resource_type": resource_type,
+                    "resource_id": str(resource_id),
+                    "ip_address": ip_addr,
+                    "user_agent": ua,
+                    "changes": changes_json,
+                }
+            )
     except Exception as e:
         # Non-blocking fallback: never crash main user flow if audit log insert encounters error
-        print(f"[AuditLog Error] Failed to write audit log: {e}")
+        logger.error(f"Failed to write audit log: {e}")

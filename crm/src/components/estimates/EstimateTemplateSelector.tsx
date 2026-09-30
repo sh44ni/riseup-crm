@@ -87,7 +87,7 @@ export function EstimateTemplateSelector({
   };
 
   return (
-    <div className="light-glass-panel rounded-2xl p-4 shadow-xs border border-white/85 space-y-3">
+    <div className="light-glass-panel rounded-2xl p-4 shadow-xs border border-white/85 dark:border-white/10 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-600">

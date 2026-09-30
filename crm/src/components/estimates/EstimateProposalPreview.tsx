@@ -20,6 +20,7 @@ import {
 import { MultiOptionProposalData, TemplateKey } from '@/types/estimateTypes';
 import { api, API_ORIGIN } from '@/lib/api';
 import { BrandLogo } from '@/components/common/BrandLogo';
+import { useToast } from '@/context/ToastContext';
 
 interface EstimateProposalPreviewProps {
   proposalData: MultiOptionProposalData;
@@ -44,6 +45,7 @@ export function EstimateProposalPreview({
   onSendToClient,
   className,
 }: EstimateProposalPreviewProps) {
+  const { toast } = useToast();
   const [internalPageView, setInternalPageView] = useState<'page1' | 'page2'>('page1');
   const activePageView = pageView !== undefined ? pageView : internalPageView;
 
@@ -114,10 +116,11 @@ export function EstimateProposalPreview({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        toast.success('Proposal PDF generated and downloading');
       }
     } catch (err) {
       console.error('Failed to generate PDF:', err);
-      alert('PDF generation error. Please ensure backend server is running on port 8000.');
+      toast.error('PDF generation error. Please ensure backend server is reachable.');
     } finally {
       setGenerating(false);
     }
@@ -206,20 +209,20 @@ export function EstimateProposalPreview({
   return (
     <div className={`flex flex-col h-full min-h-0 ${className || ''}`}>
       {/* ── Toolbar ── */}
-      <div className="light-glass-panel rounded-2xl px-4 py-2 flex items-center justify-between gap-3 shadow-xs border border-white/85 shrink-0 mb-2.5">
+      <div className="light-glass-panel dark:bg-slate-900/60 dark:border-white/10 rounded-2xl px-4 py-2 flex items-center justify-between gap-3 shadow-xs border border-white/85 shrink-0 mb-2.5">
         <div className="flex items-center gap-2">
           {/* Minimal Page Switcher / Indicator */}
-          <div className="flex items-center gap-1 bg-white/90 p-0.5 rounded-xl border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-1 bg-white/90 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-white/10 shadow-2xs">
             <button
               type="button"
               onClick={() => handleSetPage('page1')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activePageView === 'page1'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-slate-900 dark:bg-[#1878B8] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-slate-100 hover:dark:bg-slate-700/60'
               }`}
             >
-              <FileText size={12} className={activePageView === 'page1' ? 'text-amber-400' : ''} />
+              <FileText size={12} className={activePageView === 'page1' ? 'text-amber-400 dark:text-amber-300' : ''} />
               <span>Page 1: Cover</span>
             </button>
             <button
@@ -227,37 +230,37 @@ export function EstimateProposalPreview({
               onClick={() => handleSetPage('page2')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activePageView === 'page2'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-slate-900 dark:bg-[#1878B8] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:dark:text-white hover:bg-slate-100 hover:dark:bg-slate-700/60'
               }`}
             >
-              <FileText size={12} className={activePageView === 'page2' ? 'text-amber-400' : ''} />
+              <FileText size={12} className={activePageView === 'page2' ? 'text-amber-400 dark:text-amber-300' : ''} />
               <span>Page 2: Options &amp; Pricing</span>
             </button>
           </div>
 
-          <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-500">
+          <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-[10px] font-bold text-slate-500 dark:text-slate-400">
             Real-Time PDF Canvas
           </span>
         </div>
 
         {/* Minimal Zoom Controls Only */}
-        <div className="flex items-center gap-1 bg-white/80 p-0.5 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-1 bg-white/80 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-white/10">
           <button
             type="button"
             onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.1))}
-            className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
+            className="p-1 rounded-lg hover:bg-slate-100 hover:dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-pointer"
             title="Zoom out"
           >
             <ZoomOut size={12} />
           </button>
-          <span className="text-[10px] font-black text-slate-700 px-1">
+          <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 px-1">
             {Math.round(zoomLevel * 100)}%
           </span>
           <button
             type="button"
             onClick={() => setZoomLevel((z) => Math.min(1.2, z + 0.1))}
-            className="p-1 rounded-lg hover:bg-slate-100 text-slate-500"
+            className="p-1 rounded-lg hover:bg-slate-100 hover:dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-pointer"
             title="Zoom in"
           >
             <ZoomIn size={12} />
@@ -266,13 +269,13 @@ export function EstimateProposalPreview({
       </div>
 
       {/* ── Document Canvas ── */}
-      <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto overflow-x-hidden p-4 bg-slate-200/70 rounded-3xl border border-slate-300/70 shadow-inner custom-scrollbar">
+      <div className="flex-1 min-h-0 flex flex-col items-center overflow-y-auto overflow-x-hidden p-4 bg-slate-200/70 dark:bg-slate-950/80 rounded-3xl border border-slate-300/70 dark:border-white/10 shadow-inner custom-scrollbar">
         {/* ========================================================
             PAGE 1: COVER PAGE (Exact match to media_1789808978236.png)
             ======================================================== */}
         {activePageView === 'page1' && (
           <div className="flex flex-col items-center">
-            <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-sky-500" />
               <span>Page 1: Official Proposal Cover</span>
             </div>
@@ -326,7 +329,7 @@ export function EstimateProposalPreview({
                           PROPERTY:
                         </span>
                         <span className="text-[9px] font-bold text-slate-700">
-                          {proposalData.customerAddress}, {proposalData.customerCity}
+                          {[proposalData.customerAddress, proposalData.customerCity].filter(Boolean).join(', ') || 'Address not provided'}
                         </span>
                       </div>
                     </div>
@@ -340,7 +343,7 @@ export function EstimateProposalPreview({
                           PHONE:
                         </span>
                         <span className="text-[9px] font-bold text-slate-700">
-                          {proposalData.customerPhone || '(760) 555-0199'}
+                          {proposalData.customerPhone || 'No phone on file'}
                         </span>
                       </div>
                     </div>
@@ -354,7 +357,7 @@ export function EstimateProposalPreview({
                           EMAIL:
                         </span>
                         <span className="text-[9px] font-bold text-slate-700">
-                          {proposalData.customerEmail || 'client@example.com'}
+                          {proposalData.customerEmail || 'No email on file'}
                         </span>
                       </div>
                     </div>
@@ -396,7 +399,7 @@ export function EstimateProposalPreview({
             ======================================================== */}
         {activePageView === 'page2' && (
           <div className="flex flex-col items-center">
-            <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
               <span>Page 2: Dual Options, Add-Ons &amp; Pricing Lock-In</span>
             </div>

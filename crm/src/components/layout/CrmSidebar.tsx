@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useCallback } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
   Filter,
   UserCheck,
   Calculator,
+  FileText,
   Calendar,
   CheckSquare,
   Sparkles,
@@ -25,6 +26,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { usePersonalTasks } from '@/lib/personalTasksStore';
 import { useDashboardStats } from '@/lib/dashboardStatsStore';
+import { ThemeToggleSwitch } from '@/components/common/ThemeToggleSwitch';
 
 interface NavItem {
   name: string;
@@ -50,8 +52,9 @@ const NAV_SECTIONS: NavSection[] = [
       { name: 'Dashboard', path: '/', icon: LayoutDashboard },
       { name: 'Leads', path: '/leads', icon: Users, permission: 'leads.view' },
       { name: 'Pipeline', path: '/pipeline', icon: Filter, permission: 'pipeline.view' },
-      { name: 'Clients', path: '/clients', icon: UserCheck, permission: 'leads.view' },
+      { name: 'Clients 360', path: '/clients', icon: UserCheck, permission: 'leads.view' },
       { name: 'Estimates', path: '/estimates', icon: Calculator, permission: 'estimates.view' },
+      { name: 'Contracts', path: '/contracts', icon: FileText, permission: 'estimates.view' },
       { name: 'Calendar', path: '/calendar', icon: Calendar, permission: 'calendar.view' },
       { name: 'Tasks', path: '/tasks', icon: CheckSquare, permission: 'calendar.view' },
     ],
@@ -80,6 +83,7 @@ const NAV_SECTIONS: NavSection[] = [
 
 export function CrmSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { can, isOwner } = useAuth();
   const { city, websiteUrl } = useCompany();
   const { activeCount: pendingPersonalTasksCount } = usePersonalTasks();
@@ -89,13 +93,35 @@ export function CrmSidebar() {
   });
   const [showPhotoModal, setShowPhotoModal] = useState(false);
 
+  // Tracks the path the user just clicked — set on mouseDown (before the
+  // URL changes), so the active style appears instantly with zero delay.
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+
+  // Clear pendingPath whenever the real URL catches up
+  React.useEffect(() => {
+    setPendingPath(null);
+  }, [location.pathname, location.search]);
+
+  const handleNavMouseDown = useCallback((path: string) => {
+    if (path === '#') return; // disabled items
+    setPendingPath(path);
+  }, []);
+
   const handleUpdatePhoto = (newUrl: string) => {
     setSidebarPhoto(newUrl);
     localStorage.setItem('crm_sidebar_bg', newUrl);
   };
 
-  // Dedicated query-aware active matcher
-  const isItemActive = (itemPath: string) => {
+  // Dedicated query-aware active matcher.
+  // Checks pendingPath FIRST so the active style fires the instant the user
+  // clicks (mouseDown), before React Router has processed the new URL.
+  const isItemActive = useCallback((itemPath: string): boolean => {
+    // Optimistic pending check — instant visual response on click
+    if (pendingPath !== null) {
+      if (itemPath === '/') return pendingPath === '/';
+      if (itemPath !== '#') return pendingPath === itemPath || pendingPath.startsWith(itemPath + '/');
+    }
+
     if (itemPath === '/') {
       return location.pathname === '/';
     }
@@ -116,7 +142,7 @@ export function CrmSidebar() {
       location.pathname === itemPath ||
       location.pathname.startsWith(itemPath + '/')
     );
-  };
+  }, [location.pathname, location.search, pendingPath]);
 
   return (
     <>
@@ -159,7 +185,7 @@ export function CrmSidebar() {
         {/* ========================================================
             TOP ZONE: BRAND & OFFICIAL SVG LOGO
             ======================================================== */}
-        <div className="p-4 border-b border-white/[0.08] relative z-10 bg-[#070C15]/40 backdrop-blur-md">
+        <div className="p-4 border-b border-white/[0.08] relative z-10 bg-[#070C15]/40 backdrop-blur-md flex items-center justify-between gap-2">
           <BrandLogo size="md" />
         </div>
 
@@ -238,7 +264,19 @@ export function CrmSidebar() {
                       key={item.name}
                       to={item.path}
                       end={item.path === '/'}
-                      className={`group flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 relative ${
+                      onMouseDown={() => handleNavMouseDown(item.path)}
+                      onClick={
+                        // When clicking "Clients 360" while already on /clients
+                        // (e.g. inside a client profile), force-reset to the
+                        // directory by navigating with resetToDirectory state.
+                        item.path === '/clients' && location.pathname.startsWith('/clients')
+                          ? (e) => {
+                              e.preventDefault();
+                              navigate('/clients', { state: { resetToDirectory: true } });
+                            }
+                          : undefined
+                      }
+                      className={`group flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 relative select-none active:scale-[0.97] active:opacity-80 ${
                         active
                           ? 'border-l-[3.5px] border-[#38BDF8] bg-gradient-to-r from-[#1878B8]/30 via-sky-500/15 to-transparent text-sky-200 font-bold shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_0_15px_rgba(56,189,248,0.2)]'
                           : 'text-slate-400 hover:text-white hover:bg-white/[0.06] border-l-[3.5px] border-transparent hover:border-white/20'
@@ -247,14 +285,14 @@ export function CrmSidebar() {
                       <div className="flex items-center gap-2.5 min-w-0">
                         <Icon
                           size={15}
-                          className={`shrink-0 transition-all duration-200 ${
+                          className={`shrink-0 transition-all duration-150 ${
                             active
                               ? 'text-[#38BDF8] drop-shadow-[0_0_8px_rgba(56,189,248,0.7)] scale-105'
                               : 'text-slate-400 group-hover:text-slate-200 group-hover:scale-105'
                           }`}
                         />
                         <span
-                          className={`truncate transition-colors ${
+                          className={`truncate transition-colors duration-150 ${
                             active
                               ? 'text-white drop-shadow-[0_0_8px_rgba(56,189,248,0.4)]'
                               : 'text-slate-300 group-hover:text-white'
@@ -296,7 +334,7 @@ export function CrmSidebar() {
 
                         <ChevronRight
                           size={12}
-                          className={`transition-all shrink-0 ${
+                          className={`transition-all duration-150 shrink-0 ${
                             active
                               ? 'text-[#38BDF8] opacity-100 translate-x-0.5'
                               : 'text-slate-600 opacity-0 group-hover:opacity-100 group-hover:text-slate-400'
@@ -327,6 +365,11 @@ export function CrmSidebar() {
           {/* Coastal California Oceanside Minimal Art & Palm Trees Backdrop */}
           <div className="absolute inset-0 pointer-events-none z-0 opacity-60 group-hover/footer:opacity-95 transition-opacity duration-500 overflow-hidden">
             <CoastalPalmTrees className="w-full h-full" />
+          </div>
+
+          {/* Compact Theme Switcher Toggle */}
+          <div className="relative z-10 pb-0.5">
+            <ThemeToggleSwitch variant="compact" showLabel />
           </div>
 
           {/* Slogan Header */}

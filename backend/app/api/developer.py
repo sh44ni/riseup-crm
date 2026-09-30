@@ -158,7 +158,7 @@ async def get_system_status(
     redis_ping_ms = 0.0
     redis_info = {}
     try:
-        redis = await get_redis()
+        redis = get_redis()
         t0 = time.perf_counter()
         await asyncio.wait_for(redis.ping(), timeout=0.25)
         redis_ping_ms = round((time.perf_counter() - t0) * 1000, 2)
@@ -215,7 +215,7 @@ async def get_system_metrics(
     rpm_series: List[Dict[str, Any]] = []
 
     try:
-        redis = await get_redis()
+        redis = get_redis()
         # 1. Status Code Breakdown
         pipe = redis.pipeline()
         pipe.get("telemetry:total_requests")
@@ -313,7 +313,7 @@ async def get_system_metrics(
 
 @router.get("/logs")
 async def get_debug_logs(
-    status_filter: str = Query(default="all", regex="^(all|2xx|4xx|5xx|errors)$"),
+    status_filter: str = Query(default="all", pattern="^(all|2xx|4xx|5xx|errors)$"),
     min_duration: float = Query(default=0.0, ge=0.0),
     path_search: Optional[str] = None,
     limit: int = Query(default=100, ge=1, le=200),
@@ -325,7 +325,7 @@ async def get_debug_logs(
     """
     raw_entries = []
     try:
-        redis = await get_redis()
+        redis = get_redis()
         raw_entries = await asyncio.wait_for(
             redis.lrange("telemetry:recent_requests", 0, limit * 2),
             timeout=0.25
@@ -382,7 +382,7 @@ async def get_debug_logs(
 @router.post("/logs/clear")
 async def clear_debug_logs(token: str = Depends(require_developer_session)):
     try:
-        redis = await get_redis()
+        redis = get_redis()
         await asyncio.wait_for(redis.delete("telemetry:recent_requests"), timeout=0.25)
     except Exception:
         pass
@@ -406,7 +406,7 @@ async def list_api_keys(
         d = k.to_dict()
         # Merge live hit stats from Redis if available
         try:
-            redis = await get_redis()
+            redis = get_redis()
             live_hits = await asyncio.wait_for(redis.get(f"apikey:stats:{k.id}:hits"), timeout=0.1)
             live_last = await asyncio.wait_for(redis.get(f"apikey:stats:{k.id}:last_used"), timeout=0.1)
             if live_hits:
@@ -653,7 +653,7 @@ async def get_error_groups(token: str = Depends(require_developer_session)):
     candidate_items = list(in_memory_logs)
     
     try:
-        redis = await get_redis()
+        redis = get_redis()
         raw_entries = await asyncio.wait_for(redis.lrange("telemetry:recent_requests", 0, -1), timeout=0.25)
         for raw in raw_entries:
             try:
@@ -705,7 +705,7 @@ async def get_error_groups(token: str = Depends(require_developer_session)):
 @router.post("/errors/clear")
 async def clear_errors(token: str = Depends(require_developer_session)):
     try:
-        redis = await get_redis()
+        redis = get_redis()
         await asyncio.wait_for(redis.delete("telemetry:recent_requests"), timeout=0.25)
     except Exception:
         pass
@@ -726,9 +726,11 @@ async def get_active_sessions(token: str = Depends(require_developer_session), d
         """)
         res = await db.execute(query)
         for row in res.fetchall():
+            token_val = row[1]
+            masked_token = (token_val[:8] + "..." + token_val[-4:]) if token_val and len(token_val) >= 12 else (token_val or "")
             admin_sessions.append({
                 "id": row[0],
-                "token": row[1],
+                "token": masked_token,
                 "user_id": row[2],
                 "created_at": row[3].isoformat() if row[3] else None,
                 "expires_at": row[4].isoformat() if row[4] else None,
@@ -743,7 +745,7 @@ async def get_active_sessions(token: str = Depends(require_developer_session), d
     
     dev_count = 0
     try:
-        redis = await get_redis()
+        redis = get_redis()
         keys = await asyncio.wait_for(redis.keys("dev_session:*"), timeout=0.25)
         dev_count = len(keys)
     except Exception:
@@ -757,8 +759,8 @@ async def kill_session(session_id: int, token: str = Depends(require_developer_s
         res = await db.execute(text("SELECT token FROM admin_sessions WHERE id = :id"), {"id": session_id})
         session_token = res.scalar()
         if session_token:
-            redis = await get_redis()
-            await asyncio.wait_for(redis.delete(f"session:{session_token}"), timeout=0.25)
+            redis = get_redis()
+            await asyncio.wait_for(redis.delete(f"session_user:{session_token}"), timeout=0.25)
             
         await db.execute(text("DELETE FROM admin_sessions WHERE id = :id"), {"id": session_id})
         await db.commit()
@@ -1050,32 +1052,13 @@ async def execute_readonly_query(
     token: str = Depends(require_developer_session),
     db: AsyncSession = Depends(get_db)
 ):
-    try:
-        query_upper = payload.sql.strip().upper()
-        forbidden = {"INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE", "GRANT", "REVOKE"}
-        # A simple check (in real life, a true SQL parser or read-only user should be used)
-        if any(word in query_upper for word in forbidden):
-            raise HTTPException(status_code=400, detail="Only SELECT statements are allowed.")
-        
-        await db.execute(text('SET statement_timeout = 5000'))
-        
-        t0 = time.perf_counter()
-        result = await db.execute(text(payload.sql))
-        rows = result.fetchall()
-        execution_ms = round((time.perf_counter() - t0) * 1000, 2)
-        
-        columns = list(result.keys()) if result.keys() else []
-        row_dicts = [dict(zip(columns, row)) for row in rows]
-        
-        return {
-            "ok": True,
-            "columns": columns,
-            "rows": row_dicts,
-            "row_count": len(row_dicts),
-            "execution_ms": execution_ms
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    """
+    Arbitrary SQL execution is permanently disabled for platform security and compliance.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Arbitrary SQL execution endpoint is permanently disabled for platform security."
+    )
 
 @router.get("/tools/redis-keys")
 async def browse_redis_keys(
@@ -1084,7 +1067,7 @@ async def browse_redis_keys(
     token: str = Depends(require_developer_session)
 ):
     try:
-        redis = await get_redis()
+        redis = get_redis()
         keys_list = []
         cursor, scanned_keys = await asyncio.wait_for(redis.scan(match=pattern, count=limit), timeout=0.25)
         for key in scanned_keys[:limit]:
@@ -1132,7 +1115,7 @@ async def health_check_all(
             
     async def check_redis():
         try:
-            redis = await get_redis()
+            redis = get_redis()
             t0 = time.perf_counter()
             await asyncio.wait_for(redis.ping(), timeout=0.25)
             return {"status": "ok", "ping_ms": round((time.perf_counter() - t0) * 1000, 2)}
@@ -1178,7 +1161,7 @@ async def reset_telemetry(token: str = Depends(require_developer_session)):
         in_memory_latencies.clear()
 
         try:
-            redis = await get_redis()
+            redis = get_redis()
             keys_to_delete = []
             for pattern in ["telemetry:status:*", "telemetry:total_*", "telemetry:rpm:*", "telemetry:latencies"]:
                 cursor, keys = await asyncio.wait_for(redis.scan(match=pattern, count=1000), timeout=0.25)
@@ -1218,7 +1201,7 @@ async def ping_database(
 @router.post("/tools/flush-cache")
 async def flush_application_cache(token: str = Depends(require_developer_session)):
     """Flushes API keys and route caches without evicting developer sessions."""
-    redis = await get_redis()
+    redis = get_redis()
     keys = await redis.keys("apikey:*")
     if keys:
         await redis.delete(*keys)

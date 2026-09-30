@@ -16,14 +16,14 @@ export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'operations' | 'personal_notes'>(
-    tabFromUrl === 'personal_notes' || tabFromUrl === 'personal' ? 'personal_notes' : 'operations'
+    tabFromUrl === 'operations' ? 'operations' : 'personal_notes'
   );
 
   useEffect(() => {
-    if (tabFromUrl === 'personal_notes' || tabFromUrl === 'personal') {
-      setActiveTab('personal_notes');
-    } else if (tabFromUrl === 'operations') {
+    if (tabFromUrl === 'operations') {
       setActiveTab('operations');
+    } else if (tabFromUrl === 'personal_notes' || tabFromUrl === 'personal') {
+      setActiveTab('personal_notes');
     }
   }, [tabFromUrl]);
 
@@ -321,7 +321,7 @@ export function TasksPage() {
               type="button"
               onClick={handleRefresh}
               title="Refresh tasks"
-              className="w-9 h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 hover:text-slate-900 hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
+              className="w-9 h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
             >
               <RotateCcw
                 size={14}
@@ -331,13 +331,13 @@ export function TasksPage() {
           </div>
         }
         bottomRightBadges={
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 border border-emerald-200/90 text-[10px] font-bold text-emerald-800 shadow-2xs shrink-0">
-              <CheckCircle2 size={11} className="text-emerald-600" />
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-200/90 dark:border-emerald-800/60 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0">
+              <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
               <span>SLA: {slaPercentage}% On-Time Follow-up</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 border border-sky-200/90 text-[10px] font-bold text-sky-800 shadow-2xs shrink-0">
-              <FileText size={11} className="text-sky-600" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 dark:bg-sky-950/60 border border-sky-200/90 dark:border-sky-800/60 text-[10px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs shrink-0">
+              <FileText size={11} className="text-sky-600 dark:text-sky-400" />
               <span>Estimates Auto-Synced</span>
             </span>
           </div>
@@ -367,13 +367,13 @@ export function TasksPage() {
       {activeTab === 'operations' ? (
         tasks.length === 0 && !isLoadingTasks ? (
           /* Polished Empty State for 0 Operational Tasks */
-          <div className="bg-white/80 light-glass-panel rounded-3xl border border-white/90 shadow-2xs p-12 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 shadow-xs">
+          <div className="bg-white/80 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-2xs p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shadow-xs">
               <CheckSquare size={32} className="stroke-[2.5]" />
             </div>
             <div className="max-w-md space-y-1">
-              <h3 className="text-base font-black text-slate-900">No operational tasks yet</h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">No operational tasks yet</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                 No operational tasks yet. Create a task above to track jobs and follow-ups.
               </p>
             </div>
@@ -388,13 +388,13 @@ export function TasksPage() {
           </div>
         ) : filteredTasks.length === 0 && tasks.length > 0 ? (
           /* Empty Search / Filter State */
-          <div className="bg-white/80 light-glass-panel rounded-3xl border border-white/90 shadow-2xs p-10 text-center flex flex-col items-center justify-center space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
+          <div className="bg-white/80 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-2xs p-10 text-center flex flex-col items-center justify-center space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
               <AlertCircle size={24} />
             </div>
             <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-800">No matching tasks found</h4>
-              <p className="text-xs text-slate-500">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white">No matching tasks found</h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 No tasks match your current filter or search query.
               </p>
             </div>
@@ -404,7 +404,7 @@ export function TasksPage() {
                 setSelectedCategory('all');
                 setSearch('');
               }}
-              className="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
+              className="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             >
               Clear Filters
             </button>

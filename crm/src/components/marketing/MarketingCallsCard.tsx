@@ -42,7 +42,7 @@ export const MarketingCallsCard: React.FC<MarketingCallsCardProps> = ({
   const displayButtons = ctaButtons.length > 0 ? ctaButtons.slice(0, 5) : topButtons.slice(0, 5);
 
   return (
-    <div className="light-glass-panel rounded-2xl border border-white/85 shadow-sm backdrop-blur-2xl p-4 md:p-5 flex flex-col justify-between select-none">
+    <div className="light-glass-panel dark:bg-slate-900/60 rounded-2xl border border-white/85 dark:border-white/10 shadow-sm backdrop-blur-2xl p-4 md:p-5 flex flex-col justify-between select-none">
       <div>
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -51,36 +51,36 @@ export const MarketingCallsCard: React.FC<MarketingCallsCardProps> = ({
               <PhoneCall size={14} className="stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900 tracking-tight">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
                 Phone Calls & High-Intent Dials
               </h3>
-              <p className="text-[10.5px] text-slate-500">Direct phone links & call now telemetry</p>
+              <p className="text-[10.5px] text-slate-500 dark:text-slate-400">Direct phone links & call now telemetry</p>
             </div>
           </div>
-          <span className="text-[10.5px] font-bold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 px-2 py-0.5 rounded-full shadow-2xs">
+          <span className="text-[10.5px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-200/90 dark:border-emerald-800/60 px-2 py-0.5 rounded-full shadow-2xs">
             {callConversionRate}% Conv
           </span>
         </div>
 
         {/* Quick Metric Strip */}
         <div className="grid grid-cols-2 gap-2.5 mb-4">
-          <div className="p-2.5 rounded-xl bg-white/60 border border-slate-200/60 shadow-2xs">
-            <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block">
+          <div className="p-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/10 shadow-2xs">
+            <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
               Inbound Phone Taps
             </span>
             <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-2xl font-black text-slate-900 font-mono">
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">
                 {totalCalls.toLocaleString()}
               </span>
-              <span className="text-[10px] font-bold text-emerald-700">dials</span>
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">dials</span>
             </div>
           </div>
-          <div className="p-2.5 rounded-xl bg-white/60 border border-slate-200/60 shadow-2xs">
-            <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wider block">
+          <div className="p-2.5 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-white/10 shadow-2xs">
+            <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
               Peak Calling Time
             </span>
-            <div className="flex items-center gap-1.5 mt-1 text-slate-900 font-bold text-xs">
-              <Clock size={13} className="text-emerald-600" />
+            <div className="flex items-center gap-1.5 mt-1 text-slate-900 dark:text-white font-bold text-xs">
+              <Clock size={13} className="text-emerald-600 dark:text-emerald-400" />
               <span>{peakHourStr}</span>
             </div>
           </div>
@@ -88,27 +88,27 @@ export const MarketingCallsCard: React.FC<MarketingCallsCardProps> = ({
 
         {/* Top Calling Origin Pages */}
         <div className="mb-4">
-          <h4 className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-            <PhoneForwarded size={11} className="text-slate-400" />
+          <h4 className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+            <PhoneForwarded size={11} className="text-slate-400 dark:text-slate-500" />
             Calls Initiated by Page
           </h4>
           <div className="space-y-1.5">
             {callsByPage.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-2">No page-specific call events yet</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 italic py-2">No page-specific call events yet</p>
             ) : (
               callsByPage.slice(0, 4).map((item, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/60 border border-emerald-200/50"
+                  className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white/60 dark:bg-slate-800/60 border border-emerald-200/50 dark:border-emerald-800/50"
                 >
-                  <span className="text-slate-800 font-mono font-medium truncate max-w-[200px] text-[11px]">
+                  <span className="text-slate-800 dark:text-slate-200 font-mono font-medium truncate max-w-[200px] text-[11px]">
                     {item.page_path}
                   </span>
                   <div className="flex items-center gap-1">
-                    <span className="font-mono font-bold text-emerald-700 text-[11px]">
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-[11px]">
                       {item.count}
                     </span>
-                    <span className="text-[10px] text-slate-400">calls</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">calls</span>
                   </div>
                 </div>
               ))
@@ -118,24 +118,24 @@ export const MarketingCallsCard: React.FC<MarketingCallsCardProps> = ({
       </div>
 
       {/* Top CTA Buttons Clicked */}
-      <div className="border-t border-slate-200/50 pt-3">
-        <h4 className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-          <MousePointerClick size={11} className="text-slate-400" />
+      <div className="border-t border-slate-200/50 dark:border-white/10 pt-3">
+        <h4 className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+          <MousePointerClick size={11} className="text-slate-400 dark:text-slate-500" />
           Top CTA Buttons Clicked
         </h4>
         <div className="space-y-1">
           {displayButtons.length === 0 ? (
-            <p className="text-xs text-slate-400 italic py-1">No button interactions recorded</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 italic py-1">No button interactions recorded</p>
           ) : (
             displayButtons.map((btn, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between text-xs py-1 px-2 rounded-lg hover:bg-white/70 transition-colors"
+                className="flex items-center justify-between text-xs py-1 px-2 rounded-lg hover:bg-white/70 hover:dark:bg-slate-800/60 transition-colors"
               >
-                <span className="text-slate-700 font-medium truncate max-w-[210px] text-[11px]">
+                <span className="text-slate-700 dark:text-slate-300 font-medium truncate max-w-[210px] text-[11px]">
                   {btn.label}
                 </span>
-                <span className="text-slate-900 font-bold font-mono bg-white/80 border border-slate-200/70 px-1.5 py-0.2 rounded text-[10px]">
+                <span className="text-slate-900 dark:text-white font-bold font-mono bg-white/80 dark:bg-slate-800/80 border border-slate-200/70 dark:border-white/10 px-1.5 py-0.2 rounded text-[10px]">
                   {btn.count.toLocaleString()} clicks
                 </span>
               </div>

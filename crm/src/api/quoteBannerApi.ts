@@ -32,11 +32,8 @@ export interface QuoteBannerApiResponse {
   message?: string;
 }
 
-import { api, API_ORIGIN } from '@/lib/api';
-
-const API_BASE = API_ORIGIN;
-const API_ENDPOINT = `${API_BASE}/api/admin/quote-banner`;
-const UPLOAD_ENDPOINT = `${API_BASE}/api/admin/quote-banner/upload`;
+import { apiFetch, API_BASE } from '@/lib/api';
+import api from '@/lib/api';
 
 /**
  * Fetches the quote banner configuration from the backend.
@@ -44,22 +41,7 @@ const UPLOAD_ENDPOINT = `${API_BASE}/api/admin/quote-banner/upload`;
  */
 export async function fetchQuoteBannerFromBackend(): Promise<QuoteBannerConfigPayload | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-    const res = await fetch(API_ENDPOINT, {
-      method: 'GET',
-      headers: api.getAuthHeaders(),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      return null;
-    }
-
-    const json: QuoteBannerApiResponse = await res.json();
+    const json = await apiFetch<QuoteBannerApiResponse>('/admin/quote-banner', { timeoutMs: 3000 });
     return json.success && json.data ? json.data : null;
   } catch {
     // Silent failover to local store in dev/offline
@@ -74,24 +56,15 @@ export async function saveQuoteBannerToBackend(
   payload: QuoteBannerConfigPayload
 ): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const res = await fetch(API_ENDPOINT, {
+    await apiFetch<any>('/admin/quote-banner', {
       method: 'PUT',
-      headers: {
-        ...api.getAuthHeaders(),
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         ...payload,
         updatedAt: new Date().toISOString(),
       }),
-      signal: controller.signal,
+      timeoutMs: 4000,
     });
-
-    clearTimeout(timeoutId);
-    return res.ok;
+    return true;
   } catch {
     // Client remains operational even if backend save fails
     return false;
@@ -109,16 +82,11 @@ export async function uploadQuoteBannerImage(
     const formData = new FormData();
     formData.append('file', file);
 
-    const baseHeaders = api.getAuthHeaders();
-    // Do not set Content-Type header so browser sets multipart/form-data with boundary
-    const uploadHeaders: Record<string, string> = {};
-    if (baseHeaders['X-API-Key']) uploadHeaders['X-API-Key'] = baseHeaders['X-API-Key'];
-    if (baseHeaders['Authorization']) uploadHeaders['Authorization'] = baseHeaders['Authorization'];
-    if (baseHeaders['X-Client-Platform']) uploadHeaders['X-Client-Platform'] = baseHeaders['X-Client-Platform'];
+    const headers = api.getAuthHeaders();
 
-    const res = await fetch(UPLOAD_ENDPOINT, {
+    const res = await fetch(`${API_BASE}/admin/quote-banner/upload`, {
       method: 'POST',
-      headers: uploadHeaders,
+      headers,
       body: formData,
     });
 

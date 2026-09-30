@@ -9,6 +9,8 @@ from app.core.security import hash_scrypt_password
 from app.core.audit import record_audit_log
 from app.core.redis import invalidate_session_cache
 from app.middlewares.auth import require_auth, require_permission
+from app.core.config import settings
+from app.services.email_service import send_team_invitation_email
 
 router = APIRouter(prefix="/api/admin", tags=["RBAC & Users"])
 
@@ -18,6 +20,11 @@ MODULE_CONFIG_MAP = {
         "view_key": "leads.view",
         "scoped": True,
         "manage_keys": ["leads.create", "leads.edit", "leads.delete", "leads.claim", "leads.reassign"]
+    },
+    "clients": {
+        "view_key": "clients.view",
+        "scoped": True,
+        "manage_keys": ["clients.create", "clients.edit", "clients.delete"]
     },
     "pipeline": {
         "view_key": "pipeline.view",
@@ -118,11 +125,33 @@ def modules_to_role_permissions(modules: Dict[str, dict], all_perms_by_key: Dict
                 result.append({"permission_id": vid, "scope": scope})
 
             if manage_val:
+                manage_scope = view_val if meta["scoped"] else "all"
+                if manage_scope not in ("own", "assigned", "all"):
+                    manage_scope = "all"
                 for m_key in meta["manage_keys"]:
                     mid = all_perms_by_key.get(m_key)
                     if mid:
-                        result.append({"permission_id": mid, "scope": "all"})
+                        result.append({"permission_id": mid, "scope": manage_scope})
     return result
+
+def normalize_permissions_payload(raw_perms, all_perms_by_key: Dict[str, int]) -> List[dict]:
+    if isinstance(raw_perms, dict):
+        result = []
+        for k, scope in raw_perms.items():
+            pid = all_perms_by_key.get(k)
+            if pid and scope != "none":
+                result.append({"permission_id": pid, "scope": scope if scope in ("own", "assigned", "all") else "all"})
+        return result
+    elif isinstance(raw_perms, list):
+        result = []
+        for p in raw_perms:
+            if isinstance(p, dict):
+                pid = p.get("permission_id") or all_perms_by_key.get(p.get("key"))
+                scope = p.get("scope") or "all"
+                if pid and scope != "none":
+                    result.append({"permission_id": pid, "scope": scope if scope in ("own", "assigned", "all") else "all"})
+        return result
+    return []
 
 # ── Permissions ─────────────────────────────────────────────────────────────
 @router.get("/permissions", dependencies=[Depends(require_auth)])
@@ -135,7 +164,7 @@ async def list_permissions(db: AsyncSession = Depends(get_db)):
 @router.get("/roles", dependencies=[Depends(require_permission("roles.view"))])
 async def list_roles(db: AsyncSession = Depends(get_db)):
     sql = text("""
-        SELECT r.id, r.name, r.description, r.is_protected, r.created_at,
+        SELECT r.id, r.name, r.description, r.is_protected, r.is_authorized_signatory, r.created_at,
                COALESCE(json_agg(json_build_object('permission_id', rp.permission_id, 'key', p.key, 'scope', rp.scope)) FILTER (WHERE p.id IS NOT NULL), '[]') as permissions
         FROM roles r
         LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -156,25 +185,29 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
     body = await request.json()
     name = (body.get("name") or "").strip()
     description = body.get("description")
+    is_authorized_signatory = bool(body.get("is_authorized_signatory", False))
     if not name:
         raise HTTPException(status_code=400, detail="Role name is required")
 
     insert_sql = text("""
-        INSERT INTO roles (name, description, is_protected, created_by, created_at, updated_at)
-        VALUES (:name, :desc, false, :uid, NOW(), NOW())
-        RETURNING id, name, description, is_protected
+        INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_by, created_at, updated_at)
+        VALUES (:name, :desc, false, :auth_sig, :uid, NOW(), NOW())
+        RETURNING id, name, description, is_protected, is_authorized_signatory
     """)
     try:
-        res = (await db.execute(insert_sql, {"name": name, "desc": description, "uid": user.id})).mappings().first()
+        res = (await db.execute(insert_sql, {"name": name, "desc": description, "auth_sig": is_authorized_signatory, "uid": user.id})).mappings().first()
         role_id = res["id"]
+
+        all_perms = (await db.execute(text("SELECT id, key FROM permissions"))).mappings().all()
+        all_perms_map = {p["key"]: p["id"] for p in all_perms}
 
         # If high-level modules provided, resolve to granular permissions
         if "modules" in body and isinstance(body["modules"], dict):
-            all_perms = (await db.execute(text("SELECT id, key FROM permissions"))).mappings().all()
-            all_perms_map = {p["key"]: p["id"] for p in all_perms}
             perms = modules_to_role_permissions(body["modules"], all_perms_map)
+        elif "permissions" in body and body["permissions"] is not None:
+            perms = normalize_permissions_payload(body["permissions"], all_perms_map)
         else:
-            perms = body.get("permissions") or []
+            perms = []
 
         for p in perms:
             p_id = p.get("permission_id")
@@ -187,7 +220,7 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
         await record_audit_log(db, "role.create", "role", role_id, user.id, user.email, user.role, body, request)
 
         sql = text("""
-            SELECT r.id, r.name, r.description, r.is_protected, r.created_at,
+            SELECT r.id, r.name, r.description, r.is_protected, r.is_authorized_signatory, r.created_at,
                    COALESCE(json_agg(json_build_object('permission_id', rp.permission_id, 'key', p.key, 'scope', rp.scope)) FILTER (WHERE p.id IS NOT NULL), '[]') as permissions
             FROM roles r
             LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -222,14 +255,21 @@ async def update_role(role_id: int, request: Request, db: AsyncSession = Depends
     if description is not None:
         await db.execute(text("UPDATE roles SET description = :desc, updated_at = NOW() WHERE id = :id"), {"desc": description, "id": role_id})
 
+    if "is_authorized_signatory" in body:
+        is_auth = bool(body["is_authorized_signatory"])
+        await db.execute(text("UPDATE roles SET is_authorized_signatory = :is_auth, updated_at = NOW() WHERE id = :id"), {"is_auth": is_auth, "id": role_id})
+
     # Resolve permissions if modules or permissions provided
     if not role["is_protected"]:
+        all_perms = (await db.execute(text("SELECT id, key FROM permissions"))).mappings().all()
+        all_perms_map = {p["key"]: p["id"] for p in all_perms}
+
         if "modules" in body and isinstance(body["modules"], dict):
-            all_perms = (await db.execute(text("SELECT id, key FROM permissions"))).mappings().all()
-            all_perms_map = {p["key"]: p["id"] for p in all_perms}
             permissions = modules_to_role_permissions(body["modules"], all_perms_map)
+        elif "permissions" in body and body["permissions"] is not None:
+            permissions = normalize_permissions_payload(body["permissions"], all_perms_map)
         else:
-            permissions = body.get("permissions")
+            permissions = None
 
         if permissions is not None:
             await db.execute(text("DELETE FROM role_permissions WHERE role_id = :id"), {"id": role_id})
@@ -247,7 +287,7 @@ async def update_role(role_id: int, request: Request, db: AsyncSession = Depends
     await invalidate_session_cache()
 
     sql = text("""
-        SELECT r.id, r.name, r.description, r.is_protected, r.created_at,
+        SELECT r.id, r.name, r.description, r.is_protected, r.is_authorized_signatory, r.created_at,
                COALESCE(json_agg(json_build_object('permission_id', rp.permission_id, 'key', p.key, 'scope', rp.scope)) FILTER (WHERE p.id IS NOT NULL), '[]') as permissions
         FROM roles r
         LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -280,8 +320,9 @@ async def delete_role(role_id: int, request: Request, db: AsyncSession = Depends
 async def list_users(db: AsyncSession = Depends(get_db)):
     sql = text("""
         SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.avatar_url,
+               u.signature_data, u.signature_type, u.signature_title,
                u.last_login_at, u.created_at,
-               COALESCE(json_agg(json_build_object('id', r.id, 'name', r.name, 'is_protected', r.is_protected)) FILTER (WHERE r.id IS NOT NULL), '[]') as roles
+               COALESCE(json_agg(json_build_object('id', r.id, 'name', r.name, 'is_protected', r.is_protected, 'is_authorized_signatory', r.is_authorized_signatory)) FILTER (WHERE r.id IS NOT NULL), '[]') as roles
         FROM users u
         LEFT JOIN user_roles ur ON u.id = ur.user_id
         LEFT JOIN roles r ON ur.role_id = r.id
@@ -289,7 +330,14 @@ async def list_users(db: AsyncSession = Depends(get_db)):
         ORDER BY u.name ASC
     """)
     rows = (await db.execute(sql)).mappings().all()
-    return {"users": [dict(r) for r in rows]}
+    users = []
+    for r in rows:
+        d = dict(r)
+        assigned_roles = d.get("roles") or []
+        d["is_authorized_signatory"] = any(bool(role.get("is_authorized_signatory")) for role in assigned_roles)
+        d["has_signature"] = bool(d.get("signature_data"))
+        users.append(d)
+    return {"users": users}
 
 @router.post("/users", dependencies=[Depends(require_permission("users.assign_roles"))])
 async def create_user(request: Request, db: AsyncSession = Depends(get_db), current_user = Depends(require_auth)):
@@ -399,6 +447,8 @@ async def list_invitations(db: AsyncSession = Depends(get_db)):
                ), '[]') as roles
         FROM invitations i
         LEFT JOIN users u ON i.invited_by = u.id
+        WHERE i.status = 'pending'
+          AND i.expires_at > NOW()
         ORDER BY i.created_at DESC
     """)
     rows = (await db.execute(sql)).mappings().all()
@@ -414,6 +464,30 @@ async def create_invitation(request: Request, db: AsyncSession = Depends(get_db)
         role_ids = [int(body["roleId"])]
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
+
+    # Check if a user with this email is already active
+    existing_user = (await db.execute(text("SELECT id, status FROM users WHERE LOWER(email) = :e"), {"e": email})).mappings().first()
+    if existing_user and existing_user["status"] == "active":
+        raise HTTPException(status_code=400, detail="A team member with this email address is already active.")
+
+    # Block duplicate pending invitations for the same email
+    existing_invite = (await db.execute(
+        text("""
+            SELECT id, expires_at FROM invitations
+            WHERE LOWER(email) = :e
+              AND status NOT IN ('accepted', 'revoked')
+              AND expires_at > NOW()
+            ORDER BY created_at DESC
+            LIMIT 1
+        """),
+        {"e": email}
+    )).mappings().first()
+    if existing_invite:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A pending invitation for {email} already exists (ID: {existing_invite['id']}). Use 'Resend' to send them a new link instead."
+        )
+
     if not role_ids:
         # Default to Sales Representative (id 3) or Door Knocker (id 4)
         dk_id = (await db.execute(text("SELECT id FROM roles WHERE LOWER(name) LIKE '%sales%' OR LOWER(name) LIKE '%knocker%' LIMIT 1"))).scalar()
@@ -425,15 +499,45 @@ async def create_invitation(request: Request, db: AsyncSession = Depends(get_db)
     sql = text("""
         INSERT INTO invitations (email, invited_role_ids, invited_by, token, status, expires_at, created_at)
         VALUES (:email, :rids, :by, :tok, 'pending', :exp, NOW())
-        RETURNING id, email, token, expires_at
+        RETURNING id, email, status, expires_at
     """)
     inv = (await db.execute(sql, {
         "email": email, "rids": role_ids, "by": user.id, "tok": token, "exp": expires
     })).mappings().first()
     await db.commit()
 
+    # Look up role names and send email
+    role_names_query = await db.execute(text("SELECT name FROM roles WHERE id = ANY(:rids)"), {"rids": role_ids})
+    role_names = [r[0] for r in role_names_query.all()]
+    role_name_str = ", ".join(role_names) if role_names else "Team Member"
+    
+    accept_url = f"{settings.CRM_FRONTEND_URL}/accept-invite?token={token}"
+    email_sent = False
+    try:
+        email_res = await send_team_invitation_email(
+            to_email=email,
+            inviter_name=getattr(user, "name", None) or "A team member",
+            role_name=role_name_str,
+            accept_url=accept_url,
+            expires_at=expires.strftime("%B %d, %Y")
+        )
+        email_sent = email_res.get("success", False)
+    except Exception:
+        pass
+
     await record_audit_log(db, "user.invite", "invitation", inv["id"], user.id, user.email, user.role, {"email": email, "role_ids": role_ids}, request)
-    return {"ok": True, "invitation": dict(inv)}
+    return {
+        "ok": True,
+        "email_sent": email_sent,
+        "accept_url": accept_url,
+        "token": token,
+        "invitation": {
+            "id": inv["id"],
+            "email": inv["email"],
+            "status": inv["status"],
+            "expires_at": inv["expires_at"].isoformat() if hasattr(inv["expires_at"], "isoformat") else str(inv["expires_at"])
+        }
+    }
 
 @router.delete("/invitations/{invitation_id}", dependencies=[Depends(require_permission("users.invite"))])
 async def revoke_invitation(invitation_id: int, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
@@ -447,7 +551,7 @@ async def revoke_invitation(invitation_id: int, request: Request, db: AsyncSessi
 
 @router.post("/invitations/{invitation_id}/resend", dependencies=[Depends(require_permission("users.invite"))])
 async def resend_invitation(invitation_id: int, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
-    inv = (await db.execute(text("SELECT id, email FROM invitations WHERE id = :id"), {"id": invitation_id})).mappings().first()
+    inv = (await db.execute(text("SELECT id, email, token, invited_role_ids FROM invitations WHERE id = :id"), {"id": invitation_id})).mappings().first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invitation not found")
     new_expires = datetime.now() + timedelta(days=7)
@@ -455,6 +559,31 @@ async def resend_invitation(invitation_id: int, request: Request, db: AsyncSessi
         "exp": new_expires, "id": invitation_id
     })
     await db.commit()
+
+    role_names_query = await db.execute(text("SELECT name FROM roles WHERE id = ANY(:rids)"), {"rids": inv["invited_role_ids"]})
+    role_names = [r[0] for r in role_names_query.all()]
+    role_name_str = ", ".join(role_names) if role_names else "Team Member"
+    
+    accept_url = f"{settings.CRM_FRONTEND_URL}/accept-invite?token={inv['token']}"
+    email_sent = False
+    try:
+        email_res = await send_team_invitation_email(
+            to_email=inv["email"],
+            inviter_name=getattr(user, "name", None) or "A team member",
+            role_name=role_name_str,
+            accept_url=accept_url,
+            expires_at=new_expires.strftime("%B %d, %Y")
+        )
+        email_sent = email_res.get("success", False)
+    except Exception:
+        pass
+
     await record_audit_log(db, "invitation.resend", "invitation", invitation_id, user.id, user.email, user.role, {"email": inv["email"]}, request)
-    return {"ok": True, "expires_at": new_expires.isoformat()}
+    return {
+        "ok": True,
+        "email_sent": email_sent,
+        "token": inv["token"],
+        "accept_url": accept_url,
+        "expires_at": new_expires.isoformat()
+    }
 

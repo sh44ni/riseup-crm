@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 from datetime import date, timedelta
+from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,74 +10,44 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.staticfiles import StaticFiles
 
+from app.core.logger import setup_logging, get_logger
 from app.core.config import settings
 from app.core.database import engine
 from app.core.redis import init_redis, close_redis, get_redis
 from app.api.router import api_router
 from app.api.docs_notes import DOCS_DESCRIPTION
 from app.middlewares.telemetry import TelemetryMiddleware
+logger = get_logger(__name__)
 
 STATIC_DEV_DIR = os.path.join(os.path.dirname(__file__), "static", "developer")
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
+os.makedirs(STATIC_DIR, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ──
-    print(f"[{settings.APP_ENV.upper()}] Starting Rise Up Roofing FastAPI backend & Developer Engine...")
+    logger.info(f"Starting Rise Up Roofing FastAPI backend & Developer Engine...")
+    setup_logging()
     await init_redis()
 
-    # Ensure required table columns exist on every startup (idempotent, failsafe)
+    # ── Database Health Check ──
     try:
         from sqlalchemy import text
-        async with engine.begin() as conn:
-            for sql in [
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS follow_up_at TIMESTAMP WITH TIME ZONE;",
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_contact_at TIMESTAMP WITH TIME ZONE;",
-                "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS work_category TEXT DEFAULT 'Rise Up';",
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS roof_sqf INTEGER;",
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS roof_squares NUMERIC(6, 1);",
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS roof_pitch TEXT;",
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS stories INTEGER DEFAULT 1;",
-                "ALTER TABLE leads ADD COLUMN IF NOT EXISTS roof_type TEXT;",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;",
-                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS milestones JSONB DEFAULT '[]'::jsonb;",
-            ]:
-                await conn.execute(text(sql))
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.warning("Async PostgreSQL connection healthy.")
     except Exception as e:
-        print(f"Startup DB migration notice: {e}")
+        logger.warning(f"Startup connection notice: {e}")
 
-    # Create daily_stats_snapshots and client_documents tables
+    # Seed system RBAC permissions and default Owner role
     try:
         async with engine.begin() as conn:
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS daily_stats_snapshots (
-                    id SERIAL PRIMARY KEY,
-                    snapshot_date DATE UNIQUE NOT NULL,
-                    new_leads INTEGER DEFAULT 0,
-                    contacted INTEGER DEFAULT 0,
-                    est_scheduled INTEGER DEFAULT 0,
-                    est_sent INTEGER DEFAULT 0,
-                    jobs_won INTEGER DEFAULT 0,
-                    lost_closed INTEGER DEFAULT 0,
-                    ytd_revenue NUMERIC(14,2) DEFAULT 0,
-                    active_crew INTEGER DEFAULT 0,
-                    total_pipeline_value NUMERIC(14,2) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT NOW()
-                );
-                CREATE TABLE IF NOT EXISTS client_documents (
-                    id SERIAL PRIMARY KEY,
-                    client_id BIGINT REFERENCES clients(id) ON DELETE CASCADE,
-                    name TEXT NOT NULL,
-                    file_url TEXT NOT NULL,
-                    file_type TEXT DEFAULT 'document',
-                    file_size INTEGER DEFAULT 0,
-                    uploaded_by TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-            """))
+            from app.core.permissions import seed_system_rbac
+            await seed_system_rbac(conn)
     except Exception as e:
-        print(f"Snapshot/Document table migration notice: {e}")
+        logger.warning(f"Startup RBAC seeding notice: {e}")
 
     # Background task: take daily stats snapshot + backfill
     async def _take_snapshot():
@@ -109,7 +80,7 @@ async def lifespan(app: FastAPI):
                             ON CONFLICT (snapshot_date) DO NOTHING
                         """), {"snap_date": snap_date, "cutoff_dt": cutoff_dt})
                     await session.commit()
-                    print(f"[Snapshots] Backfilled 31 days of dashboard history")
+                    logger.info(f"Backfilled 31 days of dashboard history")
                 else:
                     # Just take today's snapshot
                     await session.execute(_text("""
@@ -138,9 +109,9 @@ async def lifespan(app: FastAPI):
                             total_pipeline_value = EXCLUDED.total_pipeline_value
                     """))
                     await session.commit()
-                    print(f"[Snapshots] Today's dashboard snapshot recorded")
+                    logger.info(f"Today's dashboard snapshot recorded")
         except Exception as e:
-            print(f"[Snapshots] Error: {e}")
+            logger.error(f"Error: {e}")
     
     asyncio.create_task(_take_snapshot())
 
@@ -150,7 +121,7 @@ async def lifespan(app: FastAPI):
 
     yield
     # ── Shutdown ──
-    print("Shutting down Rise Up Roofing FastAPI backend...")
+    logger.info("Shutting down Rise Up Roofing FastAPI backend...")
     await close_redis()
     await engine.dispose()
 
@@ -186,9 +157,9 @@ if hasattr(settings, "CORS_ORIGINS") and settings.CORS_ORIGINS:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-Process-Time", "X-Request-Id", "Content-Disposition"],
 )
@@ -200,12 +171,21 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(TelemetryMiddleware)
 
 # ── Custom Error Handlers with CORS Header Preservation ──
+def _is_allowed_origin(origin: Optional[str]) -> bool:
+    if not origin:
+        return False
+    if origin in origins or origin.endswith(".riseuprac.com"):
+        return True
+    if origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"):
+        return True
+    return False
+
 def _with_cors(response: JSONResponse, request: Request) -> JSONResponse:
     origin = request.headers.get("origin")
-    if origin:
+    if origin and _is_allowed_origin(origin):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
@@ -229,15 +209,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def unhandled_exception_handler(request: Request, exc: Exception):
     import traceback
     traceback.print_exc()
+    error_msg = "Internal server error. Please contact support." if settings.APP_ENV.lower() in ("production", "prod") else str(exc)
     return _with_cors(JSONResponse(
         status_code=500,
-        content={"ok": False, "error": str(exc), "detail": str(exc)},
+        content={"ok": False, "error": error_msg, "detail": error_msg},
     ), request)
 
 # ── Mount Static Files ──
-from fastapi.staticfiles import StaticFiles
-STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "static"))
-os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ── Mount Master API Router ──
