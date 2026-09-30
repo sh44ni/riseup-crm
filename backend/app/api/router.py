@@ -71,7 +71,7 @@ api_router.include_router(admin_jobs_router, prefix="/api/admin", tags=["Admin J
 api_router.include_router(admin_finances_router, prefix="/api/admin", tags=["Admin Finances"])
 api_router.include_router(admin_calendar_router, prefix="/api/admin", tags=["Admin Calendar & Tasks"])
 api_router.include_router(admin_field_router, prefix="/api/admin", tags=["Admin Field Operations"])
-api_router.include_router(admin_marketing_router, prefix="/api/admin", tags=["Admin Analytics & Marketing"])
+api_router.include_router(admin_marketing_router, prefix="/api/admin/marketing", tags=["Admin Analytics & Marketing"])
 api_router.include_router(admin_system_router, prefix="/api/admin", tags=["Admin System & Config"])
 api_router.include_router(admin_integrations_router, prefix="/api/admin", tags=["Admin Integrations"])
 
