@@ -1108,6 +1108,10 @@ async def update_client(
                 lead_sync_params
             )
 
+    # Commit the primary updates (client + lead sync) before optional side-effects
+    await db.commit()
+
+    # Optional: activity log + stats recalculation (failures must not roll back the commit above)
     try:
         await db.execute(
             text("""
@@ -1126,6 +1130,7 @@ async def update_client(
         pass
 
     return {"ok": True, "client": dict(row._mapping)}
+
 
 @router.delete("/clients/{client_id}")
 async def archive_client(

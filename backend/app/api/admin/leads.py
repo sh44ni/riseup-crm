@@ -414,6 +414,7 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
     # Client 360 contact sync & deduplication (Client 360 as source of truth)
     cid = target.get("client_id")
     has_contact_update = any(k in body for k in ["full_name", "phone", "email", "address", "city", "zip"])
+    has_address_update = any(k in body for k in ["address", "city", "zip"])
 
     # If lead does not have a linked client, find or create one so Client 360 is the source of truth
     if not cid and has_contact_update:
@@ -451,8 +452,12 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
         updates.append("lost_at = COALESCE(lost_at, NOW())")
 
     if updates:
-        sql = f"UPDATE leads SET {', '.join(updates)}, updated_at = NOW() WHERE id = :id RETURNING id, full_name, phone, email, address, city, zip, status, pipeline_stage, client_id, lost_reason, lost_notes, lost_at, roof_sqf, estimated_value"
+        sql = f"""UPDATE leads SET {', '.join(updates)}, updated_at = NOW()
+            WHERE id = :id
+            RETURNING id, full_name, phone, email, address, city, zip,
+                      status, pipeline_stage, client_id, updated_at"""
         updated = (await db.execute(text(sql), params)).mappings().first()
+
         
         # Synchronize Client 360 record (source of truth)
         cid = updated.get("client_id") if updated else cid
