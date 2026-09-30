@@ -84,6 +84,11 @@ export function LoginPage() {
       await login(password, email);
       navigate('/');
     } catch (err: any) {
+      // If the email is invited but account not created yet → go to accept-invite
+      if (err.detail?.code === 'INVITE_PENDING' && err.detail?.token) {
+        navigate(`/accept-invite?token=${err.detail.token}`);
+        return;
+      }
       setError(
         err.message ||
           'Authentication failed. Please check your work email and password.'
@@ -92,6 +97,7 @@ export function LoginPage() {
       setLoading(false);
     }
   };
+
 
   const isCoastal = themeMode === 'coastal';
   const activeQuote = CRAFT_QUOTES[activeQuoteIndex];

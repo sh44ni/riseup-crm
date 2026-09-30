@@ -141,7 +141,11 @@ class ApiClient {
         } else if (data.message) {
           errorMsg = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
         }
-        throw new Error(errorMsg);
+        const error: any = new Error(errorMsg);
+        error.status = res.status;
+        error.detail = data.detail;
+        throw error;
+
       }
 
       return data as T;

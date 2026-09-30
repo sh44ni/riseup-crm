@@ -54,7 +54,24 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             authenticated_user = dict(row)
 
     if not authenticated_user:
-        raise HTTPException(status_code=401, detail="Invalid email or password. Please try again.")
+        # Check if email has a pending invitation (account not yet created)
+        invite_row = (await db.execute(text("""
+            SELECT token FROM invitations
+            WHERE LOWER(email) = LOWER(:email)
+            AND status = 'pending'
+            AND expires_at > NOW()
+            ORDER BY created_at DESC LIMIT 1
+        """), {"email": email.strip()})).mappings().first()
+
+        if invite_row:
+            # They're invited but haven't set up their account yet
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "INVITE_PENDING", "token": invite_row["token"]}
+            )
+
+        raise HTTPException(status_code=401, detail="You are not authorized to access this system.")
+
 
     # Create session token
     token = generate_session_token()
