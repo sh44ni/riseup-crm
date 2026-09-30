@@ -6,6 +6,9 @@ export function getBackendBaseUrl(): string {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    if (host.includes('staging.riseuprac.com')) {
+      return 'https://backend.staging.riseuprac.com';
+    }
     if (host.includes('riseuprac.com') || host.includes('vercel.app')) {
       return 'https://backend.riseuprac.com';
     }
@@ -17,8 +20,9 @@ export const API_ORIGIN = getBackendBaseUrl();
 // Use a relative /api path when a reverse proxy is available:
 //   - Local dev:  Vite proxy (vite.config.ts) forwards /api → http://127.0.0.1:8000
 //   - Production: nginx on crm.riseuprac.com forwards /api → http://127.0.0.1:8010
+//   - Staging:    nginx on staging.riseuprac.com forwards /api → http://127.0.0.1:8011
 // Only fall back to the full absolute URL for non-proxied hosts (e.g. Vercel previews).
-const PROXIED_HOSTS = ['localhost', '127.0.0.1', 'crm.riseuprac.com'];
+const PROXIED_HOSTS = ['localhost', '127.0.0.1', 'crm.riseuprac.com', 'staging.riseuprac.com'];
 export const API_BASE = (() => {
   if (typeof window !== 'undefined' && PROXIED_HOSTS.includes(window.location.hostname)) {
     return '/api';
