@@ -186,11 +186,11 @@ export function DashboardPage() {
       const estScheduled = columns.find((c) => c.id === 'est_scheduled')?.cards.length ?? 0;
       const estSent = (columns.find((c) => c.id === 'est_sent')?.cards.length ?? 0) +
                       (columns.find((c) => c.id === 'follow_up')?.cards.length ?? 0);
-      const contractSent = 0;
-      const contractSignedCount = columns.find((c) => c.id === 'contract_signed')?.cards.length ?? 0;
+      const contractSent = columns.find((c) => c.id === 'contract_sent')?.cards.length ?? 0;
+      const contractSignedCount = 0; // contract_signed is hidden from dashboard
       const activeJobsCount = columns.find((c) => c.id === 'active_jobs')?.cards.length ?? 0;
       const wonFromSummary = summary?.wonCount ?? 0;
-      const jobsWon = Math.max(contractSignedCount + activeJobsCount, wonFromSummary, stats?.jobsWon ?? 0);
+      const jobsWon = Math.max(activeJobsCount, wonFromSummary, stats?.jobsWon ?? 0);
       const lostClosed = summary?.lostCount ?? stats?.lostClosed ?? 0;
       const totalLeads = Math.max(
         columns.reduce((sum, col) => sum + col.cards.length, 0) + lostClosed,
@@ -267,7 +267,7 @@ export function DashboardPage() {
     est_scheduled: 3,
     est_sent: 4,
     follow_up: 5,
-    contract_signed: 6,
+    contract_sent: 6,
     active_jobs: 7,
     job_completed: 7,
   };
