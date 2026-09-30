@@ -51,19 +51,22 @@ describe('normalizeSlaStatus', () => {
 });
 
 describe('classifyToDashboardColumn and COLUMN_CONFIG', () => {
-  it('routes contract_sent to contract_sent column', () => {
+  it('routes contract_sent to follow_up column on dashboard', () => {
     const lead: any = { id: 1, full_name: 'Test', status: 'new', granular_stage: 'contract_sent' };
-    expect(classifyToDashboardColumn(lead)).toBe('contract_sent');
+    expect(classifyToDashboardColumn(lead)).toBe('follow_up');
   });
 
-  it('routes contract_signed (with contract_signed_at) to active_jobs column', () => {
+  it('routes contract_signed (with contract_signed_at) to contract_signed column', () => {
     const lead: any = { id: 2, full_name: 'Test', status: 'new', granular_stage: 'contract_signed', contract_signed_at: '2026-09-27' };
-    expect(classifyToDashboardColumn(lead)).toBe('active_jobs');
+    expect(classifyToDashboardColumn(lead)).toBe('contract_signed');
   });
 
-  it('has contract_sent column configured in COLUMN_CONFIG and COLUMN_ORDER', async () => {
+  it('has contract_signed in COLUMN_ORDER and contract_sent only in COLUMN_CONFIG', async () => {
     const { COLUMN_CONFIG, COLUMN_ORDER } = await import('../pipelineUtils');
-    expect(COLUMN_ORDER).toContain('contract_sent');
+    expect(COLUMN_ORDER).toContain('contract_signed');
+    expect(COLUMN_ORDER).not.toContain('contract_sent');
+    expect(COLUMN_CONFIG.contract_signed).toBeDefined();
+    expect(COLUMN_CONFIG.contract_signed.title).toBe('Contract Signed');
     expect(COLUMN_CONFIG.contract_sent).toBeDefined();
     expect(COLUMN_CONFIG.contract_sent.title).toBe('Contract Sent');
   });

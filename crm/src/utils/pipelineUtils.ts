@@ -53,7 +53,16 @@ export function classifyToDashboardColumn(lead: BackendLead): string {
     return 'completed';
   }
 
-  // Contract signed or won leads move directly to active_jobs on the 7-column Dashboard
+  // Explicit active job in production
+  if (
+    granular_stage === 'active_jobs' ||
+    pipeline_stage === 'active_jobs' ||
+    pipeline_stage === 'stage_5_completion_followup'
+  ) {
+    return 'active_jobs';
+  }
+
+  // Contract signed or won leads move to 'contract_signed' (Stage 7)
   const isSigned = Boolean(
     contract_signed_at ||
     contract_status === 'signed' ||
@@ -65,7 +74,7 @@ export function classifyToDashboardColumn(lead: BackendLead): string {
   );
 
   if (isSigned) {
-    return 'active_jobs';
+    return 'contract_signed';
   }
 
   const st = granular_stage || pipeline_stage;
@@ -78,8 +87,10 @@ export function classifyToDashboardColumn(lead: BackendLead): string {
   if (st === 'follow_up' || st === 'followup_2day' || st === 'followup_7day' || st === 'decision_followup' || st === 'future_followup') {
     return 'follow_up';
   }
-  if (st === 'contract_sent') return 'contract_sent';
-  if (st === 'contract_signed' || st === 'active_jobs' || st === 'closed_won') return 'active_jobs';
+  // Contract Sent is only on the Pipeline page; on the Dashboard it stays in follow_up until signed
+  if (st === 'contract_sent') return 'follow_up';
+  if (st === 'contract_signed' || st === 'closed_won') return 'contract_signed';
+  if (st === 'active_jobs') return 'active_jobs';
 
   // Fallback to legacy heuristics
   switch (pipeline_stage) {
@@ -91,7 +102,7 @@ export function classifyToDashboardColumn(lead: BackendLead): string {
       if (proposal_sent_at) return 'est_sent';
       return 'est_scheduled';
     case 'stage_4_closing':
-      return 'contract_sent';
+      return 'follow_up';
     case 'stage_5_completion_followup':
       return 'active_jobs';
     default:
@@ -110,7 +121,7 @@ export const COLUMN_CONFIG: Record<string, Omit<ColumnData, 'count' | 'cards'>> 
   active_jobs:     { id: 'active_jobs',     title: 'Active Jobs',        bgColor: 'rgba(207,250,254,0.70)', borderColor: 'rgba(34,211,238,0.55)',  accentColor: '#0891b2', pillClass: 'bg-gradient-to-r from-[#0891b2] via-[#06b6d4] to-[#22d3ee] text-white shadow-xs border border-cyan-400/50', badgeClass: 'bg-black/20 text-white font-black', iconType: 'briefcase' },
 };
 
-export const COLUMN_ORDER = ['new_leads', 'contacted', 'est_scheduled', 'est_sent', 'follow_up', 'contract_sent', 'active_jobs'];
+export const COLUMN_ORDER = ['new_leads', 'contacted', 'est_scheduled', 'est_sent', 'follow_up', 'contract_signed', 'active_jobs'];
 
 export function normalizeStageId(rawStage: string | undefined): PipelineStageId {
   // Legacy/removed follow-up stages → follow_up

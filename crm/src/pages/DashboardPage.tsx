@@ -186,10 +186,8 @@ export function DashboardPage() {
       const estScheduled = columns.find((c) => c.id === 'est_scheduled')?.cards.length ?? 0;
       const estSent = (columns.find((c) => c.id === 'est_sent')?.cards.length ?? 0) +
                       (columns.find((c) => c.id === 'follow_up')?.cards.length ?? 0);
-      const contractSentCol = columns.find((c) => c.id === 'contract_sent' || c.id === 'contract_signed');
-      const contractSent = contractSentCol?.cards.length ?? 0;
-      const contractSignedCount = (contractSentCol?.cards.filter((c) => c.isContractSigned).length ?? 0) ||
-                                  (columns.find((c) => c.id === 'contract_signed')?.cards.length ?? 0);
+      const contractSent = 0;
+      const contractSignedCount = columns.find((c) => c.id === 'contract_signed')?.cards.length ?? 0;
       const activeJobsCount = columns.find((c) => c.id === 'active_jobs')?.cards.length ?? 0;
       const wonFromSummary = summary?.wonCount ?? 0;
       const jobsWon = Math.max(contractSignedCount + activeJobsCount, wonFromSummary, stats?.jobsWon ?? 0);
@@ -269,10 +267,9 @@ export function DashboardPage() {
     est_scheduled: 3,
     est_sent: 4,
     follow_up: 5,
-    contract_sent: 6,
-    contract_signed: 7,
-    active_jobs: 8,
-    job_completed: 8,
+    contract_signed: 6,
+    active_jobs: 7,
+    job_completed: 7,
   };
 
   const handleDrop = (e: React.DragEvent, toCol: ColumnData) => {
