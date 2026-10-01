@@ -38,7 +38,7 @@ export const CounterSignModal: React.FC<CounterSignModalProps> = ({
   onSuccess,
 }) => {
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isOwner } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,16 +93,16 @@ export const CounterSignModal: React.FC<CounterSignModalProps> = ({
 
   if (!isOpen || !contract) return null;
 
-  const isAuthorizedSignatory = Boolean(currentUser?.is_authorized_signatory || mySignatory);
+  const isAuthorizedSignatory = isOwner || Boolean(currentUser?.is_authorized_signatory || mySignatory);
   const hasConfiguredSignature = Boolean(mySignatory?.has_signature || currentUser?.has_signature);
   const mySignatureData = mySignatory?.signature_data || currentUser?.signature_data;
   const mySignatureType = mySignatory?.signature_type || currentUser?.signature_type || 'typed';
-  const mySignatureTitle = mySignatory?.signature_title || currentUser?.signature_title || 'Project Manager';
+  const mySignatureTitle = mySignatory?.signature_title || currentUser?.signature_title || 'Owner';
   const myName = currentUser?.name || mySignatory?.name || 'Authorized Officer';
 
   const handleConfirmCounterSign = async () => {
     if (!isAuthorizedSignatory) {
-      setError('Access Denied: Only staff holding an Authorized Signatory role can counter-sign contracts.');
+      setError('Access Denied: Only account owners or staff with an Authorized Signatory role can counter-sign contracts.');
       return;
     }
     if (!hasConfiguredSignature) {

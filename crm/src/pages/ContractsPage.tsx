@@ -43,7 +43,8 @@ import { useToast } from '@/context/ToastContext';
 import { API_ORIGIN } from '@/lib/api';
 
 export function ContractsPage() {
-  const { user } = useAuth();
+  const { user, isOwner } = useAuth();
+  const canCounterSign = isOwner || Boolean(user?.is_authorized_signatory);
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -579,8 +580,8 @@ export function ContractsPage() {
                           </span>
                         </button>
 
-                        {/* Counter-Sign Button (strictly for 1-party client_signed contracts) */}
-                        {c.status === 'client_signed' && !c.is_archived && (
+                        {/* Counter-Sign Button (strictly for 1-party client_signed contracts, signatories/owners only) */}
+                        {c.status === 'client_signed' && !c.is_archived && canCounterSign && (
                           <button
                             type="button"
                             onClick={(e) => {

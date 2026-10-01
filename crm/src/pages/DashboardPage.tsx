@@ -93,7 +93,7 @@ function KanbanColumnSkeleton({ cardCount = 2 }: { cardCount?: number }) {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { can, isOwner } = useAuth();
+  const { user, can, isOwner } = useAuth();
   const canViewFinances = can('finances.view');
   const canAdvanceStage = can('pipeline.advance_stage');
   const canCreateLead = can('leads.create');
@@ -138,17 +138,20 @@ export function DashboardPage() {
   }, [toastMessage]);
 
   // Contracts awaiting contractor counter-signature
+  // Only visible to authorized signatories and owners
+  const canCounterSign = isOwner || Boolean(user?.is_authorized_signatory);
   const [pendingCounterSignContracts, setPendingCounterSignContracts] = useState<ContractRow[]>([]);
   const [selectedCounterSignContract, setSelectedCounterSignContract] = useState<ContractRow | null>(null);
 
   const fetchPendingContracts = useCallback(async () => {
+    if (!canCounterSign) return;          // non-signatories never see this
     try {
       const res = await getContracts({ status: 'client_signed' });
       setPendingCounterSignContracts(res.contracts || []);
     } catch (err) {
       console.error('Failed to load pending counter-sign contracts:', err);
     }
-  }, []);
+  }, [canCounterSign]);
 
   useEffect(() => {
     fetchPendingContracts();
