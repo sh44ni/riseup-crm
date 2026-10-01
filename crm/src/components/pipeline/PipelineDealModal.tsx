@@ -161,6 +161,11 @@ export function PipelineDealModal({
   const [isClaiming, setIsClaiming] = useState(false);
   const [showContractBuilder, setShowContractBuilder] = useState(false);
 
+  // Appointment scheduling state
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduleInput, setScheduleInput] = useState('');
+  const [isScheduling, setIsScheduling] = useState(false);
+
   // Resolved author
   const cleanAuthor = cleanseAuthor(user?.name, user?.role);
   const authorName = cleanAuthor.name;
@@ -311,6 +316,16 @@ export function PipelineDealModal({
   const displayTimeSlot = deal.timeSlot || '10:00 AM';
   const displayRelativeTime = deal.time || formatRelativeTime(leadDetail?.updated_at || leadDetail?.created_at);
 
+  // Real appointment from backend
+  const rawScheduledAt = leadDetail?.site_visit_scheduled_at || (deal as any).siteVisitScheduledAt || null;
+  const scheduledDt = rawScheduledAt ? new Date(rawScheduledAt) : null;
+  const realAppointmentDate = scheduledDt
+    ? scheduledDt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : null;
+  const realAppointmentTime = scheduledDt
+    ? scheduledDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : null;
+
   const latestMoveActivity = activities.find((a) => a.activity_type === 'stage_changed');
 
   const handleLogTouchpoint = async () => {
@@ -377,6 +392,46 @@ export function PipelineDealModal({
       console.error('Failed to claim lead:', err);
     } finally {
       setIsClaiming(false);
+    }
+  };
+
+  const handleScheduleAppointment = async () => {
+    if (!scheduleInput || isScheduling || !deal?.id) return;
+    setIsScheduling(true);
+    try {
+      const isoDatetime = new Date(scheduleInput).toISOString();
+      await api.updateLead(deal.id, { site_visit_scheduled_at: isoDatetime } as any);
+      // Auto-advance to estimate_scheduled stage if not already past it
+      const currentStage = leadDetail?.pipeline_stage || (deal as any).stageId || '';
+      const preScheduleStages = ['stage_1_lead_gen', 'stage_2_initial_contact', 'new_leads', 'contacted', 'initial_call', 'cold_lead'];
+      if (preScheduleStages.some(s => currentStage.includes(s) || currentStage === s)) {
+        await api.updateLead(deal.id, { pipeline_stage: 'stage_3_site_visit_estimate' } as any);
+      }
+      setShowScheduler(false);
+      setScheduleInput('');
+      await fetchLeadData(deal.id);
+      if (onUpdateDeal) onUpdateDeal({ ...deal, siteVisitScheduledAt: isoDatetime });
+    } catch (err) {
+      console.error('Failed to schedule appointment:', err);
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  const handleCancelAppointment = async () => {
+    if (isScheduling || !deal?.id) return;
+    if (!window.confirm('Cancel this appointment? The lead will remain in its current stage.')) return;
+    setIsScheduling(true);
+    try {
+      await api.updateLead(deal.id, { site_visit_scheduled_at: null } as any);
+      setShowScheduler(false);
+      setScheduleInput('');
+      await fetchLeadData(deal.id);
+      if (onUpdateDeal) onUpdateDeal({ ...deal, siteVisitScheduledAt: null });
+    } catch (err) {
+      console.error('Failed to cancel appointment:', err);
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -537,14 +592,70 @@ export function PipelineDealModal({
                 </div>
 
                 <div className="p-3 rounded-2xl liquid-glass-tile space-y-1 col-span-2 sm:col-span-1">
-                  <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
-                    Appointment Date
-                  </span>
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
-                    <Calendar size={12} className="text-[#1878B8]" />
-                    <span>{displayDate}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
+                      Appointment
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (rawScheduledAt) {
+                          // Pre-fill picker with existing datetime (convert to local datetime-local format)
+                          const dt = new Date(rawScheduledAt);
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          setScheduleInput(`${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`);
+                        }
+                        setShowScheduler(s => !s);
+                      }}
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors cursor-pointer"
+                    >
+                      {rawScheduledAt ? 'Reschedule' : '+ Schedule'}
+                    </button>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-medium">{displayTimeSlot}</div>
+                  {realAppointmentDate ? (
+                    <>
+                      <div className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                        <Calendar size={12} className="text-[#1878B8]" />
+                        <span>{realAppointmentDate}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-[10px] text-slate-400 font-medium">{realAppointmentTime}</div>
+                        <button
+                          type="button"
+                          onClick={handleCancelAppointment}
+                          disabled={isScheduling}
+                          className="text-[9px] font-bold text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          Cancel appt
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                      <Calendar size={12} className="text-slate-300" />
+                      <span>Not scheduled yet</span>
+                    </div>
+                  )}
+                  {/* Inline datetime picker */}
+                  {showScheduler && (
+                    <div className="mt-1.5 space-y-1.5 pt-1.5 border-t border-slate-200/70 dark:border-white/10">
+                      <input
+                        type="datetime-local"
+                        value={scheduleInput}
+                        onChange={e => setScheduleInput(e.target.value)}
+                        className="w-full text-[11px] px-2 py-1 rounded-lg border border-slate-300 dark:border-white/20 bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleScheduleAppointment}
+                        disabled={!scheduleInput || isScheduling}
+                        className="w-full text-[10px] font-bold py-1 rounded-lg bg-[#1878B8] text-white hover:bg-[#1568a3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        {isScheduling ? <Loader2 size={10} className="animate-spin" /> : <Calendar size={10} />}
+                        {isScheduling ? 'Saving…' : (rawScheduledAt ? 'Update Appointment' : 'Confirm Appointment')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

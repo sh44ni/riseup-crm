@@ -379,7 +379,8 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
         "full_name", "phone", "email", "address", "city", "zip", "service_type",
         "notes", "status", "priority", "pipeline_stage", "assigned_to_user_id", "lost_reason",
         "lost_notes", "lost_at",
-        "roof_sqf", "roof_squares", "roof_pitch", "stories", "roof_type", "estimated_value"
+        "roof_sqf", "roof_squares", "roof_pitch", "stories", "roof_type", "estimated_value",
+        "site_visit_scheduled_at", "site_visit_completed_at",
     ]
 
     # Parse address components if any address field is updated

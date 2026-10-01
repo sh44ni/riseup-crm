@@ -4,6 +4,7 @@ import {
   Clock,
   MapPin,
   Camera,
+  Calendar,
   UserCheck,
   UserCog,
   PhoneCall,
@@ -121,6 +122,26 @@ export function KanbanDealCard({
               ? `${deal.followupDaysRemaining}d remaining`
               : '48h SLA'}
           </span>
+        </div>
+      )}
+
+      {/* Estimate Appointment Badge */}
+      {deal.stageId === 'estimate_scheduled' && (
+        <div className={`flex items-center justify-between text-[9px] px-2 py-0.5 rounded-md font-bold ${
+          deal.siteVisitScheduledAt
+            ? 'bg-sky-50 dark:bg-sky-950/50 border border-sky-200/90 dark:border-sky-800/60 text-sky-900 dark:text-sky-300'
+            : 'bg-amber-50 dark:bg-amber-950/50 border border-amber-200/90 dark:border-amber-800/60 text-amber-900 dark:text-amber-300'
+        }`}>
+          <span className="flex items-center gap-1">
+            <Calendar size={9} className={deal.siteVisitScheduledAt ? 'text-sky-600 dark:text-sky-400 shrink-0' : 'text-amber-500 shrink-0 animate-pulse'} />
+            <span>{deal.siteVisitScheduledAt ? 'Appt:' : 'No appt set'}</span>
+          </span>
+          {deal.siteVisitScheduledAt && (
+            <span className="font-extrabold text-sky-700 dark:text-sky-300 truncate max-w-[140px]">
+              {new Date(deal.siteVisitScheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{' '}
+              {new Date(deal.siteVisitScheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+            </span>
+          )}
         </div>
       )}
 

@@ -103,6 +103,7 @@ export async function fetchPipelineForDashboard(): Promise<{ columns: ColumnData
           isContractSigned: isSigned,
           granularStage: lead.granular_stage || undefined,
           pipelineStage: lead.pipeline_stage || undefined,
+          siteVisitScheduledAt: lead.site_visit_scheduled_at || null,
         });
       }
     }
@@ -222,6 +223,13 @@ export async function fetchPipelineDeals(): Promise<{
       slaText,
       photosCount: l.photo_count || 0,
       proposalSentDate: l.proposal_sent_at || undefined,
+      scheduledDate: l.site_visit_scheduled_at
+        ? new Date(l.site_visit_scheduled_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        : undefined,
+      scheduledTime: l.site_visit_scheduled_at
+        ? new Date(l.site_visit_scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+        : undefined,
+      siteVisitScheduledAt: l.site_visit_scheduled_at || null,
       notes: l.notes || '',
       lossReason: l.lost_reason || undefined,
       isFollowupOverdue: l.is_followup_overdue || false,

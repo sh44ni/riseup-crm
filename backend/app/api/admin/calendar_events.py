@@ -700,6 +700,88 @@ async def update_calendar_event(
                 message="Task updated successfully"
             )
 
+    # Handle virtual lead site-visit events (lead-visit-{lead_id})
+    if event_id.startswith("lead-visit-"):
+        raw_lid = event_id.replace("lead-visit-", "")
+        if raw_lid.isdigit():
+            l_id = int(raw_lid)
+            lead_row = (await db.execute(
+                text("SELECT id, full_name, phone, email, address, city, site_visit_scheduled_at FROM leads WHERE id = :id"),
+                {"id": l_id}
+            )).mappings().first()
+            if not lead_row:
+                raise HTTPException(status_code=404, detail="Lead not found for this calendar event")
+
+            lead_updates = []
+            lead_params: Dict[str, Any] = {"id": l_id}
+
+            if payload.status == "cancelled":
+                # Cancel: clear the scheduled timestamp
+                lead_updates.append("site_visit_scheduled_at = NULL")
+            elif "date" in payload_dict and payload.date:
+                # Reschedule: reconstruct datetime from date + startTime
+                try:
+                    date_str = payload.date  # YYYY-MM-DD
+                    time_str = payload.startTime or "09:00 AM"
+                    combined_str = f"{date_str} {time_str}"
+                    # Try parsing 12h format first, then 24h
+                    new_dt = None
+                    for fmt in ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %H:%M", "%Y-%m-%d %I:%M%p"):
+                        try:
+                            new_dt = datetime.strptime(combined_str, fmt).replace(tzinfo=timezone.utc)
+                            break
+                        except ValueError:
+                            continue
+                    if new_dt:
+                        lead_updates.append("site_visit_scheduled_at = :scheduled_at")
+                        lead_params["scheduled_at"] = new_dt
+                except Exception:
+                    pass
+
+            if lead_updates:
+                await db.execute(
+                    text(f"UPDATE leads SET {', '.join(lead_updates)}, updated_at = NOW() WHERE id = :id"),
+                    lead_params
+                )
+                await db.commit()
+
+            # Re-fetch the lead to build response
+            refreshed = (await db.execute(
+                text("SELECT id, full_name, phone, email, address, city, site_visit_scheduled_at FROM leads WHERE id = :id"),
+                {"id": l_id}
+            )).mappings().first()
+
+            sched = refreshed["site_visit_scheduled_at"] if refreshed else None
+            resp_date = sched.strftime("%Y-%m-%d") if sched else (payload.date or "")
+            resp_start = sched.strftime("%I:%M %p").lstrip("0") if sched else (payload.startTime or "09:00 AM")
+            resp_status = "cancelled" if payload.status == "cancelled" else ("scheduled" if sched else "cancelled")
+
+            return CalendarEventSingleResponse(
+                success=True,
+                data=CalendarEventPayload(
+                    id=event_id,
+                    title=payload.title or f"Estimate – {lead_row['full_name']}",
+                    jobCode=f"LEAD-{l_id}",
+                    customerName=payload.customerName or lead_row["full_name"] or "",
+                    phone=payload.phone or lead_row.get("phone") or "",
+                    email=payload.email or lead_row.get("email") or "",
+                    address=payload.address or lead_row.get("address") or "",
+                    city=payload.city or lead_row.get("city") or "San Diego",
+                    date=resp_date,
+                    dayNumber=int(resp_date.split("-")[2]) if resp_date else 1,
+                    month=int(resp_date.split("-")[1]) if resp_date else 1,
+                    year=int(resp_date.split("-")[0]) if resp_date else 2026,
+                    startTime=resp_start,
+                    endTime=payload.endTime or "10:00 AM",
+                    category="roof_inspection",
+                    status=resp_status,
+                    assignedToUserId=payload.assignedToUserId,
+                    assignedToName=payload.assignedToName,
+                    sourceType="pipeline_lead",
+                ),
+                message="Lead appointment updated successfully"
+            )
+
     stmt = select(CalendarEvent).where(CalendarEvent.id == event_id)
     result = await db.execute(stmt)
     event = result.scalar_one_or_none()
@@ -795,6 +877,18 @@ async def delete_calendar_event(
             await db.execute(text("DELETE FROM tasks WHERE id = :id"), {"id": int(raw_tid)})
             await db.commit()
             return {"success": True, "message": "Task deleted successfully"}
+
+    # Virtual lead site-visit events: cancel by clearing site_visit_scheduled_at
+    if event_id.startswith("lead-visit-"):
+        raw_lid = event_id.replace("lead-visit-", "")
+        if raw_lid.isdigit():
+            l_id = int(raw_lid)
+            await db.execute(
+                text("UPDATE leads SET site_visit_scheduled_at = NULL, updated_at = NOW() WHERE id = :id"),
+                {"id": l_id}
+            )
+            await db.commit()
+            return {"success": True, "message": "Lead appointment cancelled successfully"}
 
     stmt = select(CalendarEvent).where(CalendarEvent.id == event_id)
     result = await db.execute(stmt)

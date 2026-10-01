@@ -100,6 +100,10 @@ class LeadUpdate(BaseModel):
     financing_interested: Optional[bool] = None
     address_confirmed: Optional[bool] = None
 
+    # Appointment scheduling
+    site_visit_scheduled_at: Optional[datetime] = None
+    site_visit_completed_at: Optional[datetime] = None
+
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
 

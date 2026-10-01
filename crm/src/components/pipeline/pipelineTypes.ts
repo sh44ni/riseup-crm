@@ -30,6 +30,7 @@ export interface DealCard {
   isContractSigned?: boolean;
   granularStage?: string;
   pipelineStage?: string;
+  siteVisitScheduledAt?: string | null;
 }
 
 export interface ColumnData {
@@ -329,6 +330,7 @@ export interface PipelineDealItem {
   proposalSentDate?: string;
   scheduledDate?: string;
   scheduledTime?: string;
+  siteVisitScheduledAt?: string | null;
   notes: string;
   lossReason?: string;
   lossNotes?: string;
