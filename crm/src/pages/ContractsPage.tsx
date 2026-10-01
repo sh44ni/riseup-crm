@@ -20,6 +20,10 @@ import {
   RotateCcw,
   Trash2,
   PenTool,
+  Loader2,
+  FileCheck2,
+  FilePen,
+  FileSignature,
 } from 'lucide-react';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
 import { UniversalStatCard } from '@/components/common/UniversalStatCard';
@@ -71,6 +75,7 @@ export function ContractsPage() {
   const [selectedCounterSign, setSelectedCounterSign] = useState<ContractRow | null>(null);
   const [deleteConfirmContract, setDeleteConfirmContract] = useState<ContractRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   const fetchContractsList = useCallback(async () => {
     setLoading(true);
@@ -128,6 +133,44 @@ export function ContractsPage() {
     }
   };
 
+  const handleDownloadPdf = async (e: React.MouseEvent, c: ContractRow) => {
+    e.stopPropagation();
+    if (downloadingId === c.id) return;
+    setDownloadingId(c.id);
+    try {
+      const token = localStorage.getItem('crm_auth_token');
+      // Use the authenticated /preview endpoint which resolves the best available PDF
+      const url = `${API_ORIGIN}/api/admin/contracts/${c.id}/preview`;
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        redirect: 'follow',
+      });
+      if (!res.ok) {
+        toast.error(`Download failed — contract PDF not yet generated.`);
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      // Friendly filename: "Contract-RC-2026-0001-Fully-Executed.pdf"
+      const statusSuffix =
+        c.status === 'signed' ? 'Fully-Executed' :
+        c.status === 'client_signed' ? 'Partially-Executed' :
+        c.status === 'sent' ? 'Sent' : 'Draft';
+      anchor.download = `Contract-${(c.contract_number || String(c.id)).replace(/\//g, '-')}-${statusSuffix}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(blobUrl);
+      toast.success(`Downloaded ${anchor.download}`);
+    } catch (err: any) {
+      toast.error(`Download error: ${err.message || 'Unknown error'}`);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const openNewContractStudio = () => {
     const params = new URLSearchParams({ mode: 'studio' });
     const clientName = searchParams.get('clientName') || searchParams.get('name');
@@ -154,29 +197,29 @@ export function ContractsPage() {
       case 'signed':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-            <CheckCircle2 size={12} className="shrink-0 text-emerald-600" />
-            <span>Signed / Executed</span>
+            <FileCheck2 size={12} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span>Fully Executed</span>
           </span>
         );
       case 'client_signed':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800 animate-pulse">
-            <PenTool size={11} className="shrink-0 text-amber-600 dark:text-amber-400" />
-            <span>1-Party Signed</span>
+            <FileSignature size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>Partially Executed</span>
           </span>
         );
       case 'sent':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
-            <Clock size={12} className="shrink-0 text-sky-600" />
-            <span>Sent (Awaiting Sign)</span>
+            <Send size={12} className="shrink-0 text-sky-600 dark:text-sky-400" />
+            <span>Sent — Awaiting Signature</span>
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-white/10">
-            <FileText size={12} className="shrink-0 text-slate-500" />
-            <span>Draft</span>
+            <FilePen size={12} className="shrink-0 text-slate-500" />
+            <span>Drafted</span>
           </span>
         );
     }
@@ -488,27 +531,53 @@ export function ContractsPage() {
                     </td>
 
                     <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {/* Open Studio */}
                         <button
                           type="button"
                           onClick={() => setSearchParams({ mode: 'studio', id: String(c.id) })}
-                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 transition-colors"
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                           title="Open in Studio"
                         >
                           <Edit size={13} />
                         </button>
 
-                        {/* Preview / View PDF */}
+                        {/* Preview in new tab */}
                         <a
-                          href={c.signed_pdf_url ? `${API_ORIGIN}${c.signed_pdf_url}` : (c.pdf_url ? `${API_ORIGIN}${c.pdf_url}` : `/api/admin/contracts/${c.id}/preview`)}
+                          href={`${API_ORIGIN}/api/admin/contracts/${c.id}/preview`}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-[#1878B8] dark:text-sky-300 transition-colors"
-                          title="Preview Contract PDF"
+                          title="Preview Contract PDF in new tab"
                         >
-                          <ExternalLink size={14} />
+                          <ExternalLink size={13} />
                         </a>
+
+                        {/* Download PDF */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleDownloadPdf(e, c)}
+                          disabled={downloadingId === c.id}
+                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                            c.status === 'signed'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300'
+                              : c.status === 'client_signed'
+                              ? 'bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-300'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                          }`}
+                          title={`Download ${c.status === 'signed' ? 'Fully Executed' : c.status === 'client_signed' ? 'Partially Executed' : ''} PDF`}
+                        >
+                          {downloadingId === c.id
+                            ? <Loader2 size={12} className="animate-spin" />
+                            : <Download size={12} />}
+                          <span>
+                            {downloadingId === c.id ? 'Downloading…' :
+                              c.status === 'signed' ? 'Download' :
+                              c.status === 'client_signed' ? 'Download' :
+                              c.status === 'draft' ? 'Draft PDF' : 'Download'}
+                          </span>
+                        </button>
 
                         {/* Counter-Sign Button (strictly for 1-party client_signed contracts) */}
                         {c.status === 'client_signed' && !c.is_archived && (
@@ -518,7 +587,7 @@ export function ContractsPage() {
                               e.stopPropagation();
                               setSelectedCounterSign(c);
                             }}
-                            className="flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-xs hover:shadow-md cursor-pointer animate-pulse hover:animate-none"
+                            className="flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white transition-all shadow-xs hover:shadow-md cursor-pointer animate-pulse hover:animate-none"
                             title="Counter-Sign & Execute Contract"
                           >
                             <PenTool size={12} className="stroke-[2.5]" />
