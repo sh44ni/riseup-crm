@@ -11,6 +11,7 @@ import {
   UserCheck,
   UserCog,
   Hammer,
+  Calendar,
   ChevronRight,
   CheckCircle2,
 } from 'lucide-react';
@@ -116,6 +117,26 @@ export function DashboardDealCard({
             <span>24h Follow-Up:</span>
           </span>
           <span>{card.hoursUntilAutoMove > 0 ? `${card.hoursUntilAutoMove}h left` : 'Due now'}</span>
+        </div>
+      )}
+
+      {/* Estimate Appointment Badge for est_scheduled column */}
+      {col.id === 'est_scheduled' && (
+        <div className={`flex items-center justify-between px-1.5 py-0.5 rounded font-extrabold text-[8px] border ${
+          card.siteVisitScheduledAt
+            ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-900 dark:text-sky-200 border-sky-200/80 dark:border-sky-800/60'
+            : 'bg-amber-100/90 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-300/80 dark:border-amber-800/60'
+        }`}>
+          <span className="flex items-center gap-1">
+            <Calendar size={8.5} className={card.siteVisitScheduledAt ? 'shrink-0 text-sky-600 dark:text-sky-400' : 'shrink-0 text-amber-600 animate-pulse'} />
+            <span>{card.siteVisitScheduledAt ? 'Appt:' : 'No appt — click to set'}</span>
+          </span>
+          {card.siteVisitScheduledAt && (
+            <span className="truncate max-w-[100px]">
+              {new Date(card.siteVisitScheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{' '}
+              {new Date(card.siteVisitScheduledAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+            </span>
+          )}
         </div>
       )}
 

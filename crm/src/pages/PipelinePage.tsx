@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Sparkles,
   ArrowRight,
+  Calendar,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -27,6 +28,7 @@ import {
   logDealFollowUp,
   claimLead,
 } from '@/api/pipelineApi';
+import { api } from '@/lib/api';
 import { useDragAutoScroll } from '@/hooks/useDragAutoScroll';
 import { useDashboardStats } from '@/lib/dashboardStatsStore';
 import { usePipelineData } from '@/hooks/usePipelineData';
@@ -99,6 +101,11 @@ export function PipelinePage() {
   const [dropIntent, setDropIntent] = useState<DropIntent | null>(null);
   const [isMoving, setIsMoving] = useState<boolean>(false);
   const [backwardMoveWarning, setBackwardMoveWarning] = useState<BackwardMoveWarning | null>(null);
+
+  // Appointment scheduling prompt (shown when advancing to estimate_scheduled)
+  const [pendingScheduleDeal, setPendingScheduleDeal] = useState<PipelineDealItem | null>(null);
+  const [pipelineScheduleDateTime, setPipelineScheduleDateTime] = useState('');
+  const [isSchedulingPipeline, setIsSchedulingPipeline] = useState(false);
 
 
   useEffect(() => {
@@ -412,6 +419,13 @@ export function PipelinePage() {
       return;
     }
 
+    // Prompt for appointment date/time when advancing to estimate_scheduled
+    if (nextStage === 'estimate_scheduled') {
+      setPipelineScheduleDateTime('');
+      setPendingScheduleDeal(deal);
+      return;
+    }
+
     const stageIndex = PIPELINE_STAGES.findIndex((s) => s.id === nextStage);
     const nextStageDef = stageIndex >= 0 ? PIPELINE_STAGES[stageIndex] : null;
 
@@ -448,6 +462,31 @@ export function PipelinePage() {
 
   const handleUpdateDeal = (updated: PipelineDealItem) => {
     setDeals((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+  };
+
+  const handleConfirmPipelineSchedule = async (skipDate = false) => {
+    if (!pendingScheduleDeal || isSchedulingPipeline) return;
+    const deal = pendingScheduleDeal;
+    const nextStage: PipelineStageId = 'estimate_scheduled';
+    const nextStageDef = PIPELINE_STAGES.find(s => s.id === nextStage);
+    setIsSchedulingPipeline(true);
+    setDeals(prev => prev.map(d => d.id !== deal.id ? d : { ...d, stageId: nextStage, daysInStage: 0, slaStatus: 'on_track', slaText: 'Estimate Scheduled' }));
+    try {
+      await updatePipelineDealStage(deal.id, nextStage, 'Advanced to Estimate Scheduled', { authorName: user?.name, authorRole: user?.role });
+      if (!skipDate && pipelineScheduleDateTime) {
+        await api.updateLead(deal.id, { site_visit_scheduled_at: new Date(pipelineScheduleDateTime).toISOString() } as any);
+        setDeals(prev => prev.map(d => d.id !== deal.id ? d : { ...d, siteVisitScheduledAt: new Date(pipelineScheduleDateTime).toISOString() }));
+      }
+      toast.success(`Advanced to ${nextStageDef?.shortTitle || 'Estimate Scheduled'}${!skipDate && pipelineScheduleDateTime ? ' — appointment set' : ''}`);
+    } catch (err: any) {
+      setDeals(prev => prev.map(d => d.id !== deal.id ? d : { ...d, stageId: deal.stageId }));
+      toast.error(err?.message || 'Stage advance not permitted.');
+    } finally {
+      setIsSchedulingPipeline(false);
+      setPendingScheduleDeal(null);
+      setPipelineScheduleDateTime('');
+      refresh(true);
+    }
   };
 
   const handleMarkOutcome = async (
@@ -1111,6 +1150,66 @@ export function PipelinePage() {
         setReassignModalDeal={setReassignModalDeal}
         handleReassignSuccess={handleReassignSuccess}
       />
+
+      {/* Appointment Scheduling Modal — shown when advancing to Estimate Scheduled */}
+      {pendingScheduleDeal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xl animate-in fade-in duration-200">
+          <div
+            className="relative w-full max-w-sm rounded-3xl bg-white/95 dark:bg-[#0B1320]/96 backdrop-blur-3xl border border-white/90 dark:border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.35)] p-6 space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-sky-100 dark:bg-sky-950/60 flex items-center justify-center shrink-0">
+                <Calendar className="text-sky-600 dark:text-sky-400" size={20} />
+              </div>
+              <div>
+                <div className="font-black text-sm text-slate-800 dark:text-slate-100">Schedule Estimate</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">{pendingScheduleDeal.name}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                Appointment Date &amp; Time
+              </label>
+              <input
+                type="datetime-local"
+                value={pipelineScheduleDateTime}
+                onChange={e => setPipelineScheduleDateTime(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-xl border border-slate-300 dark:border-white/20 bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setPendingScheduleDeal(null); setPipelineScheduleDateTime(''); }}
+                disabled={isSchedulingPipeline}
+                className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmPipelineSchedule(true)}
+                disabled={isSchedulingPipeline}
+                className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Move, no date
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmPipelineSchedule(false)}
+                disabled={!pipelineScheduleDateTime || isSchedulingPipeline}
+                className="flex-1 py-2 rounded-xl bg-[#1878B8] text-white text-xs font-bold hover:bg-[#1568a3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                {isSchedulingPipeline ? 'Moving…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

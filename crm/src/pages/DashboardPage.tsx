@@ -240,6 +240,15 @@ export function DashboardPage() {
   const [isLoggingFollowUp, setIsLoggingFollowUp] = useState(false);
   const [gatedEstimateCard, setGatedEstimateCard] = useState<GatedLeadCard | null>(null);
 
+  // Appointment scheduling prompt state (shown when moving a card to est_scheduled)
+  const [pendingScheduleMove, setPendingScheduleMove] = useState<{
+    card: DealCard;
+    fromCol: ColumnData;
+    toCol: ColumnData;
+  } | null>(null);
+  const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [isSchedulingMove, setIsSchedulingMove] = useState(false);
+
   const handleDragStart = (cardId: string, fromColId: string) => {
     if (!canAdvanceStage) return;
     dragCardRef.current = { cardId, fromColId };
@@ -324,6 +333,13 @@ export function DashboardPage() {
       return;
     }
 
+    // 4. Estimate Scheduled: prompt for appointment date/time first
+    if (toCol.id === 'est_scheduled') {
+      setScheduleDateTime('');
+      setPendingScheduleMove({ card, fromCol, toCol });
+      return;
+    }
+
     setDropIntent({ card, fromCol, toCol });
   };
 
@@ -396,6 +412,30 @@ export function DashboardPage() {
 
   const handleCancelMove = () => {
     setDropIntent(null);
+  };
+
+  const handleConfirmScheduleMove = async (skipDate = false) => {
+    if (!pendingScheduleMove || isSchedulingMove) return;
+    const { card, fromCol, toCol } = pendingScheduleMove;
+    const mapping = STAGE_MAP[toCol.id] || { granularStage: 'cold_lead', pipelineStage: 'stage_1_lead_gen' };
+    setIsSchedulingMove(true);
+    moveCardOptimistically(card.id, fromCol.id, toCol.id);
+    try {
+      await updatePipelineDealStage(card.id, mapping.granularStage);
+      if (!skipDate && scheduleDateTime) {
+        await api.updateLead(card.id, { site_visit_scheduled_at: new Date(scheduleDateTime).toISOString() } as any);
+      }
+      setToastMessage(`Moved ${card.name} to ${toCol.title}${!skipDate && scheduleDateTime ? ' — appointment set' : ''}`);
+    } catch (err: any) {
+      moveCardOptimistically(card.id, toCol.id, fromCol.id);
+      setToastMessage(err?.message || 'Move failed. Card returned.');
+    } finally {
+      setIsSchedulingMove(false);
+      setPendingScheduleMove(null);
+      setScheduleDateTime('');
+      refreshPipeline(true);
+      refreshStats(true);
+    }
   };
 
   const handleConfirmClaimLead = async () => {
@@ -921,6 +961,66 @@ export function DashboardPage() {
         warning={backwardMoveWarning}
         onClose={() => setBackwardMoveWarning(null)}
       />
+
+      {/* Appointment Scheduling Modal — triggered when moving to Estimate Scheduled */}
+      {pendingScheduleMove && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xl animate-in fade-in duration-200">
+          <div
+            className="relative w-full max-w-sm rounded-3xl bg-white/95 dark:bg-[#0B1320]/96 backdrop-blur-3xl border border-white/90 dark:border-white/10 shadow-[0_25px_80px_rgba(0,0,0,0.35)] p-6 space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-sky-100 dark:bg-sky-950/60 flex items-center justify-center shrink-0">
+                <Calendar className="text-sky-600 dark:text-sky-400" size={20} />
+              </div>
+              <div>
+                <div className="font-black text-sm text-slate-800 dark:text-slate-100">Schedule Estimate</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">{pendingScheduleMove.card.name}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                Appointment Date &amp; Time
+              </label>
+              <input
+                type="datetime-local"
+                value={scheduleDateTime}
+                onChange={e => setScheduleDateTime(e.target.value)}
+                className="w-full text-sm px-3 py-2 rounded-xl border border-slate-300 dark:border-white/20 bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setPendingScheduleMove(null); setScheduleDateTime(''); }}
+                disabled={isSchedulingMove}
+                className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmScheduleMove(true)}
+                disabled={isSchedulingMove}
+                className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Move, no date
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmScheduleMove(false)}
+                disabled={!scheduleDateTime || isSchedulingMove}
+                className="flex-1 py-2 rounded-xl bg-[#1878B8] text-white text-xs font-bold hover:bg-[#1568a3] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                {isSchedulingMove ? 'Moving…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
