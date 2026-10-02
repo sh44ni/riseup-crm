@@ -18,7 +18,7 @@ redis[hiredis]==5.2.1
 arq==0.26.1
 
 # S3 / MinIO Object Storage
-aioboto3>=13.0.0
+aioboto3>=15.5.0
 pillow==11.1.0
 
 # Security & Passwords
