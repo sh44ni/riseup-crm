@@ -30,7 +30,7 @@ pytest-asyncio==0.25.3
 pytest-cov>=5.0.0
 
 # Linting
-ruff>=0.5.0
+ruff>=0.16.9
 
 # PDF Generation Engine & Templates
 playwright==1.51.0
