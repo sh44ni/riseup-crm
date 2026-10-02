@@ -15,6 +15,7 @@ async def main():
         "ALTER TABLE leads ADD COLUMN IF NOT EXISTS follow_up_at TIMESTAMP WITH TIME ZONE;",
         "ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_contact_at TIMESTAMP WITH TIME ZONE;",
         "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS work_category TEXT DEFAULT 'Rise Up';",
+        "ALTER TABLE leads ALTER COLUMN estimated_value DROP NOT NULL;",
     ]
     async with engine.begin() as conn:
         for stmt in statements:

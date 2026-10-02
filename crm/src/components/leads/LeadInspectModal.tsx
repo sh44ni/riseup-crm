@@ -27,6 +27,8 @@ import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
 import { ClientEditContactModal, ClientContactData } from '@/components/clients/ClientEditContactModal';
 import { leadsApi } from '@/api/leadsApi';
 import { broadcastContactUpdated } from '@/utils/syncEventBus';
+import { DealValueText } from '@/components/shared/DealValueBadge';
+
 
 export interface LeadInspectModalProps {
   lead: Lead;
@@ -404,21 +406,31 @@ export function LeadInspectModal({
           {/* Specifications Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10">
             <div>
-              <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">Estimated Value</div>
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">Deal Value</div>
               <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
-                {!canViewFinances ? (
-                  <span className="text-slate-400 dark:text-slate-500 font-bold text-xs">🔒 $•••</span>
-                ) : lead.value > 0 ? (
-                  `$${lead.value.toLocaleString()}`
-                ) : (
-                  <span className="text-slate-400 dark:text-slate-500 font-medium">TBD</span>
-                )}
+                <DealValueText
+                  contractValue={lead.contractValue ?? (lead as any).contract_value}
+                  estimateTotal={lead.estimateTotal ?? (lead as any).estimate_total}
+                  estimatedValue={lead.estimatedValue ?? (lead.value > 0 ? lead.value : null) ?? (lead as any).raw_estimated_value ?? (lead as any).estimated_value}
+                  roofSqf={lead.roofSqf ?? (lead as any).roof_sqf ?? (lead.squares && lead.squares > 0 ? lead.squares * 100 : null)}
+                  proposalSentAt={lead.proposalSentAt ?? (lead as any).proposalSentDate ?? (lead as any).proposal_sent_at}
+                  isUploadedEstimate={lead.isUploadedEstimate ?? (lead as any).is_uploaded_estimate}
+                  estimateTemplateKey={lead.estimateTemplateKey ?? (lead as any).estimate_template_key}
+                  isContractSigned={lead.isContractSigned}
+                  stageId={lead.stageId || lead.pipelineStage || (lead as any).stage || lead.status}
+                  canViewFinances={canViewFinances}
+                  className="text-sm"
+                />
               </div>
             </div>
             <div>
               <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">Roof Size</div>
               <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
-                {lead.squares && lead.squares > 0 ? `${lead.squares} Squares` : <span className="text-slate-400 dark:text-slate-500 font-medium">—</span>}
+                {(lead.roofSqf && lead.roofSqf > 0)
+                  ? `${lead.roofSqf.toLocaleString()} sq ft`
+                  : (lead.squares && lead.squares > 0
+                      ? `${(lead.squares * 100).toLocaleString()} sq ft`
+                      : <span className="text-slate-400 dark:text-slate-500 font-medium">—</span>)}
               </div>
             </div>
             <div>
@@ -707,6 +719,7 @@ export function LeadInspectModal({
           isOpen={isEditContactOpen}
           onClose={() => setIsEditContactOpen(false)}
           clientName={currentLead.name}
+          clientId={(currentLead as any).clientId || (currentLead as any).client_id}
           initialData={{
             name: currentLead.name,
             email: currentLead.email,

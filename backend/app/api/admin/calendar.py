@@ -3,7 +3,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone, timedelta, date as py_date
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore[no-reuse]
+
 from pydantic import BaseModel, Field
+
+# Company timezone — all appointment times are Pacific (America/Los_Angeles)
+COMPANY_TZ = ZoneInfo("America/Los_Angeles")
+
+def to_company_tz(dt: datetime) -> datetime:
+    """Convert a UTC-aware (or naive-UTC) datetime to company local time."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(COMPANY_TZ)
+
 
 class CreateTaskPayload(BaseModel):
     title: str = Field(..., min_length=1)
@@ -99,23 +114,31 @@ def format_time_from_date(val: Any) -> Dict[str, Any]:
         except Exception:
             return {"time": None, "is_all_day": True}
     if isinstance(val, datetime):
-        if val.hour == 0 and val.minute == 0 and val.second == 0:
+        # Convert to company local time before checking hour/formatting
+        local_val = to_company_tz(val)
+        if local_val.hour == 0 and local_val.minute == 0 and local_val.second == 0:
             return {"time": None, "is_all_day": True}
-        return {"time": val.strftime("%I:%M %p"), "is_all_day": False}
+        return {"time": local_val.strftime("%I:%M %p").lstrip("0") or "12:00 AM", "is_all_day": False}
     return {"time": None, "is_all_day": True}
 
 def parse_date_parts(val: Any):
     if not val:
-        now = datetime.now()
+        now = datetime.now(tz=COMPANY_TZ)
         return now.strftime("%Y-%m-%d"), now.day, now.month, now.year
-    if isinstance(val, (datetime, py_date)):
-        d = val if isinstance(val, py_date) else val.date()
+    if isinstance(val, datetime):
+        # Convert to company local time so the date reflects the local calendar date
+        local_val = to_company_tz(val)
+        d = local_val.date()
         return d.strftime("%Y-%m-%d"), d.day, d.month, d.year
+    if isinstance(val, py_date):
+        return val.strftime("%Y-%m-%d"), val.day, val.month, val.year
     if isinstance(val, str):
         try:
             cleaned = val.replace("Z", "+00:00")
             dt = datetime.fromisoformat(cleaned)
-            return dt.strftime("%Y-%m-%d"), dt.day, dt.month, dt.year
+            local_dt = to_company_tz(dt)
+            d = local_dt.date()
+            return d.strftime("%Y-%m-%d"), d.day, d.month, d.year
         except Exception:
             try:
                 parts = val.split("-")
@@ -131,16 +154,17 @@ def compose_datetime(date_str: Optional[str], time_str: Optional[str]) -> Option
     time_clean = (time_str or "").strip()
     if not time_clean:
         try:
-            dt = datetime.strptime(date_clean, "%Y-%m-%d")
-            return dt.replace(hour=9, minute=0, tzinfo=timezone.utc)
+            naive_dt = datetime.strptime(date_clean, "%Y-%m-%d").replace(hour=9, minute=0)
+            # Interpret as company local time → convert to UTC for storage
+            return naive_dt.replace(tzinfo=COMPANY_TZ).astimezone(timezone.utc)
         except Exception:
             return None
 
-    # Common formats: "09:30 AM", "14:00", "09:30"
+    # Common formats: "09:30 AM", "14:00", "09:30" — interpret as LOCAL company time
     for fmt in ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %I:%M%p", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
         try:
-            dt = datetime.strptime(f"{date_clean} {time_clean}", fmt)
-            return dt.replace(tzinfo=timezone.utc)
+            naive_dt = datetime.strptime(f"{date_clean} {time_clean}", fmt)
+            return naive_dt.replace(tzinfo=COMPANY_TZ).astimezone(timezone.utc)
         except Exception:
             continue
 

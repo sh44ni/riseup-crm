@@ -11,7 +11,15 @@ export interface DealCard {
   time: string;
   phone?: string;
   email?: string;
-  value?: number;
+  value?: number;          // collapsed value (kept for compat — prefer raw fields below)
+  // Raw value fields for hierarchy resolution:
+  contractValue?: number | null;    // from signed contract (highest priority)
+  estimateTotal?: number | null;    // from formal estimate document
+  estimatedValue?: number | null;   // from quick-quote / intake form
+  roofSqf?: number | null;         // sq ft of the roof
+  proposalSentAt?: string | null;   // ISO date when estimate was sent
+  isUploadedEstimate?: boolean;
+  estimateTemplateKey?: string | null;
   notes?: string;
   isFollowupOverdue?: boolean;
   hoursUntilAutoMove?: number | null;
@@ -58,7 +66,9 @@ export interface EnrichedDeal extends DealCard {
   phone: string;
   email: string;
   value: number;
-  scheduledDay: number; // Day in March 2026 (1-31)
+  scheduledDay: number;   // Day-of-month (1–31)
+  scheduledMonth: number; // Month 0-indexed (0 = Jan … 9 = Oct)
+  scheduledYear: number;  // Full 4-digit year
   timeSlot: string;
   dateFormatted: string;
   notes?: string;
@@ -110,20 +120,66 @@ const DEAL_METADATA: Record<
   'jc-4': { phone: '(760) 555-0899', email: 'canyonview@carlsbad.org', value: 27800, scheduledDay: 21, timeSlot: '03:30 PM', dateFormatted: 'Sat, Mar 21' },
 };
 
+
+/** Parse a date string into a local Date, returning null on failure. */
+function parseDateLocal(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Format a Date as "Mon, Oct 2" style label. */
+function formatDateLabel(d: Date): string {
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/** Format a Date's time as "09:30 AM" style. */
+function formatTimeSlot(d: Date): string {
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
 export function enrichDeals(columns: ColumnData[]): EnrichedDeal[] {
   const result: EnrichedDeal[] = [];
 
   columns.forEach((col) => {
     col.cards.forEach((card) => {
-      const meta = DEAL_METADATA[card.id] || {
-        phone: '(760) 555-0100',
-        email: `${String(card.name || 'homeowner').toLowerCase().replace(/[^a-z]/g, '')}@gmail.com`,
-        value: 15000,
-        scheduledDay: 10,
-        timeSlot: '10:00 AM',
-        dateFormatted: 'Tue, Mar 10',
-      };
+      // Prefer real backend dates: siteVisitScheduledAt → followUpAt
+      const realDate =
+        parseDateLocal(card.siteVisitScheduledAt) ||
+        parseDateLocal(card.followUpAt);
 
+      let scheduledDay: number;
+      let scheduledMonth: number;
+      let scheduledYear: number;
+      let timeSlot: string;
+      let dateFormatted: string;
+
+      if (realDate) {
+        scheduledDay = realDate.getDate();
+        scheduledMonth = realDate.getMonth(); // 0-indexed
+        scheduledYear = realDate.getFullYear();
+        timeSlot = formatTimeSlot(realDate);
+        dateFormatted = formatDateLabel(realDate);
+      } else {
+        const meta = DEAL_METADATA[card.id];
+        if (meta) {
+          scheduledDay = meta.scheduledDay;
+          scheduledMonth = 2; // DEAL_METADATA is all March (0-indexed)
+          scheduledYear = 2026;
+          timeSlot = meta.timeSlot;
+          dateFormatted = meta.dateFormatted;
+        } else {
+          // Unknown card with no real date — default to today
+          const today = new Date();
+          scheduledDay = today.getDate();
+          scheduledMonth = today.getMonth();
+          scheduledYear = today.getFullYear();
+          timeSlot = '10:00 AM';
+          dateFormatted = formatDateLabel(today);
+        }
+      }
+
+      const meta = DEAL_METADATA[card.id];
       result.push({
         ...card,
         stageId: col.id,
@@ -134,12 +190,14 @@ export function enrichDeals(columns: ColumnData[]): EnrichedDeal[] {
         stagePillClass: col.pillClass,
         stageBadgeClass: col.badgeClass,
         iconType: col.iconType,
-        phone: card.phone || meta.phone,
-        email: card.email || meta.email,
-        value: (card.value !== undefined && card.value > 0) ? card.value : meta.value,
-        scheduledDay: meta.scheduledDay,
-        timeSlot: meta.timeSlot,
-        dateFormatted: meta.dateFormatted,
+        phone: card.phone || meta?.phone || '(760) 555-0100',
+        email: card.email || meta?.email || `${String(card.name || 'homeowner').toLowerCase().replace(/[^a-z]/g, '')}@gmail.com`,
+        value: (card.value !== undefined && card.value > 0) ? card.value : (meta?.value ?? 15000),
+        scheduledDay,
+        scheduledMonth,
+        scheduledYear,
+        timeSlot,
+        dateFormatted,
         notes: card.notes,
       });
     });
@@ -309,7 +367,17 @@ export interface PipelineDealItem {
   city: string;
   service: string;
   serviceColor: 'sky' | 'amber' | 'emerald' | 'purple' | 'coral' | 'indigo' | 'blue';
-  value: number;
+  value: number;             // collapsed value (kept for compat — prefer raw fields below)
+  // Raw value fields for hierarchy resolution:
+  contractValue?: number | null;   // from signed contract (highest priority)
+  estimateTotal?: number | null;   // from formal estimate document
+  estimatedValue?: number | null;  // from quick-quote / intake form
+  roofSqf?: number | null;        // sq ft of the roof
+  roof_sqf?: number | null;
+  proposalSentDate?: string;       // ISO date when estimate/proposal was sent
+  proposalSentAt?: string | null;
+  isUploadedEstimate?: boolean;
+  estimateTemplateKey?: string | null;
   stageId: PipelineStageId;
   daysInStage: number;
   score?: number;
@@ -327,7 +395,6 @@ export interface PipelineDealItem {
   slaStatus: 'on_track' | 'due_today' | 'overdue';
   slaText: string;
   photosCount: number;
-  proposalSentDate?: string;
   scheduledDate?: string;
   scheduledTime?: string;
   siteVisitScheduledAt?: string | null;
@@ -337,6 +404,9 @@ export interface PipelineDealItem {
   futureBucket?: string;
   futureFollowUpDate?: string;
   isFollowupOverdue?: boolean;
+  isContractSigned?: boolean;
+  contractSignedAt?: string | null;
+  contractStatus?: string | null;
   followupDaysRemaining?: number;
   followupHoursRemaining?: number;
   hoursUntilAutoMove?: number | null;

@@ -4,6 +4,8 @@ import { Lead } from '@/types/leadTypes';
 import { getServiceBadgeClass, getSourceBadges } from '@/utils/leadHelpers';
 import { getTelUrl, getSmsUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { LOSS_REASONS } from '@/components/leads/MarkLeadLostModal';
+import { DealValueText } from '@/components/shared/DealValueBadge';
+
 
 interface LeadCardProps {
   lead: Lead;
@@ -62,9 +64,27 @@ export function LeadCard({
 
         <div className="text-right shrink-0">
           <div className="text-sm font-black text-slate-900 dark:text-slate-100">
-            {canViewFinances ? `$${lead.value.toLocaleString()}` : '—'}
+            <DealValueText
+              contractValue={lead.contractValue ?? (lead as any).contract_value}
+              estimateTotal={lead.estimateTotal ?? (lead as any).estimate_total}
+              estimatedValue={lead.estimatedValue ?? (lead.value > 0 ? lead.value : null) ?? (lead as any).raw_estimated_value ?? (lead as any).estimated_value}
+              roofSqf={lead.roofSqf ?? (lead as any).roof_sqf ?? (lead.squares && lead.squares > 0 ? lead.squares * 100 : null)}
+              proposalSentAt={lead.proposalSentAt ?? (lead as any).proposalSentDate ?? (lead as any).proposal_sent_at}
+              isUploadedEstimate={lead.isUploadedEstimate ?? (lead as any).is_uploaded_estimate}
+              estimateTemplateKey={lead.estimateTemplateKey ?? (lead as any).estimate_template_key}
+              isContractSigned={lead.isContractSigned}
+              stageId={lead.stageId || lead.pipelineStage || (lead as any).stage || lead.status}
+              canViewFinances={canViewFinances}
+              className="text-sm"
+            />
           </div>
-          <div className="text-[10px] text-slate-400 font-semibold">{lead.squares || 30} squares</div>
+          <div className="text-[10px] text-slate-400 font-semibold">
+            {lead.roofSqf && lead.roofSqf > 0
+              ? `${lead.roofSqf.toLocaleString()} sq ft`
+              : (lead.squares && lead.squares > 0
+                  ? `${(lead.squares * 100).toLocaleString()} sq ft`
+                  : 'Sq ft unknown')}
+          </div>
         </div>
       </div>
 

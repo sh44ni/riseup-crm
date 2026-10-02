@@ -22,6 +22,10 @@ export interface BackendLead {
   estimated_value?: number | null;
   contract_value?: number | null;
   estimate_total?: number | null;
+  is_uploaded_estimate?: boolean;
+  estimate_template_key?: string | null;
+  raw_estimated_value?: number | null; // the original lead.estimated_value before backend overwrite
+  roof_squares?: number | null;
   stage_entered_at?: string | null;
   initial_contacted_at?: string | null;
   site_visit_scheduled_at?: string | null;

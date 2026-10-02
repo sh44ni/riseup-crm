@@ -23,6 +23,7 @@ import {
 import { ColumnData, EnrichedDeal, enrichDeals } from './pipelineTypes';
 import { useAuth } from '@/context/AuthContext';
 import { leadsApi } from '@/api/leadsApi';
+import { DealValueBadge } from '@/components/shared/DealValueBadge';
 
 interface PipelineListViewProps {
   columns: ColumnData[];
@@ -315,13 +316,20 @@ export function PipelineListView({
 
                     {/* Service */}
                     <td className="px-3 py-2.5">
-                      <span
-                        className={`text-[9.5px] px-2 py-0.5 rounded-md inline-block ${getServiceBadgeClass(
-                          deal.serviceColor
-                        )}`}
-                      >
-                        {deal.service}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`text-[9.5px] px-2 py-0.5 rounded-md inline-block ${getServiceBadgeClass(
+                            deal.serviceColor
+                          )}`}
+                        >
+                          {deal.service}
+                        </span>
+                        {Number(deal.roofSqf || (deal as any).roof_sqf || 0) > 0 && (
+                          <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-medium">
+                            {Number(deal.roofSqf || (deal as any).roof_sqf).toLocaleString()} sq ft
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Location */}
@@ -419,7 +427,19 @@ export function PipelineListView({
 
                     {/* Estimated Value */}
                     <td className="px-3 py-2.5 font-bold text-slate-800 dark:text-slate-100 text-[11.5px]">
-                      {canViewFinances ? `$${deal.value.toLocaleString()}` : '—'}
+                      <DealValueBadge
+                        contractValue={deal.contractValue ?? (deal as any).contract_value}
+                        estimateTotal={deal.estimateTotal ?? (deal as any).estimate_total}
+                        estimatedValue={deal.estimatedValue ?? (deal as any).raw_estimated_value ?? (deal as any).estimated_value}
+                        roofSqf={deal.roofSqf ?? (deal as any).roof_sqf}
+                        proposalSentAt={deal.proposalSentAt || (deal as any).proposalSentDate}
+                        isUploadedEstimate={deal.isUploadedEstimate ?? (deal as any).is_uploaded_estimate}
+                        estimateTemplateKey={deal.estimateTemplateKey ?? (deal as any).estimate_template_key}
+                        isContractSigned={deal.isContractSigned}
+                        stageId={deal.stageId}
+                        canViewFinances={canViewFinances}
+                        size="xs"
+                      />
                     </td>
 
                     {/* Activity Recency */}

@@ -14,6 +14,8 @@ export interface Lead {
   serviceColor: 'sky' | 'amber' | 'blue' | 'coral' | 'purple' | 'emerald';
   score?: number;
   status: 'new_lead' | 'contacted' | 'inspection_scheduled' | 'proposal_sent' | 'contract_won' | 'lost';
+  stageId?: string;
+  pipelineStage?: string;
   source: string;
   sourceLabel: string;
   leadSourceDetail?: string;
@@ -21,6 +23,14 @@ export interface Lead {
   claimedBy?: string;
   createdByName?: string;
   value: number;
+  roofSqf?: number | null;
+  contractValue?: number | null;
+  estimateTotal?: number | null;
+  estimatedValue?: number | null;
+  isUploadedEstimate?: boolean;
+  estimateTemplateKey?: string | null;
+  proposalSentAt?: string | null;
+  isContractSigned?: boolean;
   squares?: number;
   pitch?: string;
   assignedRep: string;

@@ -28,7 +28,9 @@ export function ClientQuotesJobsTab({ client }: ClientQuotesJobsTabProps) {
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 space-y-1">
               <span className="text-slate-500 dark:text-slate-400 font-medium">Specified Material</span>
               <div className="font-bold text-slate-900 dark:text-white text-sm">{client.roofSpecs.roofMaterial}</div>
-              <div className="text-slate-400 dark:text-slate-500">Pitch {client.roofSpecs.pitch || '4/12'} • {client.roofSpecs.roofSquares} Squares</div>
+              <div className="text-slate-400 dark:text-slate-500">
+                Pitch {client.roofSpecs.pitch || '4/12'}{client.roofSpecs.roofAreaSqFt > 0 ? ` • ${client.roofSpecs.roofAreaSqFt.toLocaleString()} sq ft` : ''}
+              </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 space-y-1">

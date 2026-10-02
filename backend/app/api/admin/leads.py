@@ -110,16 +110,75 @@ async def list_leads(
                 WHEN c.client_category = 'existing_client' OR c.status IN ('completed', 'repeat') OR COALESCE(c.total_jobs_count, 0) > 1 THEN 'existing_client'
                 WHEN l.status = 'won' OR c.client_category = 'new_client' OR l.pipeline_stage IN ('stage_4_closing', 'stage_5_completion_followup') THEN 'new_client'
                 ELSE 'lead'
-            END as profile_category
+            END as profile_category,
+            j.contract_value as job_contract_value,
+            e.id as estimate_id, e.estimate_number, e.total as estimate_total, e.template_key as estimate_template_key, e.status as estimate_status,
+            cnt.id as contract_id, cnt.contract_number, cnt.status as contract_status, cnt.contract_data
         FROM leads l
         LEFT JOIN users u ON l.assigned_to_user_id = u.id
         LEFT JOIN users u_creator ON l.created_by_user_id = u_creator.id
         LEFT JOIN clients c ON l.client_id = c.id
+        LEFT JOIN LATERAL (
+            SELECT id, job_number, status, contract_value
+            FROM jobs 
+            WHERE lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id)
+            ORDER BY id DESC LIMIT 1
+        ) j ON true
+        LEFT JOIN LATERAL (
+            SELECT id, estimate_number, total, status, template_key
+            FROM estimates 
+            WHERE lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id)
+            ORDER BY id DESC LIMIT 1
+        ) e ON true
+        LEFT JOIN LATERAL (
+            SELECT id, contract_number, status, contract_data
+            FROM contracts
+            WHERE (lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id))
+              AND is_archived = false
+            ORDER BY 
+                CASE 
+                    WHEN status = 'signed' THEN 1
+                    WHEN status = 'client_signed' THEN 2
+                    WHEN status = 'sent' THEN 3
+                    ELSE 4
+                END,
+                id DESC 
+            LIMIT 1
+        ) cnt ON true
         {where}
         ORDER BY l.created_at DESC
         LIMIT :limit OFFSET :offset
     """)
     rows = (await db.execute(sql, params)).mappings().all()
+
+    processed_leads = []
+    for r in rows:
+        lead_d = dict(r)
+        contract_val = float(lead_d.get("job_contract_value") or 0.0)
+        if contract_val <= 0 and lead_d.get("contract_data"):
+            cd = lead_d.get("contract_data")
+            if isinstance(cd, str):
+                try:
+                    cd = json.loads(cd)
+                except Exception:
+                    cd = {}
+            if isinstance(cd, dict):
+                raw_cprice = cd.get("contractPrice") or cd.get("contract_price") or cd.get("total")
+                if raw_cprice:
+                    try:
+                        clean_c = float(str(raw_cprice).replace("$", "").replace(",", "").strip())
+                        if clean_c > 0:
+                            contract_val = clean_c
+                    except Exception:
+                        pass
+        lead_d["contract_value"] = contract_val if contract_val > 0 else None
+
+        tmpl_key = lead_d.get("estimate_template_key")
+        is_up = bool(tmpl_key == "uploaded")
+        raw_et = float(lead_d.get("estimate_total") or 0.0)
+        lead_d["estimate_total"] = None if (is_up or raw_et <= 0) else raw_et
+        lead_d["is_uploaded_estimate"] = is_up
+        processed_leads.append(lead_d)
 
     count_sql = text(f"""
         SELECT COUNT(*) 
@@ -161,7 +220,7 @@ async def list_leads(
     }
 
     return {
-        "leads": [dict(r) for r in rows], 
+        "leads": processed_leads, 
         "total": total,
         "counts": counts
     }
@@ -210,6 +269,8 @@ async def create_lead(payload: LeadCreate, request: Request, db: AsyncSession = 
 
     roof_sqf = body.get("roof_sqf") or body.get("roofSqf") or body.get("sqf")
     roof_squares = body.get("roof_squares") or body.get("roofSquares")
+    user_provided_sqf = bool(roof_sqf or roof_squares)  # track whether user actually entered sq ft
+
     if roof_sqf:
         roof_sqf = int(roof_sqf)
         if not roof_squares:
@@ -218,8 +279,9 @@ async def create_lead(payload: LeadCreate, request: Request, db: AsyncSession = 
         roof_squares = float(roof_squares)
         roof_sqf = round(roof_squares * 100)
     else:
-        roof_sqf = 2500
-        roof_squares = 25.0
+        # User did NOT provide sq ft — store NULL so the frontend shows "Unavailable"
+        roof_sqf = None
+        roof_squares = None
 
     roof_pitch = body.get("roof_pitch") or body.get("pitch") or "4:12"
     raw_stories = body.get("stories")
@@ -231,14 +293,18 @@ async def create_lead(payload: LeadCreate, request: Request, db: AsyncSession = 
             stories = 1
     roof_type = body.get("roof_type") or body.get("roofType") or "Spanish Tile"
 
-    # Compute or accept estimated_value
+    # Compute or accept estimated_value — only derive from sq ft when the user actually provided it
     estimated_value = body.get("estimated_value") or body.get("estimatedValue")
     if estimated_value is not None and float(estimated_value) > 0:
         estimated_value = float(estimated_value)
-    else:
+    elif user_provided_sqf and roof_sqf:
         from app.services.calculator import calculate_lead_estimated_value
         calc = calculate_lead_estimated_value(roof_sqf, service_type, roof_pitch, stories)
         estimated_value = float(calc["estimated_value"])
+    else:
+        # No sq ft provided — store NULL so the frontend shows "Unavailable"
+        estimated_value = None
+
 
     insert_sql = text("""
         INSERT INTO leads (
@@ -315,10 +381,40 @@ async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db), user
                 WHEN c.client_category = 'existing_client' OR c.status IN ('completed', 'repeat') OR COALESCE(c.total_jobs_count, 0) > 1 THEN 'existing_client'
                 WHEN l.status = 'won' OR c.client_category = 'new_client' OR l.pipeline_stage IN ('stage_4_closing', 'stage_5_completion_followup') THEN 'new_client'
                 ELSE 'lead'
-            END as profile_category
+            END as profile_category,
+            j.contract_value as job_contract_value,
+            e.id as estimate_id, e.estimate_number, e.total as estimate_total, e.template_key as estimate_template_key, e.status as estimate_status,
+            cnt.id as contract_id, cnt.contract_number, cnt.status as contract_status, cnt.contract_data
         FROM leads l
         LEFT JOIN users u ON l.assigned_to_user_id = u.id
         LEFT JOIN clients c ON l.client_id = c.id
+        LEFT JOIN LATERAL (
+            SELECT id, job_number, status, contract_value
+            FROM jobs 
+            WHERE lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id)
+            ORDER BY id DESC LIMIT 1
+        ) j ON true
+        LEFT JOIN LATERAL (
+            SELECT id, estimate_number, total, status, template_key
+            FROM estimates 
+            WHERE lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id)
+            ORDER BY id DESC LIMIT 1
+        ) e ON true
+        LEFT JOIN LATERAL (
+            SELECT id, contract_number, status, contract_data
+            FROM contracts
+            WHERE (lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id))
+              AND is_archived = false
+            ORDER BY 
+                CASE 
+                    WHEN status = 'signed' THEN 1
+                    WHEN status = 'client_signed' THEN 2
+                    WHEN status = 'sent' THEN 3
+                    ELSE 4
+                END,
+                id DESC 
+            LIMIT 1
+        ) cnt ON true
         WHERE l.id = :id
     """)
     row = (await db.execute(sql, {"id": lead_id})).mappings().first()
@@ -326,12 +422,40 @@ async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db), user
         raise HTTPException(status_code=404, detail="Lead not found")
     if not check_resource_access(user, "leads.view", creator_id=row.get("created_by_user_id"), assigned_id=row.get("assigned_to_user_id")):
         raise HTTPException(status_code=403, detail="Access denied: You do not have permission to view this lead.")
-    return {"lead": dict(row)}
+
+    res_dict = dict(row)
+    # Resolve contract_value from jobs or contracts.contract_data
+    contract_val = float(res_dict.get("job_contract_value") or 0.0)
+    if contract_val <= 0 and res_dict.get("contract_data"):
+        cd = res_dict.get("contract_data")
+        if isinstance(cd, str):
+            try:
+                cd = json.loads(cd)
+            except Exception:
+                cd = {}
+        if isinstance(cd, dict):
+            raw_cprice = cd.get("contractPrice") or cd.get("contract_price") or cd.get("total")
+            if raw_cprice:
+                try:
+                    clean_c = float(str(raw_cprice).replace("$", "").replace(",", "").strip())
+                    if clean_c > 0:
+                        contract_val = clean_c
+                except Exception:
+                    pass
+    res_dict["contract_value"] = contract_val if contract_val > 0 else None
+
+    # Resolve estimate_total and upload status
+    tmpl_key = res_dict.get("estimate_template_key")
+    is_up = bool(tmpl_key == "uploaded")
+    raw_et = float(res_dict.get("estimate_total") or 0.0)
+    res_dict["estimate_total"] = None if (is_up or raw_et <= 0) else raw_et
+    res_dict["is_uploaded_estimate"] = is_up
+    return {"lead": res_dict}
 
 @router.put("/{lead_id}", dependencies=[Depends(require_permission("leads:edit"))])
 async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
     target = (await db.execute(text("""
-        SELECT l.id, l.created_by_user_id, l.assigned_to_user_id, l.client_id, l.full_name, l.phone, l.email, l.address, l.city, l.zip,
+        SELECT l.*,
                u.name AS prev_user_name, u.email AS prev_user_email
         FROM leads l
         LEFT JOIN users u ON l.assigned_to_user_id = u.id
@@ -434,16 +558,31 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
             updates.append("client_id = :new_cid")
             params["new_cid"] = cid
 
-    # Auto-calculate estimated_value if roof_sqf provided and estimated_value is not
+    # Auto-calculate estimated_value if roof_sqf or service_type provided and estimated_value is not
     if ("roof_sqf" in body or "service_type" in body) and "estimated_value" not in body:
-        from app.services.calculator import calculate_lead_estimated_value
-        sqft_val = float(body.get("roof_sqf") or 2500)
-        svc_val = body.get("service_type")
-        pitch_val = body.get("roof_pitch")
-        stories_val = body.get("stories") or 1
-        calc = calculate_lead_estimated_value(sqft_val, svc_val, pitch_val, stories_val)
-        updates.append("estimated_value = :calc_est_val")
-        params["calc_est_val"] = float(calc["estimated_value"])
+        new_sqft = body.get("roof_sqf") if "roof_sqf" in body else target.get("roof_sqf")
+        if new_sqft is not None and float(new_sqft) > 0:
+            from app.services.calculator import calculate_lead_estimated_value
+            sqft_val = float(new_sqft)
+            svc_val = body.get("service_type") or target.get("service_type") or "Residential Roofing"
+            pitch_val = body.get("roof_pitch") or target.get("roof_pitch") or "4:12"
+            stories_val = int(body.get("stories") or target.get("stories") or 1)
+            calc = calculate_lead_estimated_value(sqft_val, svc_val, pitch_val, stories_val)
+            calc_val = float(calc["estimated_value"])
+            updates.append("estimated_value = :calc_est_val")
+            params["calc_est_val"] = calc_val
+        elif "roof_sqf" in body and (new_sqft is None or float(new_sqft) <= 0):
+            updates.append("estimated_value = NULL")
+
+    # Automatically keep roof_squares in sync when roof_sqf is updated
+    if "roof_sqf" in body and "roof_squares" not in body:
+        new_sqft = body.get("roof_sqf")
+        if new_sqft is not None and float(new_sqft) > 0:
+            calc_sq = round(float(new_sqft) / 100.0, 1)
+            updates.append("roof_squares = :auto_roof_squares")
+            params["auto_roof_squares"] = calc_sq
+        elif new_sqft is None:
+            updates.append("roof_squares = NULL")
 
     if body.get("status") == "completed" or body.get("pipeline_stage") in ("completed", "job_completed"):
         updates.append("job_completed_at = COALESCE(job_completed_at, NOW())")
@@ -456,7 +595,8 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
         sql = f"""UPDATE leads SET {', '.join(updates)}, updated_at = NOW()
             WHERE id = :id
             RETURNING id, full_name, phone, email, address, city, zip,
-                      status, pipeline_stage, client_id, updated_at"""
+                      status, pipeline_stage, client_id, roof_sqf, roof_squares,
+                      estimated_value, updated_at"""
         updated = (await db.execute(text(sql), params)).mappings().first()
 
         

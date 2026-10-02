@@ -36,6 +36,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
 import { ClientEditContactModal, ClientContactData } from '@/components/clients/ClientEditContactModal';
 import { broadcastContactUpdated } from '@/utils/syncEventBus';
+import { DealValueBadge } from '@/components/shared/DealValueBadge';
 
 interface PipelineDealInspectorModalProps {
   deal: PipelineDealItem | null;
@@ -55,6 +56,7 @@ export function PipelineDealInspectorModal({
   onOpenFollowUpModal,
 }: PipelineDealInspectorModalProps) {
   const { user } = useAuth();
+  const canViewFinances = user?.role ? ['admin', 'manager', 'owner', 'super_admin', 'sales_rep', 'estimator', 'senior_estimator'].includes(user.role.toLowerCase()) : false;
   const [activeTab, setActiveTab] = useState<'workflow' | 'details' | 'outcome'>('workflow');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [selectedLossReason, setSelectedLossReason] = useState<string>(LOSS_REASONS[0]);
@@ -455,10 +457,22 @@ export function PipelineDealInspectorModal({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               <div className="p-3 rounded-2xl liquid-glass-tile space-y-1">
                 <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
-                  Estimate Value
+                  Deal Value
                 </span>
                 <div className="text-base font-black text-slate-800 dark:text-white">
-                  ${deal.value.toLocaleString()}
+                  <DealValueBadge
+                    contractValue={deal.contractValue ?? (deal as any).contract_value}
+                    estimateTotal={deal.estimateTotal ?? (deal as any).estimate_total}
+                    estimatedValue={deal.estimatedValue ?? (deal as any).raw_estimated_value ?? (deal as any).estimated_value}
+                    roofSqf={deal.roofSqf ?? (deal as any).roof_sqf}
+                    proposalSentAt={deal.proposalSentDate || (deal as any).proposalSentAt}
+                    isUploadedEstimate={deal.isUploadedEstimate ?? (deal as any).is_uploaded_estimate}
+                    estimateTemplateKey={deal.estimateTemplateKey ?? (deal as any).estimate_template_key}
+                    isContractSigned={deal.isContractSigned}
+                    stageId={deal.stageId}
+                    canViewFinances={canViewFinances}
+                    size="sm"
+                  />
                 </div>
               </div>
 
@@ -652,6 +666,7 @@ export function PipelineDealInspectorModal({
           isOpen={isEditContactOpen}
           onClose={() => setIsEditContactOpen(false)}
           clientName={deal.name}
+          clientId={(deal as any).clientId || (deal as any).client_id}
           initialData={{
             name: deal.name,
             email: deal.email || '',

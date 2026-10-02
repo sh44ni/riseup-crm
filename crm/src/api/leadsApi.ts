@@ -26,6 +26,14 @@ export interface Lead {
   claimedBy?: string;
   createdByName?: string;
   value: number; // estimated deal value
+  roofSqf?: number | null; // roof sq ft
+  contractValue?: number | null;
+  estimateTotal?: number | null;
+  estimatedValue?: number | null;
+  isUploadedEstimate?: boolean;
+  estimateTemplateKey?: string | null;
+  proposalSentAt?: string | null;
+  isContractSigned?: boolean;
   squares?: number; // roof squares
   pitch?: string; // pitch slope e.g. 6/12
   assignedRep: string;
@@ -252,6 +260,20 @@ export function backendLeadToLead(raw: BackendLead): Lead {
     claimedBy: sourceInfo.claimedBy,
     createdByName: raw.created_by_name || undefined,
     value: val,
+    roofSqf: raw.roof_sqf ? Number(raw.roof_sqf) : null,
+    contractValue: (raw as any).contract_value ? Number((raw as any).contract_value) : null,
+    estimateTotal: (raw as any).estimate_total ? Number((raw as any).estimate_total) : null,
+    estimatedValue: (raw as any).raw_estimated_value ? Number((raw as any).raw_estimated_value) : (raw.estimated_value ? Number(raw.estimated_value) : null),
+    isUploadedEstimate: Boolean((raw as any).is_uploaded_estimate || (raw as any).estimate_template_key === 'uploaded'),
+    estimateTemplateKey: (raw as any).estimate_template_key || null,
+    proposalSentAt: (raw as any).proposal_sent_at || null,
+    isContractSigned: Boolean(
+      (raw as any).contract_signed_at ||
+      (raw as any).contract_status === 'signed' ||
+      (raw as any).contract_status === 'client_signed' ||
+      (raw as any).contract_status === 'fully_executed' ||
+      raw.status === 'won'
+    ),
     squares,
     pitch: raw.pitch || '',
     assignedRep: repName,

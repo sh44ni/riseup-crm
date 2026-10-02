@@ -407,7 +407,7 @@ async def send_contract(
     client_id = contract.get("client_id") or ((lead_row or {}).get("client_id"))
     if client_id:
         client_res = await db.execute(
-            text("SELECT id, full_name, address, city, zip_code, phone, email FROM clients WHERE id = :id"),
+            text("SELECT id, full_name, address, city, zip, phone, email FROM clients WHERE id = :id"),
             {"id": client_id},
         )
         client_row = client_res.mappings().first()
@@ -429,11 +429,11 @@ async def send_contract(
     contract_data["client_signature_data"] = ""
 
     # Build canonical project address: prefer client 360 record over lead record
-    def _build_addr(row: dict, addr_key: str = "address", city_key: str = "city", zip_key: str = "zip_code") -> str:
+    def _build_addr(row: dict, addr_key: str = "address", city_key: str = "city", zip_key: str = "zip") -> str:
         parts = [
             (row.get(addr_key) or "").strip(),
             (row.get(city_key) or "").strip(),
-            (row.get(zip_key) or row.get("zip") or "").strip(),
+            (row.get(zip_key) or row.get("zip") or row.get("zip_code") or "").strip(),
         ]
         return ", ".join(p for p in parts if p)
 
@@ -441,7 +441,7 @@ async def send_contract(
     if client_row:
         canonical_address = _build_addr(dict(client_row))
     if not canonical_address and lead_row:
-        canonical_address = _build_addr(dict(lead_row), addr_key="address", city_key="city", zip_key="zip_code")
+        canonical_address = _build_addr(dict(lead_row))
 
     if lead_row:
         # Always overwrite project_address with the canonical (client-sourced) address

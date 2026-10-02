@@ -5,13 +5,7 @@ import {
   Calendar as CalendarIcon,
   Clock,
   MapPin,
-  Phone,
-  Mail,
   Eye,
-  CheckCircle2,
-  CalendarDays,
-  ListFilter,
-  Search,
 } from 'lucide-react';
 import { ColumnData, EnrichedDeal, enrichDeals } from './pipelineTypes';
 import { useAuth } from '@/context/AuthContext';
@@ -23,6 +17,25 @@ interface PipelineCalendarViewProps {
   getServiceBadgeClass: (color: string) => string;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Days in a given month (month is 0-indexed). */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/** Day-of-week (0=Sun) of the 1st of a month. */
+function firstDayOfWeek(year: number, month: number): number {
+  return new Date(year, month, 1).getDay();
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function PipelineCalendarView({
   columns,
   pipelineSearch,
@@ -31,20 +44,31 @@ export function PipelineCalendarView({
 }: PipelineCalendarViewProps) {
   const { can } = useAuth();
   const canViewFinances = can('finances.view');
-  const [activeDay, setActiveDay] = useState<number>(10); // Default to Today: March 10, 2026
+
+  // Real "today" values — computed once on mount
+  const realNow = useMemo(() => new Date(), []);
+  const realTodayDay   = realNow.getDate();
+  const realTodayMonth = realNow.getMonth();  // 0-indexed
+  const realTodayYear  = realNow.getFullYear();
+
+  // Viewing month/year (navigation state)
+  const [viewYear,  setViewYear]  = useState(realTodayYear);
+  const [viewMonth, setViewMonth] = useState(realTodayMonth);
+
+  // Selected day (defaults to today's day-of-month)
+  const [activeDay, setActiveDay] = useState<number>(realTodayDay);
+
   const [calendarMode, setCalendarMode] = useState<'month' | 'agenda'>('month');
   const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
 
   const allDeals = useMemo(() => enrichDeals(columns), [columns]);
 
-  // Filter deals based on search & stage filter
+  // Filter deals by search & stage
   const filteredDeals = useMemo(() => {
     let list = allDeals;
-
     if (selectedStageFilter !== 'all') {
       list = list.filter((d) => d.stageId === selectedStageFilter);
     }
-
     if (pipelineSearch.trim()) {
       const q = pipelineSearch.toLowerCase();
       list = list.filter(
@@ -55,44 +79,82 @@ export function PipelineCalendarView({
           d.stageTitle.toLowerCase().includes(q)
       );
     }
-
     return list;
   }, [allDeals, selectedStageFilter, pipelineSearch]);
 
-  // Group deals by day of month (1 - 31)
+  // Group deals by day — only those whose scheduledMonth+Year match the viewed month
   const dealsByDay = useMemo(() => {
     const map: Record<number, EnrichedDeal[]> = {};
-    for (let day = 1; day <= 31; day++) {
-      map[day] = [];
-    }
+    for (let d = 1; d <= 31; d++) map[d] = [];
     filteredDeals.forEach((deal) => {
-      const day = deal.scheduledDay;
-      if (map[day]) {
-        map[day].push(deal);
+      if (deal.scheduledMonth === viewMonth && deal.scheduledYear === viewYear) {
+        const day = deal.scheduledDay;
+        if (map[day]) map[day].push(deal);
       }
     });
     return map;
-  }, [filteredDeals]);
+  }, [filteredDeals, viewMonth, viewYear]);
 
-  // March 2026 has 31 days. March 1, 2026 is Sunday (day of week 0).
-  // Total 35 grid cells: March 1..31, then April 1..4
+  // Build calendar grid cells for the viewed month
   const calendarCells = useMemo(() => {
-    const cells: Array<{ dayNumber: number; isCurrentMonth: boolean; monthName: string }> = [];
+    const cells: Array<{
+      dayNumber: number;
+      isCurrentMonth: boolean;
+      month: number;  // 0-indexed
+      year: number;
+    }> = [];
 
-    // Days in March 1..31
-    for (let i = 1; i <= 31; i++) {
-      cells.push({ dayNumber: i, isCurrentMonth: true, monthName: 'March' });
+    const totalDays  = daysInMonth(viewYear, viewMonth);
+    const startDow   = firstDayOfWeek(viewYear, viewMonth); // 0=Sun
+
+    // Leading days from previous month
+    if (startDow > 0) {
+      const prevMonth = viewMonth === 0 ? 11 : viewMonth - 1;
+      const prevYear  = viewMonth === 0 ? viewYear - 1 : viewYear;
+      const prevTotal = daysInMonth(prevYear, prevMonth);
+      for (let i = startDow - 1; i >= 0; i--) {
+        cells.push({ dayNumber: prevTotal - i, isCurrentMonth: false, month: prevMonth, year: prevYear });
+      }
     }
 
-    // Trailing days of April 1..4
-    for (let i = 1; i <= 4; i++) {
-      cells.push({ dayNumber: i, isCurrentMonth: false, monthName: 'April' });
+    // Current month days
+    for (let d = 1; d <= totalDays; d++) {
+      cells.push({ dayNumber: d, isCurrentMonth: true, month: viewMonth, year: viewYear });
+    }
+
+    // Trailing days from next month to fill grid to a multiple of 7
+    const nextMonth = viewMonth === 11 ? 0 : viewMonth + 1;
+    const nextYear  = viewMonth === 11 ? viewYear + 1 : viewYear;
+    let trailing = 1;
+    while (cells.length % 7 !== 0) {
+      cells.push({ dayNumber: trailing++, isCurrentMonth: false, month: nextMonth, year: nextYear });
     }
 
     return cells;
-  }, []);
+  }, [viewMonth, viewYear]);
 
+  // Is the viewed month the real current month?
+  const isViewingCurrentMonth = viewMonth === realTodayMonth && viewYear === realTodayYear;
+
+  // Active day deals
   const activeDayDeals = dealsByDay[activeDay] || [];
+
+  // Month navigation
+  const goToPrevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
+    else { setViewMonth((m) => m - 1); }
+    setActiveDay(1);
+  };
+  const goToNextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); }
+    else { setViewMonth((m) => m + 1); }
+    setActiveDay(1);
+  };
+  const goToToday = () => {
+    setViewMonth(realTodayMonth);
+    setViewYear(realTodayYear);
+    setActiveDay(realTodayDay);
+  };
 
   return (
     <div className="space-y-3 animate-in fade-in duration-200">
@@ -102,40 +164,39 @@ export function PipelineCalendarView({
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-white/70 dark:bg-slate-900/80 rounded-xl border border-white/80 dark:border-white/10 p-0.5 shadow-2xs">
             <button
-              onClick={() => setActiveDay((prev) => Math.max(1, prev - 1))}
+              onClick={goToPrevMonth}
               className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-              title="Previous day"
+              title="Previous month"
             >
               <ChevronLeft size={14} />
             </button>
-            <div className="px-2.5 py-0.5 text-xs font-black text-[#1F1F1F] dark:text-slate-100 flex items-center gap-1">
+            <div className="px-2.5 py-0.5 text-xs font-black text-[#1F1F1F] dark:text-slate-100 flex items-center gap-1 min-w-[110px] justify-center">
               <CalendarIcon size={12} className="text-[#1878B8]" />
-              <span>March 2026</span>
+              <span>{MONTH_NAMES[viewMonth]} {viewYear}</span>
             </div>
             <button
-              onClick={() => setActiveDay((prev) => Math.min(31, prev + 1))}
+              onClick={goToNextMonth}
               className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-              title="Next day"
+              title="Next month"
             >
               <ChevronRight size={14} />
             </button>
           </div>
 
           <button
-            onClick={() => setActiveDay(10)}
+            onClick={goToToday}
             className="px-2.5 py-1 rounded-xl liquid-glass-btn text-[11px] font-bold text-[#1878B8] dark:text-sky-400 hover:text-[#0284c7] shadow-2xs transition-all cursor-pointer"
           >
-            Today (Mar 10)
+            Today ({MONTH_NAMES[realTodayMonth].slice(0, 3)} {realTodayDay})
           </button>
 
           <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium hidden md:inline">
-            <strong className="text-slate-700 dark:text-slate-200 font-bold">{filteredDeals.length}</strong> dispatches & touches
+            <strong className="text-slate-700 dark:text-slate-200 font-bold">{filteredDeals.length}</strong> dispatches &amp; touches
           </span>
         </div>
 
-        {/* Right Mode Switch & Legend */}
+        {/* Right Mode Switch & Stage Filter */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          {/* Stage Quick Filter */}
           <select
             value={selectedStageFilter}
             onChange={(e) => setSelectedStageFilter(e.target.value)}
@@ -149,7 +210,6 @@ export function PipelineCalendarView({
             ))}
           </select>
 
-          {/* Month / Agenda Switch */}
           <div className="flex items-center bg-white/60 dark:bg-slate-900/60 p-0.5 rounded-xl border border-white/80 dark:border-white/10 shadow-2xs">
             <button
               onClick={() => setCalendarMode('month')}
@@ -189,11 +249,15 @@ export function PipelineCalendarView({
             <div>Sat</div>
           </div>
 
-          {/* 35 Days Grid */}
+          {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1.5">
             {calendarCells.map((cell, idx) => {
               const dayDeals = cell.isCurrentMonth ? dealsByDay[cell.dayNumber] || [] : [];
-              const isToday = cell.isCurrentMonth && cell.dayNumber === 10;
+              // "Today" = the actual real current date matches this cell exactly
+              const isToday =
+                cell.isCurrentMonth &&
+                isViewingCurrentMonth &&
+                cell.dayNumber === realTodayDay;
               const isSelected = cell.isCurrentMonth && cell.dayNumber === activeDay;
 
               return (
@@ -229,7 +293,7 @@ export function PipelineCalendarView({
                     </span>
 
                     {isToday && (
-                      <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-[#0284c7] text-white tracking-wider">
+                      <span className="text-[7.5px] font-black px-1 py-0.5 rounded bg-[#0284c7] text-white tracking-wider">
                         TODAY
                       </span>
                     )}
@@ -294,23 +358,23 @@ export function PipelineCalendarView({
             })}
           </div>
 
-          {/* Active Day Inspection Drawer at bottom of Month */}
+          {/* Active Day Inspection Drawer */}
           <div className="mt-2 p-3 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-white/80 dark:border-white/10 backdrop-blur-md shadow-2xs space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black text-[#1F1F1F] dark:text-slate-100">
-                  March {activeDay}, 2026 Schedule
+                  {MONTH_NAMES[viewMonth]} {activeDay}, {viewYear} Schedule
                 </span>
-                {activeDay === 10 && (
-                  <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-sky-100 dark:bg-sky-950/60 text-[#0284c7] dark:text-sky-400 border border-sky-300 dark:border-sky-500/40">
-                    Current Day
+                {isViewingCurrentMonth && activeDay === realTodayDay && (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-950/60 text-[#0284c7] dark:text-sky-400 border border-sky-300 dark:border-sky-500/40">
+                    Today
                   </span>
                 )}
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                   ({activeDayDeals.length} deals scheduled)
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Click any deal to view inspection & contact info</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Click any deal to view inspection &amp; contact info</span>
             </div>
 
             {activeDayDeals.length > 0 ? (
@@ -331,7 +395,7 @@ export function PipelineCalendarView({
                         {deal.timeSlot}
                       </span>
                       <span
-                        className={`text-[8.5px] px-1.5 py-0.2 rounded font-bold ${getServiceBadgeClass(
+                        className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold ${getServiceBadgeClass(
                           deal.serviceColor
                         )}`}
                       >
@@ -356,7 +420,7 @@ export function PipelineCalendarView({
               </div>
             ) : (
               <div className="py-2 text-center text-xs text-slate-400 dark:text-slate-500">
-                No pipeline appointments scheduled for March {activeDay}. Select another date on the calendar.
+                No pipeline appointments scheduled for {MONTH_NAMES[viewMonth]} {activeDay}. Select another date on the calendar.
               </div>
             )}
           </div>
@@ -368,7 +432,7 @@ export function PipelineCalendarView({
         <div className="rounded-2xl light-glass-panel border border-white/85 dark:border-white/10 shadow-xs overflow-hidden p-3 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200/70 dark:border-white/10">
             <h3 className="text-xs font-black text-[#1F1F1F] dark:text-slate-100 tracking-tight">
-              March 2026 Chronological Agenda
+              {MONTH_NAMES[viewMonth]} {viewYear} Chronological Agenda
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               Showing {filteredDeals.length} scheduled pipeline touches
@@ -376,7 +440,15 @@ export function PipelineCalendarView({
           </div>
 
           <div className="space-y-2">
-            {filteredDeals.map((deal) => (
+            {filteredDeals
+              .slice()
+              .sort((a, b) => {
+                // Sort by year → month → day → timeSlot
+                if (a.scheduledYear !== b.scheduledYear) return a.scheduledYear - b.scheduledYear;
+                if (a.scheduledMonth !== b.scheduledMonth) return a.scheduledMonth - b.scheduledMonth;
+                return a.scheduledDay - b.scheduledDay;
+              })
+              .map((deal) => (
               <div
                 key={deal.id}
                 onClick={() => onSelectDeal(deal)}
@@ -388,7 +460,9 @@ export function PipelineCalendarView({
               >
                 <div className="flex items-center gap-3">
                   <div className="px-2 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-500/30 text-[#0284c7] dark:text-sky-400 font-black text-center shrink-0 min-w-[55px]">
-                    <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Mar</div>
+                    <div className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      {MONTH_NAMES[deal.scheduledMonth].slice(0, 3)}
+                    </div>
                     <div className="text-sm font-black">{deal.scheduledDay}</div>
                   </div>
 
@@ -398,7 +472,7 @@ export function PipelineCalendarView({
                         {deal.name}
                       </span>
                       <span
-                        className={`text-[8.5px] px-1.5 py-0.2 rounded-md ${getServiceBadgeClass(
+                        className={`text-[8.5px] px-1.5 py-0.5 rounded-md ${getServiceBadgeClass(
                           deal.serviceColor
                         )}`}
                       >

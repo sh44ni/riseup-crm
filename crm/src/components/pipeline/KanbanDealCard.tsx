@@ -15,6 +15,7 @@ import {
   StageDefinition,
   PipelineStageId,
 } from '@/components/pipeline/pipelineTypes';
+import { DealValueBadge } from '@/components/shared/DealValueBadge';
 
 export interface KanbanDealCardProps {
   deal: PipelineDealItem;
@@ -174,22 +175,34 @@ export function KanbanDealCard({
 
       {/* Service Badge & Deal Value */}
       <div className="flex items-center justify-between gap-1">
-        <span
-          className={`text-[9px] px-1.5 py-0.5 rounded-md truncate max-w-[170px] ${getServiceBadgeClass(
-            deal.serviceColor
-          )}`}
-        >
-          {deal.service}
-        </span>
-        <span className="text-xs font-black text-[#1F1F1F] dark:text-white shrink-0">
-          {!canViewFinances ? (
-            <span className="text-slate-400 font-bold text-[10px]">🔒 $•••</span>
-          ) : deal.value > 0 ? (
-            `$${deal.value.toLocaleString()}`
-          ) : (
-            <span className="text-slate-400 font-medium text-[10px]">TBD</span>
+        <div className="flex items-center gap-1 min-w-0">
+          <span
+            className={`text-[9px] px-1.5 py-0.5 rounded-md truncate max-w-[120px] ${getServiceBadgeClass(
+              deal.serviceColor
+            )}`}
+          >
+            {deal.service}
+          </span>
+          {Number(deal.roofSqf || (deal as any).roof_sqf || 0) > 0 && (
+            <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium shrink-0">
+              {Number(deal.roofSqf || (deal as any).roof_sqf).toLocaleString()} sq ft
+            </span>
           )}
-        </span>
+        </div>
+        <DealValueBadge
+            contractValue={deal.contractValue ?? (deal as any).contract_value}
+            estimateTotal={deal.estimateTotal ?? (deal as any).estimate_total}
+            estimatedValue={deal.estimatedValue ?? (deal as any).raw_estimated_value ?? (deal as any).estimated_value}
+            roofSqf={deal.roofSqf ?? (deal as any).roof_sqf}
+            proposalSentAt={deal.proposalSentDate || (deal as any).proposalSentAt}
+            isUploadedEstimate={deal.isUploadedEstimate ?? (deal as any).is_uploaded_estimate}
+            estimateTemplateKey={deal.estimateTemplateKey ?? (deal as any).estimate_template_key}
+            isContractSigned={deal.isContractSigned}
+            stageId={deal.stageId}
+            canViewFinances={canViewFinances}
+            size="xs"
+          />
+
       </div>
 
       {/* SLA Status & Photos */}

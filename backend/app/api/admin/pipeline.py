@@ -322,6 +322,8 @@ async def get_sales_pipeline(
             l.assigned_to_user_id, l.assigned_at, l.created_by_user_id,
             l.address_confirmed, l.discount_applied, l.financing_interested,
             COALESCE(l.estimated_value, 0) as estimated_value, l.lost_reason, l.created_at,
+            l.roof_sqf,
+
             u_assigned.name as assigned_to_name, u_assigned.role as assigned_to_role, u_assigned.avatar_url as assigned_to_avatar,
             u_creator.name as created_by_name, u_creator.role as created_by_role,
             -- Job
@@ -349,7 +351,7 @@ async def get_sales_pipeline(
             ORDER BY id DESC LIMIT 1
         ) j ON true
         LEFT JOIN LATERAL (
-            SELECT id, estimate_number, total, status, financing_months
+            SELECT id, estimate_number, total, status, financing_months, template_key
             FROM estimates 
             WHERE lead_id = l.id OR (l.client_id IS NOT NULL AND client_id = l.client_id)
             ORDER BY id DESC LIMIT 1
@@ -376,7 +378,7 @@ async def get_sales_pipeline(
             ORDER BY id DESC LIMIT 1
         ) r ON true
         LEFT JOIN LATERAL (
-            SELECT id, contract_number, status, client_signed_at, counter_signed_at
+            SELECT id, contract_number, status, client_signed_at, counter_signed_at, contract_data
             FROM contracts
             WHERE (lead_id = l.id OR (e.id IS NOT NULL AND estimate_id = e.id) OR (l.client_id IS NOT NULL AND client_id = l.client_id))
               AND is_archived = false
@@ -531,7 +533,52 @@ async def get_sales_pipeline(
         if not row.get("assigned_to_user_id"):
             unassigned_count += 1
 
-        deal_value = float(row.get("contract_value") or row.get("estimate_total") or row.get("estimated_value") or 0)
+        # Resolve contract_value: prefer jobs.contract_value, fall back to contracts.contract_data
+        effective_contract_value = float(row.get("contract_value") or 0.0)
+        if effective_contract_value <= 0 and row.get("contract_data"):
+            cd = row.get("contract_data")
+            if isinstance(cd, str):
+                try:
+                    cd = json.loads(cd)
+                except Exception:
+                    cd = {}
+            if isinstance(cd, dict):
+                raw_cprice = cd.get("contractPrice") or cd.get("contract_price") or cd.get("total")
+                if raw_cprice:
+                    try:
+                        clean_c = float(str(raw_cprice).replace("$", "").replace(",", "").strip())
+                        if clean_c > 0:
+                            effective_contract_value = clean_c
+                    except Exception:
+                        pass
+
+        # Check if estimate was an uploaded proposal (manual upload option)
+        est_tmpl = row.get("template_key")
+        is_uploaded_estimate = bool(est_tmpl == "uploaded")
+
+        raw_est_total = float(row.get("estimate_total") or 0.0)
+        # If estimate was uploaded, the CRM estimate total is unknown
+        effective_estimate_total = None if (is_uploaded_estimate or raw_est_total <= 0) else raw_est_total
+
+        # Deal value follows the strict hierarchy:
+        # 1. Contract signed -> contract_value
+        # 2. Pre-estimate stages with roof_sqf -> sqft-derived estimated_value
+        # 3. Uploaded estimate -> stays unknown (0.0)
+        # 4. Formal CRM estimate -> estimate_total
+        # 5. Sq ft estimate -> estimated_value
+        if row.get("contract_signed_at") and effective_contract_value > 0:
+            deal_value = effective_contract_value
+        elif granular_st in ("cold_lead", "initial_call", "estimate_scheduled", "inspection_scheduled", "inspection_completed", "estimate_building") and row.get("roof_sqf") and float(row.get("roof_sqf")) > 0:
+            deal_value = float(row.get("estimated_value") or (float(row.get("roof_sqf")) * 6.5))
+        elif row.get("proposal_sent_at") and is_uploaded_estimate:
+            deal_value = 0.0
+        elif row.get("proposal_sent_at") and effective_estimate_total and effective_estimate_total > 0:
+            deal_value = effective_estimate_total
+        elif row.get("roof_sqf") and float(row.get("roof_sqf")) > 0:
+            deal_value = float(row.get("estimated_value") or (float(row.get("roof_sqf")) * 6.5))
+        else:
+            deal_value = float(effective_contract_value or (effective_estimate_total or 0.0) or (float(row.get("estimated_value") or 0.0) if row.get("roof_sqf") else 0.0) or 0.0)
+
         is_deal_lost = row.get("status") in ("lost", "closed_lost") or granular_st == "closed_lost"
         is_deal_completed = (
             row.get("status") in ("completed", "job_completed")
@@ -581,7 +628,17 @@ async def get_sales_pipeline(
             **row,
             "pipeline_stage": macro_st,
             "granular_stage": granular_st,
+            # collapsed value (for backward compat) — frontend should prefer the raw fields below
             "estimated_value": deal_value,
+            # raw individual value fields — frontend uses these for the hierarchy:
+            # contract_value (signed) > estimate_total (sent) > estimated_value (sqft calc) > unavailable
+            "contract_value": float(effective_contract_value) if effective_contract_value > 0 else None,
+            "estimate_total": effective_estimate_total,
+            "is_uploaded_estimate": is_uploaded_estimate,
+            "estimate_template_key": est_tmpl,
+            "raw_estimated_value": float(row.get("estimated_value") or 0) or (round(float(row.get("roof_sqf")) * 6.5, 2) if row.get("roof_sqf") else None),
+            "roof_sqf": row.get("roof_sqf"),
+            "proposal_sent_at": row.get("proposal_sent_at"),
             "financing_offered": financing_offered,
             "contract_status": contract_status,
             "contract_signed_at": effective_signed_at.isoformat() if effective_signed_at and hasattr(effective_signed_at, "isoformat") else effective_signed_at,

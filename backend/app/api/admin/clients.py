@@ -1108,6 +1108,49 @@ async def update_client(
                 lead_sync_params
             )
 
+    # Synchronize roof specs (roof_sqf, roof_type, stories) to associated leads
+    # and recalculate estimated_value so all value views stay consistent
+    roof_spec_fields = ["roof_sqf", "roof_type", "stories"]
+    if any(k in payload_dict for k in roof_spec_fields):
+        lead_roof_updates = []
+        lead_roof_params = {"cid": client_id}
+        for k in roof_spec_fields:
+            if k in payload_dict and payload_dict[k] is not None:
+                lead_roof_updates.append(f"{k} = :{k}")
+                lead_roof_params[k] = payload_dict[k]
+                if k == "roof_sqf":
+                    # Also keep roof_squares in sync
+                    lead_roof_updates.append("roof_squares = :roof_squares_sync")
+                    lead_roof_params["roof_squares_sync"] = round(float(payload_dict[k]) / 100.0, 1)
+        if lead_roof_updates and payload_dict.get("roof_sqf"):
+            # Recalculate estimated_value from the new sq ft for leads that
+            # don't yet have a formal estimate or contract value
+            try:
+                from app.services.calculator import calculate_lead_estimated_value
+                sqf = float(payload_dict["roof_sqf"])
+                svc_row = await db.execute(
+                    text("SELECT service_type, roof_pitch, stories FROM leads WHERE client_id = :cid ORDER BY id DESC LIMIT 1"),
+                    {"cid": client_id}
+                )
+                svc_data = svc_row.mappings().first()
+                svc = (svc_data.get("service_type") if svc_data else None) or "Residential Roofing"
+                pitch = (svc_data.get("roof_pitch") if svc_data else None) or "4:12"
+                sto = int(svc_data.get("stories") if svc_data else 1) or 1
+                calc = calculate_lead_estimated_value(sqf, svc, pitch, sto)
+                calc_val = float(calc["estimated_value"])
+                # Only overwrite estimated_value when no formal estimate has been sent
+                # (i.e. estimate_total is still null — preserve formal estimates)
+                lead_roof_updates.append("estimated_value = CASE WHEN (SELECT e.total FROM estimates e WHERE e.lead_id = leads.id OR e.client_id = leads.client_id ORDER BY e.id DESC LIMIT 1) IS NULL THEN :new_est_val ELSE estimated_value END")
+                lead_roof_params["new_est_val"] = calc_val
+            except Exception:
+                pass  # If calculator fails, still sync the sqf field
+        if lead_roof_updates:
+            lead_roof_updates.append("updated_at = NOW()")
+            await db.execute(
+                text(f"UPDATE leads SET {', '.join(lead_roof_updates)} WHERE client_id = :cid"),
+                lead_roof_params
+            )
+
     # Commit the primary updates (client + lead sync) before optional side-effects
     await db.commit()
 

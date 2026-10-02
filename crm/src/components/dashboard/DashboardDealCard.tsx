@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { DealCard, ColumnData } from './dashboardTypes';
 import { LeadAddressEditor } from '@/components/pipeline/LeadAddressEditor';
+import { DealValueBadge } from '@/components/shared/DealValueBadge';
 
 export interface DashboardDealCardProps {
   card: DealCard;
@@ -156,15 +157,20 @@ export function DashboardDealCard({
             </span>
           )}
         </div>
-        {canViewFinances ? (
-          <span className="text-[9.5px] font-black text-slate-800 dark:text-slate-100 shrink-0 bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 px-1.5 py-0.2 rounded shadow-2xs">
-            ${card.value ? card.value.toLocaleString() : '15,000'}
-          </span>
-        ) : (
-          <span className="text-[9.5px] font-medium text-slate-400 dark:text-slate-500 shrink-0 px-1">
-            —
-          </span>
-        )}
+        <DealValueBadge
+            contractValue={card.contractValue ?? (card as any).contract_value}
+            estimateTotal={card.estimateTotal ?? (card as any).estimate_total}
+            estimatedValue={card.estimatedValue ?? (card as any).raw_estimated_value ?? (card as any).estimated_value}
+            roofSqf={card.roofSqf ?? (card as any).roof_sqf}
+            proposalSentAt={card.proposalSentAt ?? (card as any).proposalSentDate ?? (card as any).proposal_sent_at}
+            isUploadedEstimate={card.isUploadedEstimate ?? (card as any).is_uploaded_estimate}
+            estimateTemplateKey={card.estimateTemplateKey ?? (card as any).estimate_template_key}
+            isContractSigned={card.isContractSigned}
+            stageId={card.granularStage || card.pipelineStage}
+            canViewFinances={canViewFinances}
+            size="xs"
+          />
+
       </div>
 
       {/* Location & Micro Actions / Inline Address Editor */}
@@ -276,13 +282,20 @@ export function DashboardDealCard({
 
       {/* Bottom Service Pill Tag & Time */}
       <div className="flex items-center justify-between pt-1 border-t border-slate-200/50 dark:border-white/10">
-        <span
-          className={`text-[8.5px] px-1.5 py-0.2 rounded-md ${getServiceBadgeClass(
-            card.serviceColor
-          )}`}
-        >
-          {card.service}
-        </span>
+        <div className="flex items-center gap-1 min-w-0">
+          <span
+            className={`text-[8.5px] px-1.5 py-0.2 rounded-md truncate max-w-[110px] ${getServiceBadgeClass(
+              card.serviceColor
+            )}`}
+          >
+            {card.service}
+          </span>
+          {typeof card.roofSqf === 'number' && card.roofSqf > 0 && (
+            <span className="text-[8.5px] text-slate-400 dark:text-slate-500 font-medium shrink-0">
+              {card.roofSqf.toLocaleString()} sq ft
+            </span>
+          )}
+        </div>
         <span className="text-[8.5px] text-slate-400 dark:text-slate-400 font-medium">
           {card.time}
         </span>

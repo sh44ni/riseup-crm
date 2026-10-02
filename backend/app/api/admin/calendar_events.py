@@ -3,10 +3,25 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, text
 from datetime import datetime, date as py_date, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore[no-reuse]
+
 import orjson
 import httpx
 import time
 from pydantic import BaseModel, Field
+
+# Company timezone — all site-visit times are Pacific (America/Los_Angeles)
+COMPANY_TZ = ZoneInfo("America/Los_Angeles")
+
+def to_company_tz(dt: datetime) -> datetime:
+    """Convert a UTC-aware (or naive-UTC) datetime to company local time."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(COMPANY_TZ)
+
 
 from app.core.database import get_db
 from app.core.permissions import require_auth_user, require_permission, require_any_permission
@@ -434,8 +449,17 @@ async def get_calendar_events(
             if assignedToUserId and l.get("assigned_to_user_id") != assignedToUserId:
                 continue
 
-            time_str = raw_visit.strftime("%I:%M %p") if isinstance(raw_visit, datetime) else "09:00 AM"
-            end_time_str = (raw_visit + timedelta(hours=1, minutes=30)).strftime("%I:%M %p") if isinstance(raw_visit, datetime) else "10:30 AM"
+            # ── Convert to company local time before formatting ──
+            if isinstance(raw_visit, datetime):
+                local_visit = to_company_tz(raw_visit)
+                d_val = local_visit.date()  # local date, not UTC date
+                time_str = local_visit.strftime("%I:%M %p").lstrip("0") or "12:00 AM"
+                end_dt = local_visit + timedelta(hours=1, minutes=30)
+                end_time_str = end_dt.strftime("%I:%M %p").lstrip("0") or "12:00 AM"
+            else:
+                time_str = "09:00 AM"
+                end_time_str = "10:30 AM"
+
 
             payloads.append(
                 CalendarEventPayload(
@@ -719,16 +743,18 @@ async def update_calendar_event(
                 # Cancel: clear the scheduled timestamp
                 lead_updates.append("site_visit_scheduled_at = NULL")
             elif "date" in payload_dict and payload.date:
-                # Reschedule: reconstruct datetime from date + startTime
+                # Reschedule: reconstruct datetime from date + startTime in company local time
                 try:
                     date_str = payload.date  # YYYY-MM-DD
                     time_str = payload.startTime or "09:00 AM"
                     combined_str = f"{date_str} {time_str}"
-                    # Try parsing 12h format first, then 24h
+                    # Try parsing 12h format first, then 24h — interpret as LOCAL company time
                     new_dt = None
                     for fmt in ("%Y-%m-%d %I:%M %p", "%Y-%m-%d %H:%M", "%Y-%m-%d %I:%M%p"):
                         try:
-                            new_dt = datetime.strptime(combined_str, fmt).replace(tzinfo=timezone.utc)
+                            naive_dt = datetime.strptime(combined_str, fmt)
+                            # Attach company timezone (aware), then convert to UTC for storage
+                            new_dt = naive_dt.replace(tzinfo=COMPANY_TZ).astimezone(timezone.utc)
                             break
                         except ValueError:
                             continue
@@ -752,8 +778,13 @@ async def update_calendar_event(
             )).mappings().first()
 
             sched = refreshed["site_visit_scheduled_at"] if refreshed else None
-            resp_date = sched.strftime("%Y-%m-%d") if sched else (payload.date or "")
-            resp_start = sched.strftime("%I:%M %p").lstrip("0") if sched else (payload.startTime or "09:00 AM")
+            if sched:
+                local_sched = to_company_tz(sched) if isinstance(sched, datetime) else sched
+                resp_date = local_sched.strftime("%Y-%m-%d")
+                resp_start = local_sched.strftime("%I:%M %p").lstrip("0") or "12:00 AM"
+            else:
+                resp_date = payload.date or ""
+                resp_start = payload.startTime or "09:00 AM"
             resp_status = "cancelled" if payload.status == "cancelled" else ("scheduled" if sched else "cancelled")
 
             return CalendarEventSingleResponse(

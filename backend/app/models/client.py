@@ -93,7 +93,7 @@ class Lead(Base):
     address_confirmed: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     discount_applied: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     financing_interested: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
-    estimated_value: Mapped[float] = mapped_column(Numeric(10, 2), server_default="0.00", nullable=False)
+    estimated_value: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), server_default="0.00", nullable=True)
     lost_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     lost_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     lost_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

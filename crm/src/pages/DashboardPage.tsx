@@ -102,7 +102,7 @@ export function DashboardPage() {
 
   const { isDark } = useTheme();
   const { company, licenseNumber, city, companyName } = useCompany();
-  const { columns, summary, isLoading: pipelineLoading, refresh: refreshPipeline, moveCardOptimistically, updateCardAddress } = usePipelineKanban();
+  const { columns, setColumns, summary, isLoading: pipelineLoading, refresh: refreshPipeline, moveCardOptimistically, updateCardAddress } = usePipelineKanban();
   const { stats, isLoading: statsLoading, refresh: refreshStats } = useDashboardStats();
 
   const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'calendar'>('kanban');
@@ -775,24 +775,29 @@ export function DashboardPage() {
                           const allEnriched = enrichDeals(columns);
                           const found = allEnriched.find((d) => String(d.id) === String(card.id));
                           setSelectedDeal(
-                            found || {
-                              ...card,
-                              stageId: col.id,
-                              stageTitle: col.title,
-                              stageAccent: col.accentColor,
-                              stageBgColor: col.bgColor,
-                              stageBorderColor: col.borderColor,
-                              stagePillClass: col.pillClass,
-                              stageBadgeClass: col.badgeClass,
-                              iconType: col.iconType,
-                              phone: card.phone || '(760) 555-0100',
-                              email: card.email || `${String(card.name || 'homeowner').toLowerCase().replace(/[^a-z]/g, '')}@gmail.com`,
-                              value: card.value || 15000,
-                              scheduledDay: 10,
-                              timeSlot: '10:00 AM',
-                              dateFormatted: 'Today',
-                              notes: card.notes,
-                            }
+                            found || (() => {
+                              const today = new Date();
+                              return {
+                                ...card,
+                                stageId: col.id,
+                                stageTitle: col.title,
+                                stageAccent: col.accentColor,
+                                stageBgColor: col.bgColor,
+                                stageBorderColor: col.borderColor,
+                                stagePillClass: col.pillClass,
+                                stageBadgeClass: col.badgeClass,
+                                iconType: col.iconType,
+                                phone: card.phone || '(760) 555-0100',
+                                email: card.email || `${String(card.name || 'homeowner').toLowerCase().replace(/[^a-z]/g, '')}@gmail.com`,
+                                value: card.value || 15000,
+                                scheduledDay: today.getDate(),
+                                scheduledMonth: today.getMonth(),
+                                scheduledYear: today.getFullYear(),
+                                timeSlot: '10:00 AM',
+                                dateFormatted: 'Today',
+                                notes: card.notes,
+                              };
+                            })()
                           );
                           setIsDealModalOpen(true);
                         }}
@@ -858,6 +863,29 @@ export function DashboardPage() {
           setSelectedDeal(null);
         }}
         getServiceBadgeClass={getServiceBadgeClass}
+        onUpdateDeal={(updated) => {
+          setSelectedDeal((prev) => (prev && String(prev.id) === String(updated.id) ? { ...prev, ...updated } : prev));
+          setColumns((prevCols) =>
+            prevCols.map((col) => ({
+              ...col,
+              cards: col.cards.map((c) =>
+                String(c.id) === String(updated.id)
+                  ? {
+                      ...c,
+                      roofSqf: updated.roofSqf,
+                      estimatedValue: updated.estimatedValue,
+                      value: updated.value,
+                      name: updated.name,
+                      phone: updated.phone,
+                      email: updated.email,
+                      address: updated.address,
+                      city: updated.city,
+                    }
+                  : c
+              ),
+            }))
+          );
+        }}
       />
 
       {/* Create New Lead Optical Glass Modal */}

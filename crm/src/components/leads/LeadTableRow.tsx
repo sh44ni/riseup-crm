@@ -4,6 +4,8 @@ import { Lead } from '@/types/leadTypes';
 import { getServiceBadgeClass, getSourceBadges } from '@/utils/leadHelpers';
 import { getTelUrl, getSmsUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { LOSS_REASONS } from '@/components/leads/MarkLeadLostModal';
+import { DealValueText } from '@/components/shared/DealValueBadge';
+
 
 interface LeadTableRowProps {
   lead: Lead;
@@ -111,8 +113,8 @@ export function LeadTableRow({
           )}`}
         >
           <span className="truncate">{lead.service}</span>
-          {Boolean(lead.squares && lead.squares > 0) && (
-            <span className="opacity-70 font-normal">({lead.squares} sq)</span>
+          {Boolean((lead.roofSqf && lead.roofSqf > 0) || (lead.squares && lead.squares > 0)) && (
+            <span className="opacity-70 font-normal">({(lead.roofSqf || lead.squares! * 100).toLocaleString()} sq ft)</span>
           )}
         </span>
       </td>
@@ -205,11 +207,19 @@ export function LeadTableRow({
 
       {/* 7. Value */}
       <td className="px-3 py-3 text-right font-black text-slate-900 dark:text-slate-100 text-xs">
-        {canViewFinances ? (
-          lead.value > 0 ? `$${lead.value.toLocaleString()}` : <span className="text-slate-400 dark:text-slate-500 font-medium">TBD</span>
-        ) : (
-          <span className="text-slate-400 dark:text-slate-500 font-medium">—</span>
-        )}
+        <DealValueText
+          contractValue={lead.contractValue ?? (lead as any).contract_value}
+          estimateTotal={lead.estimateTotal ?? (lead as any).estimate_total}
+          estimatedValue={lead.estimatedValue ?? (lead.value > 0 ? lead.value : null) ?? (lead as any).raw_estimated_value ?? (lead as any).estimated_value}
+          roofSqf={lead.roofSqf ?? (lead as any).roof_sqf ?? (lead.squares && lead.squares > 0 ? lead.squares * 100 : null)}
+          proposalSentAt={lead.proposalSentAt ?? (lead as any).proposalSentDate ?? (lead as any).proposal_sent_at}
+          isUploadedEstimate={lead.isUploadedEstimate ?? (lead as any).is_uploaded_estimate}
+          estimateTemplateKey={lead.estimateTemplateKey ?? (lead as any).estimate_template_key}
+          isContractSigned={lead.isContractSigned}
+          stageId={lead.stageId || lead.pipelineStage || (lead as any).stage || lead.status}
+          canViewFinances={canViewFinances}
+          className="text-xs"
+        />
       </td>
 
       {/* 8. Stage Status */}

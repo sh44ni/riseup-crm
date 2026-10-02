@@ -24,6 +24,7 @@ import {
   UserCog,
   FileText,
   Edit3,
+  Ruler,
 } from 'lucide-react';
 import { ContractBuilderModal } from './ContractBuilderModal';
 import { ClaimLeadModal } from './ClaimLeadModal';
@@ -32,10 +33,13 @@ import { EnrichedDeal } from './pipelineTypes';
 import { ProfileNotesFeed } from '@/components/common/ProfileNotesFeed';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { formatTimestamp12h, cleanseAuthor, serializeProfileNote } from '@/lib/noteUtils';
 import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
 import { ClientEditContactModal, ClientContactData } from '@/components/clients/ClientEditContactModal';
 import { broadcastContactUpdated } from '@/utils/syncEventBus';
+import { DealValueBadge } from '@/components/shared/DealValueBadge';
+
 
 export interface GenericDealItem {
   id: string | number;
@@ -139,6 +143,7 @@ export function PipelineDealModal({
   onUpdateDeal,
 }: PipelineDealModalProps) {
   const { user, can, isOwner } = useAuth();
+  const { toast } = useToast();
   const canViewFinances = can('finances.view');
   const canClaimLead = isOwner || can('leads.claim');
   const canReassignLead = isOwner || can('leads.reassign');
@@ -163,6 +168,9 @@ export function PipelineDealModal({
 
   // Appointment scheduling state
   const [showScheduler, setShowScheduler] = useState(false);
+  const [sqftEditOpen, setSqftEditOpen] = useState(false);
+  const [sqftInput, setSqftInput] = useState('');
+
   const [scheduleInput, setScheduleInput] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
 
@@ -301,6 +309,29 @@ export function PipelineDealModal({
   const displayEmail = localContact.email || leadDetail?.email || deal.email || '';
   const displayService = leadDetail?.service_type || deal.service || 'Commercial Flat';
   const displayValue = Number(leadDetail?.contract_value || leadDetail?.estimated_value || deal.value || 42000);
+  // Value resolution for display — uses the full hierarchy
+  const resolvedContractValue = leadDetail?.contract_value ? Number(leadDetail.contract_value) : ((deal as any).contractValue ?? null);
+  const resolvedEstimateTotal = leadDetail?.estimate_total ? Number(leadDetail.estimate_total) : ((deal as any).estimateTotal ?? null);
+  const resolvedRoofSqf = leadDetail?.roof_sqf ? Number(leadDetail.roof_sqf) : ((deal as any).roofSqf ?? null);
+  // Expose estimatedValue whenever roof_sqf is genuinely present (> 0)
+  const resolvedEstimatedValue = (resolvedRoofSqf && resolvedRoofSqf > 0)
+    ? (leadDetail?.raw_estimated_value != null
+        ? Number(leadDetail.raw_estimated_value)
+        : ((deal as any).estimatedValue != null
+            ? Number((deal as any).estimatedValue)
+            : (leadDetail?.estimated_value != null ? Number(leadDetail.estimated_value) : null)))
+    : null;
+  const resolvedProposalSentAt = leadDetail?.proposal_sent_at || (deal as any).proposalSentDate || (deal as any).proposalSentAt || null;
+  const resolvedIsContractSigned = Boolean(leadDetail?.contract_signed_at || leadDetail?.contract_status === 'fully_executed' || leadDetail?.contract_status === 'client_signed' || (deal as any).isContractSigned);
+  const resolvedIsUploadedEstimate = Boolean(
+    leadDetail?.is_uploaded_estimate ||
+    leadDetail?.estimate_template_key === 'uploaded' ||
+    (deal as any).isUploadedEstimate ||
+    (deal as any).estimateTemplateKey === 'uploaded'
+  );
+  const resolvedEstimateTemplateKey = leadDetail?.estimate_template_key || (deal as any).estimateTemplateKey || null;
+
+
   const displayAddress = localContact.address || leadDetail?.address || deal.address || deal.location || '';
   const displayCity = localContact.city || leadDetail?.city || deal.city || 'Oceanside';
   const displayZip = localContact.zip || leadDetail?.zip || deal.zip || '';
@@ -561,19 +592,99 @@ export function PipelineDealModal({
               {/* Quick Metrics Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 <div className="p-3 rounded-2xl liquid-glass-tile space-y-1">
-                  <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
-                    Estimated Value
-                  </span>
-                  <div className="text-base font-black text-slate-800 dark:text-white flex items-center gap-0.5">
-                    {canViewFinances ? (
-                      <>
-                        <span className="text-[#0284C7]">$</span>
-                        {displayValue.toLocaleString()}
-                      </>
-                    ) : (
-                      <span className="text-slate-400 font-medium text-sm">—</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
+                      Deal Value
+                    </span>
+                    {canViewFinances && !resolvedRoofSqf && !resolvedEstimateTotal && !resolvedContractValue && (
+                      <button
+                        type="button"
+                        onClick={() => setSqftEditOpen(v => !v)}
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 transition-colors cursor-pointer"
+                      >
+                        + Add Sq Ft
+                      </button>
+                    )}
+                    {canViewFinances && resolvedRoofSqf && !resolvedEstimateTotal && !resolvedContractValue && (
+                      <button
+                        type="button"
+                        onClick={() => { setSqftInput(String(resolvedRoofSqf || '')); setSqftEditOpen(v => !v); }}
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/10 hover:bg-slate-100 transition-colors cursor-pointer"
+                      >
+                        Edit Sq Ft
+                      </button>
                     )}
                   </div>
+                  <div className="text-base font-black text-slate-800 dark:text-white flex items-center gap-0.5">
+                    <DealValueBadge
+                      contractValue={resolvedContractValue}
+                      estimateTotal={resolvedEstimateTotal}
+                      estimatedValue={resolvedEstimatedValue}
+                      roofSqf={resolvedRoofSqf}
+                      proposalSentAt={resolvedProposalSentAt}
+                      isUploadedEstimate={resolvedIsUploadedEstimate}
+                      estimateTemplateKey={resolvedEstimateTemplateKey}
+                      isContractSigned={resolvedIsContractSigned}
+                      stageId={displayStageKey}
+                      canViewFinances={canViewFinances}
+                      size="base"
+                    />
+                  </div>
+                  {resolvedRoofSqf && resolvedRoofSqf > 0 ? (
+                    <div className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                      <Ruler size={10} className="text-amber-500 shrink-0" />
+                      <span>{resolvedRoofSqf.toLocaleString()} sq ft</span>
+                    </div>
+                  ) : null}
+                  {sqftEditOpen && canViewFinances && (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const sqf = parseInt(sqftInput);
+                        if (!sqf || sqf <= 0) return;
+                        try {
+                          const res = await api.updateLead(deal.id, { roof_sqf: sqf });
+                          const newEstVal = res?.lead?.estimated_value != null ? Number(res.lead.estimated_value) : Math.round(sqf * 6.5);
+                          const newSquares = res?.lead?.roof_squares != null ? Number(res.lead.roof_squares) : Math.round((sqf / 100) * 10) / 10;
+                          setLeadDetail((prev: any) => ({
+                            ...(prev || {}),
+                            roof_sqf: sqf,
+                            roof_squares: newSquares,
+                            estimated_value: newEstVal,
+                            raw_estimated_value: newEstVal,
+                          }));
+                          if (onUpdateDeal && deal) {
+                            onUpdateDeal({
+                              ...deal,
+                              roofSqf: sqf,
+                              value: newEstVal,
+                              estimatedValue: newEstVal,
+                            });
+                          }
+                          toast.success(`Roof size updated: ${sqf.toLocaleString()} sq ft ($${newEstVal.toLocaleString()})`);
+                          setSqftEditOpen(false);
+                        } catch (err) {
+                          console.error('Failed to update sq ft:', err);
+                          toast.error('Failed to update roof sq ft.');
+                        }
+                      }}
+                      className="flex items-center gap-1.5 mt-1"
+                    >
+                      <input
+                        type="number"
+                        min={1}
+                        max={50000}
+                        step={25}
+                        value={sqftInput}
+                        onChange={e => setSqftInput(e.target.value)}
+                        placeholder="e.g. 2500"
+                        className="flex-1 text-xs px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                        autoFocus
+                      />
+                      <button type="submit" className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors cursor-pointer">Save</button>
+                      <button type="button" onClick={() => setSqftEditOpen(false)} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer">✕</button>
+                    </form>
+                  )}
                 </div>
 
                 <div className="p-3 rounded-2xl liquid-glass-tile space-y-1">
@@ -1059,6 +1170,7 @@ export function PipelineDealModal({
           isOpen={isEditContactOpen}
           onClose={() => setIsEditContactOpen(false)}
           clientName={displayName}
+          clientId={(deal as any).clientId || (deal as any).client_id || leadDetail?.client_id}
           initialData={{
             name: displayName,
             email: displayEmail,

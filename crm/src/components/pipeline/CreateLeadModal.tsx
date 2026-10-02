@@ -69,13 +69,14 @@ export function CreateLeadModal({
     phone: '',
     email: '',
     service: 'Residential Roofing',
-    sqf: '2500',
+    sqf: '',          // empty = not entered; filled = user intentionally provided roof size
     roofType: 'Concrete Tile',
     stories: '1 Story',
     address: '',
     zipCode: '92025',
     notes: '',
   });
+  const [sqfTouched, setSqfTouched] = useState(false); // true only when user explicitly typed a value
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,13 +91,15 @@ export function CreateLeadModal({
         phone: '',
         email: '',
         service: 'Residential Roofing',
-        sqf: '2500',
+        sqf: '',
         roofType: 'Concrete Tile',
         stories: '1 Story',
         address: '',
         zipCode: '92025',
         notes: '',
       });
+      setSqfTouched(false);
+
       setError(null);
       setSuccessNotice(false);
       // Prevent body scroll when modal is open
@@ -146,8 +149,11 @@ export function CreateLeadModal({
   };
 
   // Formula-based real-time valuation matching global estimator rules
+  // Returns null amounts when the user hasn't entered a roof size yet
   const calculateLiveQuote = () => {
-    const sqft = Math.max(100, parseInt(formData.sqf) || 2500);
+    const rawSqf = parseInt(formData.sqf);
+    const hasSize = !isNaN(rawSqf) && rawSqf > 0;
+    const sqft = hasSize ? rawSqf : 0;
     const svc = (formData.service || '').toLowerCase();
 
     let lowRate = 4.0;
@@ -174,6 +180,10 @@ export function CreateLeadModal({
       baseLow = 1500;
       baseHigh = 3000;
       term = 120;
+    }
+
+    if (!hasSize) {
+      return { sqft: null, low: null, high: null, midpoint: null, monthly: null, term };
     }
 
     const low = Math.round(baseLow + sqft * lowRate);
@@ -249,13 +259,16 @@ export function CreateLeadModal({
         service: formData.service,
         serviceType: formData.service,
         service_type: formData.service,
-        roof_sqf: liveQuote.sqft,
-        roofSqf: liveQuote.sqft,
-        roof_squares: Math.round((liveQuote.sqft / 100) * 10) / 10,
+        // Only send roof size fields when the user actually entered a value
+        ...(liveQuote.sqft ? {
+          roof_sqf: liveQuote.sqft,
+          roofSqf: liveQuote.sqft,
+          roof_squares: Math.round((liveQuote.sqft / 100) * 10) / 10,
+          estimated_value: liveQuote.midpoint,
+          estimatedValue: liveQuote.midpoint,
+        } : {}),
         roof_type: formData.roofType,
         stories: formData.stories,
-        estimated_value: liveQuote.midpoint,
-        estimatedValue: liveQuote.midpoint,
         notes: stampedNotes,
         leadSource: 'manual',
         lead_source: 'manual',
@@ -463,17 +476,20 @@ export function CreateLeadModal({
 
             {/* 3-Column Spec Row */}
             <div className="grid grid-cols-3 gap-2.5">
-              {/* Est. SQF */}
+              {/* Roof Size */}
               <div>
                 <label className="block text-[10.5px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Est. SQF
+                  Roof Size <span className="font-normal text-slate-400">(sq ft)</span>
                 </label>
                 <div className="relative group">
                   <input
                     type="number"
                     value={formData.sqf}
-                    onChange={(e) => setFormData({ ...formData, sqf: e.target.value })}
-                    placeholder="2500"
+                    onChange={(e) => {
+                      setFormData({ ...formData, sqf: e.target.value });
+                      setSqfTouched(e.target.value.trim() !== '');
+                    }}
+                    placeholder="Optional — e.g. 2500"
                     className="w-full px-3 py-2 rounded-xl bg-slate-50/80 hover:bg-white focus:bg-white dark:bg-white/5 dark:hover:bg-white/10 dark:focus:bg-slate-900 border border-slate-200/90 dark:border-white/12 focus:border-[#1878B8] dark:focus:border-sky-400 focus:ring-3 focus:ring-sky-400/20 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all shadow-2xs"
                   />
                 </div>
@@ -532,21 +548,37 @@ export function CreateLeadModal({
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-black text-[#1878B8] dark:text-sky-400">
-                    ${liveQuote.midpoint.toLocaleString()}
-                  </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    (${liveQuote.low.toLocaleString()} – ${liveQuote.high.toLocaleString()})
-                  </span>
+                  {liveQuote.midpoint != null ? (
+                    <>
+                      <span className="text-lg font-black text-[#1878B8] dark:text-sky-400">
+                        ${liveQuote.midpoint.toLocaleString()}
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        (${liveQuote.low!.toLocaleString()} – ${liveQuote.high!.toLocaleString()})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-slate-400 dark:text-slate-500 font-medium italic">
+                      Add roof size to estimate value
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <span className="text-[10px] font-bold text-sky-800 dark:text-sky-300 bg-sky-100/90 dark:bg-sky-500/20 px-2 py-0.5 rounded-lg border border-sky-200/80 dark:border-sky-500/40">
-                  ~${liveQuote.monthly}/mo (0% APR)
-                </span>
-                <span className="block text-[9.5px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">
-                  {liveQuote.sqft.toLocaleString()} sq ft @ global rule
-                </span>
+                {liveQuote.monthly != null ? (
+                  <>
+                    <span className="text-[10px] font-bold text-sky-800 dark:text-sky-300 bg-sky-100/90 dark:bg-sky-500/20 px-2 py-0.5 rounded-lg border border-sky-200/80 dark:border-sky-500/40">
+                      ~${liveQuote.monthly}/mo (0% APR)
+                    </span>
+                    <span className="block text-[9.5px] text-slate-400 dark:text-slate-500 mt-0.5 font-mono">
+                      {liveQuote.sqft!.toLocaleString()} sq ft @ global rule
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                    Optional field
+                  </span>
+                )}
               </div>
             </div>
 

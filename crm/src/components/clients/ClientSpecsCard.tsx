@@ -50,10 +50,7 @@ export function ClientSpecsCard({ specs, onEdit }: ClientSpecsCardProps) {
             <span className="text-slate-500 dark:text-slate-400 font-medium">Roof Area</span>
             <span className="font-semibold text-slate-900 dark:text-white text-right">
               {specs.roofAreaSqFt > 0 ? (
-                <>
-                  {specs.roofAreaSqFt.toLocaleString()} sq ft
-                  {specs.roofSquares > 0 ? ` (${specs.roofSquares} sq)` : ''}
-                </>
+                `${specs.roofAreaSqFt.toLocaleString()} sq ft`
               ) : (
                 'Not Specified'
               )}

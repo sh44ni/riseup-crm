@@ -11,7 +11,15 @@ export interface DealCard {
   time: string;
   phone?: string;
   email?: string;
-  value?: number;
+  value?: number;          // collapsed value (kept for compat — prefer raw fields below)
+  // Raw value fields for hierarchy resolution:
+  contractValue?: number | null;     // from signed contract (highest priority)
+  estimateTotal?: number | null;     // from formal estimate document
+  estimatedValue?: number | null;    // from quick-quote / intake form
+  roofSqf?: number | null;          // sq ft of the roof
+  proposalSentAt?: string | null;    // ISO date when estimate was sent
+  isUploadedEstimate?: boolean;      // estimate was uploaded manually (value unknown)
+  estimateTemplateKey?: string | null;
   isFollowupOverdue?: boolean;
   hoursUntilAutoMove?: number | null;
   followupDaysRemaining?: number;

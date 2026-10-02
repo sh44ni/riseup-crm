@@ -128,6 +128,8 @@ class LeadResponse(BaseModel):
     lead_source: Optional[str] = None
     pipeline_stage: str
     estimated_value: Optional[float] = None
+    roof_sqf: Optional[int] = None
+    roof_squares: Optional[float] = None
     assigned_to_user_id: Optional[int] = None
     assigned_to: Optional[str] = None
     created_at: Optional[datetime] = None
