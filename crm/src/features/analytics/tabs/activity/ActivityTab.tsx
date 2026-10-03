@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Download, RotateCcw, X } from 'lucide-react';
 import { activityApi } from './api';
+import { ActivityStats } from './ActivityStats';
 import { actorLabel, formatValue, humanize, summarize } from './summary';
 import type {
   ActivityDetail,
@@ -29,7 +30,7 @@ const ACTION_STYLE: Record<string, string> = {
 };
 
 const inputCls =
-  'h-9 rounded-lg border border-slate-300 dark:border-white/15 bg-white dark:bg-[#0B1320] px-2 text-xs text-slate-900 dark:text-white';
+  'h-9 rounded-lg border border-slate-200 dark:border-white/12 bg-white/90 dark:bg-[#0B1320]/80 px-2.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-[#1878B8] focus:ring-2 focus:ring-sky-200/60 transition';
 
 /** Converts the date-only inputs into an inclusive [from, to] range for the API. */
 function toApiFilters(f: ActivityFilters): ActivityFilters {
@@ -134,7 +135,13 @@ export default function ActivityTab() {
 
   return (
     <section className="space-y-4" data-testid="activity-tab">
-      <div className="flex flex-wrap items-end gap-2" role="search" aria-label="Activity filters">
+      <ActivityStats />
+
+      <div
+        className="light-glass-card rounded-xl p-3 flex flex-wrap items-end gap-2"
+        role="search"
+        aria-label="Activity filters"
+      >
         <select
           aria-label="Employee"
           className={inputCls}
@@ -224,7 +231,7 @@ export default function ActivityTab() {
           type="button"
           onClick={onExport}
           disabled={exporting}
-          className="ml-auto h-9 rounded-lg bg-[#1878B8] px-3 text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-60"
+          className="ml-auto h-9 rounded-lg bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] px-3.5 text-xs font-bold text-white flex items-center gap-1.5 shadow-md hover:opacity-95 disabled:opacity-60"
         >
           <Download size={13} /> {exporting ? 'Exporting…' : 'Export CSV'}
         </button>
@@ -236,9 +243,9 @@ export default function ActivityTab() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white/80 dark:bg-[#0B1320]/70">
+      <div className="light-glass-card rounded-xl overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="text-[10px] uppercase tracking-wider text-slate-500">
+          <thead className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400 bg-slate-50/80 dark:bg-white/5">
             <tr>
               <th className="px-3 py-2">When</th>
               <th className="px-3 py-2">Employee</th>
@@ -255,13 +262,20 @@ export default function ActivityTab() {
                 tabIndex={0}
                 onClick={() => openDetail(entry)}
                 onKeyDown={(e) => e.key === 'Enter' && openDetail(entry)}
-                className="cursor-pointer border-t border-slate-100 dark:border-white/5 hover:bg-sky-50/60 dark:hover:bg-white/5"
+                className="cursor-pointer border-t border-slate-100/80 dark:border-white/5 hover:bg-sky-50/60 dark:hover:bg-white/5 transition-colors"
               >
-                <td className="whitespace-nowrap px-3 py-2">{new Date(entry.occurred_at).toLocaleString()}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-slate-600 dark:text-slate-300 font-medium">{new Date(entry.occurred_at).toLocaleString()}</td>
                 <td className="px-3 py-2">
-                  <div className="font-semibold">{actorLabel(entry)}</div>
-                  <div className="text-[10px] text-slate-500">
-                    {[entry.actor.role, entry.actor.ip_address].filter(Boolean).join(' · ')}
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#1878B8] to-[#55C4F5] text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                      {actorLabel(entry).charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 dark:text-white truncate">{actorLabel(entry)}</div>
+                      <div className="text-[10px] text-slate-500 truncate">
+                        {[entry.actor.role?.replace(/_/g, ' '), entry.actor.ip_address].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
                   </div>
                 </td>
                 <td className="px-3 py-2">
@@ -300,21 +314,35 @@ export default function ActivityTab() {
       )}
 
       {selected && (
+        <>
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px]"
+          onClick={() => setSelected(null)}
+          aria-hidden="true"
+        />
         <aside
           role="dialog"
           aria-label="Activity details"
-          className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl dark:bg-[#0B1320] dark:border-white/10"
+          className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-white/85 bg-white/95 p-5 shadow-[0_20px_50px_rgba(15,23,42,0.25)] backdrop-blur-2xl dark:bg-[#0B1320]/95 dark:border-white/10"
         >
-          <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="mb-4 flex items-start justify-between gap-2 border-b border-slate-100 dark:border-white/10 pb-3">
             <div>
-              <h2 className="text-sm font-bold">
-                {humanize(selected.action)} · {humanize(selected.record.type)}
+              <span className="text-[9.5px] font-extrabold uppercase tracking-[0.2em] text-[#1878B8]">
+                {humanize(selected.record.type)}
+              </span>
+              <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white">
+                {selected.record.label || humanize(selected.action)}
               </h2>
               <p className="text-[11px] text-slate-500">
-                {actorLabel(selected)} · {new Date(selected.occurred_at).toLocaleString()}
+                {humanize(selected.action)} by {actorLabel(selected)} · {new Date(selected.occurred_at).toLocaleString()}
               </p>
             </div>
-            <button type="button" aria-label="Close details" onClick={() => setSelected(null)}>
+            <button
+              type="button"
+              aria-label="Close details"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
+              onClick={() => setSelected(null)}
+            >
               <X size={16} />
             </button>
           </div>
@@ -322,7 +350,7 @@ export default function ActivityTab() {
             {selected.record.client_id && (
               <button
                 type="button"
-                className="rounded border px-2 py-1 font-semibold"
+                className="rounded-lg border border-slate-200 dark:border-white/12 bg-white/80 dark:bg-white/5 px-2.5 py-1.5 font-bold text-slate-700 dark:text-slate-200 hover:border-sky-400"
                 onClick={() => {
                   const next = new URLSearchParams();
                   next.set('client_id', String(selected.record.client_id));
@@ -336,7 +364,7 @@ export default function ActivityTab() {
             {selected.actor.user_id && (
               <button
                 type="button"
-                className="rounded border px-2 py-1 font-semibold"
+                className="rounded-lg border border-slate-200 dark:border-white/12 bg-white/80 dark:bg-white/5 px-2.5 py-1.5 font-bold text-slate-700 dark:text-slate-200 hover:border-sky-400"
                 onClick={() => {
                   setFilter('employee_id', String(selected.actor.user_id));
                   setSelected(null);
@@ -373,6 +401,7 @@ export default function ActivityTab() {
             </tbody>
           </table>
         </aside>
+        </>
       )}
     </section>
   );

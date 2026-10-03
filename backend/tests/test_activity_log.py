@@ -123,3 +123,12 @@ async def test_export_csv_is_logged(client, auth_owner):
     assert "text/csv" in r.headers["content-type"]
     items = await _entries(client, auth_owner, action="security", q="activity.export")
     assert items
+
+async def test_summary(client, db, auth_owner, auth_sales_rep):
+    await make_client(db)
+    await db.commit()
+    r = await client.get('/api/admin/activity/summary', headers=auth_owner)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert len(body['daily']) == 7 and body['events'] >= 1 and body['creates'] >= 1
+    assert (await client.get('/api/admin/activity/summary', headers=auth_sales_rep)).status_code == 403

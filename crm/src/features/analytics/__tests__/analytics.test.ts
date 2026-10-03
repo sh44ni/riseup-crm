@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANALYTICS_TABS, findTab, visibleTabs } from '../registry';
+import { ANALYTICS_TABS, findTab, isLive, visibleTabs } from '../registry';
 import { summarize, actorLabel } from '../tabs/activity/summary';
 import type { ActivityEntry } from '../tabs/activity/types';
 
@@ -24,12 +24,14 @@ describe('analytics registry', () => {
 
   it('filters tabs by permission', () => {
     expect(visibleTabs(() => false)).toEqual([]);
-    expect(visibleTabs((p) => p === 'activity.view').map((t) => t.id)).toEqual(['activity']);
+    expect(visibleTabs((p) => p === 'activity.view').map((t) => t.id)).toContain('activity');
+    expect(visibleTabs((p) => p === 'activity.view').filter(isLive).map((t) => t.id)).toEqual(['activity']);
   });
 
   it('finds tabs by id', () => {
     expect(findTab('activity')?.label).toBe('Activity');
     expect(findTab('nope')).toBeUndefined();
+    expect(findTab('lead-sources')).toBeUndefined();
   });
 });
 

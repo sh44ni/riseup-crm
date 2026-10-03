@@ -4,6 +4,7 @@ import type {
   ActivityFilterOptions,
   ActivityFilters,
   ActivityPage,
+  ActivitySummary,
 } from './types';
 
 export function filtersToQuery(filters: ActivityFilters, extra: Record<string, string> = {}): string {
@@ -25,6 +26,9 @@ export const activityApi = {
   },
   detail(id: number): Promise<{ data: ActivityDetail }> {
     return httpClient.get(`/admin/activity/${id}`);
+  },
+  summary(days = 7): Promise<ActivitySummary> {
+    return httpClient.get<ActivitySummary>(`/admin/activity/summary?days=${days}`);
   },
   filterOptions(): Promise<ActivityFilterOptions> {
     return httpClient.get<ActivityFilterOptions>('/admin/activity/filters');

@@ -63,3 +63,24 @@ export interface ActivityFilters {
   date_to?: string;
   q?: string;
 }
+
+export interface ActivityDay {
+  date: string;
+  events: number;
+  creates: number;
+  updates: number;
+  deletes: number;
+  security: number;
+}
+
+export interface ActivitySummary {
+  window_days: number;
+  events: number;
+  previous_events: number;
+  creates: number;
+  updates: number;
+  deletes: number;
+  security: number;
+  active_employees: number;
+  daily: ActivityDay[];
+}

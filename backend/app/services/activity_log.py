@@ -1,10 +1,10 @@
 """Read-only queries over the append-only ``staff_activity_log`` (ORM only)."""
 import base64
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
-from sqlalchemy import and_, cast, BigInteger, exists, func, or_, select
+from sqlalchemy import and_, case, cast, BigInteger, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -199,3 +199,55 @@ async def filter_options(db: AsyncSession) -> ActivityFilterOptions:
         categories=CATEGORIES,
         actions=ACTIONS,
     )
+
+
+async def summary(db: AsyncSession, days: int = 7) -> dict:
+    """Headline numbers for the last ``days`` days plus a per-day series (oldest first)."""
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    prev_start = start - timedelta(days=days)
+    day = func.date_trunc("day", StaffActivity.occurred_at)
+    kind = case((StaffActivity.source == "security", "security"), else_=StaffActivity.action)
+    rows = (
+        await db.execute(
+            select(day.label("d"), kind.label("k"), func.count().label("n"))
+            .where(StaffActivity.occurred_at >= start)
+            .group_by("d", "k")
+        )
+    ).all()
+    by_day: dict = {}
+    for d, k, n in rows:
+        key = d.date().isoformat()
+        entry = by_day.setdefault(key, {"events": 0, "creates": 0, "updates": 0, "deletes": 0, "security": 0})
+        entry["events"] += n
+        field = {"create": "creates", "update": "updates", "delete": "deletes", "security": "security"}.get(k)
+        if field:
+            entry[field] += n
+    daily = []
+    for i in range(days):
+        key = (start + timedelta(days=i)).date().isoformat()
+        daily.append({"date": key, **by_day.get(key, {"events": 0, "creates": 0, "updates": 0, "deletes": 0, "security": 0})})
+    previous = (
+        await db.execute(
+            select(func.count()).where(StaffActivity.occurred_at >= prev_start, StaffActivity.occurred_at < start)
+        )
+    ).scalar_one()
+    active = (
+        await db.execute(
+            select(func.count(func.distinct(StaffActivity.actor_user_id))).where(
+                StaffActivity.occurred_at >= start, StaffActivity.actor_user_id.is_not(None)
+            )
+        )
+    ).scalar_one()
+    total = lambda f: sum(d[f] for d in daily)  # noqa: E731
+    return {
+        "window_days": days,
+        "events": total("events"),
+        "previous_events": previous,
+        "creates": total("creates"),
+        "updates": total("updates"),
+        "deletes": total("deletes"),
+        "security": total("security"),
+        "active_employees": active,
+        "daily": daily,
+    }

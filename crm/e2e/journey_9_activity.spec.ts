@@ -10,6 +10,9 @@ test.describe('Analytics: Activity tab', () => {
     await page.goto('/analytics');
     await expect(page).toHaveURL(/\/analytics\/activity/);
     await expect(page.getByTestId('activity-tab')).toBeVisible();
+    await expect(page.getByTestId('activity-stats')).toContainText('Total Events');
+    await expect(page.getByTestId('analytics-tab-soon-lead-sources')).toContainText('Soon');
+    await expect(page.getByTestId('analytics-tab-soon-conversion')).toBeVisible();
     await expect(page.getByTestId('activity-row').first()).toBeVisible();
 
     await page.getByLabel('Action').selectOption('security');

@@ -61,3 +61,25 @@ class ActivityFilterOptions(BaseModel):
     record_types: List[str]
     categories: List[str]
     actions: List[str]
+
+
+class ActivityDay(BaseModel):
+    date: str
+    events: int = 0
+    creates: int = 0
+    updates: int = 0
+    deletes: int = 0
+    security: int = 0
+
+
+class ActivitySummary(BaseModel):
+    success: bool = True
+    window_days: int
+    events: int
+    previous_events: int
+    creates: int
+    updates: int
+    deletes: int
+    security: int
+    active_employees: int
+    daily: List[ActivityDay]

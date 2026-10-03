@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit_log
 from app.core.database import get_db
 from app.core.permissions import require_permission
-from app.schemas.activity import ActivityDetailResponse, ActivityFilterOptions, ActivityPage
+from app.schemas.activity import ActivityDetailResponse, ActivityFilterOptions, ActivityPage, ActivitySummary
 from app.services import activity_log as svc
 
 router = APIRouter(prefix="/activity", tags=["Staff Activity"])
@@ -74,6 +74,15 @@ async def activity_filter_options(
     db: AsyncSession = Depends(get_db),
 ):
     return await svc.filter_options(db)
+
+
+@router.get("/summary", response_model=ActivitySummary)
+async def activity_summary(
+    days: int = Query(7, ge=1, le=90),
+    user: Any = Depends(require_permission("activity.view")),
+    db: AsyncSession = Depends(get_db),
+):
+    return ActivitySummary(**await svc.summary(db, days))
 
 
 @router.get("/export.csv")
