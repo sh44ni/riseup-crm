@@ -19,6 +19,7 @@ from app.models.lifecycle import Inspection, Warranty, Review, Template
 from app.models.analytics import AnalyticsEvent, ActivityLog, CallEvent
 from app.models.api_key import ApiKey
 from app.models.hero_banner import HeroBanner
+from app.models.user_customization import UserUiCustomization
 from app.models.quote_banner import QuoteBanner, QuoteBannerSlide
 from app.models.calendar_event import CrewResource, CalendarEvent
 from app.models.crm_user_task import UserPersonalTask

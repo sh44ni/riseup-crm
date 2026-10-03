@@ -31,6 +31,7 @@ from app.api.admin.system import router as admin_system_router
 from app.api.admin.integrations import router as admin_integrations_router
 from app.api.admin.hero_banners import router as admin_hero_banners_router
 from app.api.admin.quote_banner import router as admin_quote_banner_router
+from app.api.admin.customizations import router as admin_customizations_router
 from app.api.admin.calendar_events import router as admin_calendar_events_router
 from app.api.admin.user_tasks import router as admin_user_tasks_router
 from app.api.admin.estimator import router as admin_estimator_router
@@ -78,6 +79,7 @@ api_router.include_router(admin_integrations_router, prefix="/api/admin", tags=[
 # Ready Integration Modules:
 api_router.include_router(admin_hero_banners_router, prefix="/api/admin", tags=["Admin Hero Banners"])
 api_router.include_router(admin_quote_banner_router, prefix="/api/admin", tags=["Admin Quote Banner"])
+api_router.include_router(admin_customizations_router, prefix="/api/admin", tags=["My Customizations"])
 api_router.include_router(admin_calendar_events_router, prefix="/api/admin", tags=["Admin Calendar Events"])
 api_router.include_router(admin_user_tasks_router, prefix="/api/admin", tags=["User Personal Sticky Notes"])
 api_router.include_router(admin_estimator_router, prefix="/api/admin", tags=["Admin Estimator Pricing"])
