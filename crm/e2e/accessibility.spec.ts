@@ -17,7 +17,7 @@ const APP_ROUTES = [
   '/finances',
   '/marketing',
   '/tasks',
-  '/reports',
+  '/analytics/activity',
   '/warranties',
   '/settings',
 ];

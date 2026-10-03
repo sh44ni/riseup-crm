@@ -78,7 +78,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'INTELLIGENCE & SYSTEM',
     iconAccentColor: 'bg-purple-400',
     items: [
-      { name: 'Reports & Analytics', path: '/reports', icon: BarChart3, permission: 'reports.view' },
+      { name: 'Analytics', path: '/analytics', icon: BarChart3, permission: 'activity.view' },
       { name: 'Settings & Team', path: '/settings', icon: Settings, permission: 'roles.view' },
       { name: 'Content Studio', path: '#', icon: Sparkles, disabled: true, badge: 'Future', badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-400/30' },
     ],
@@ -140,12 +140,6 @@ export function CrmSidebar() {
     }
     if (itemPath === '/settings') {
       return location.pathname === '/settings';
-    }
-    if (itemPath === '/reports') {
-      return (
-        location.pathname === '/reports' &&
-        !location.search.includes('tab=lead_sources')
-      );
     }
     return (
       location.pathname === itemPath ||

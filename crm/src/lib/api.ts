@@ -729,62 +729,6 @@ class ApiClient {
   }
 
   // ── Reports ──
-  async getRevenueReport(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/revenue?${params.toString()}`);
-  }
-
-  async getLeadConversionReport(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/lead-conversion?${params.toString()}`);
-  }
-
-  async getSalesRepReport(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/sales-reps?${params.toString()}`);
-  }
-
-  async getPipelineVelocityReport(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/pipeline-velocity?${params.toString()}`);
-  }
-
-  async getLeadSourcesReport(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/lead-sources?${params.toString()}`);
-  }
-
-  async getReportKpis(from?: string, to?: string): Promise<any> {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    return this.request(`/admin/reports/kpis?${params.toString()}`);
-  }
-
-  async getSpeedToLeadDistribution(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/speed-to-lead-distribution?${params.toString()}`);
-  }
-
-  async getExecutiveInsights(from?: string, to?: string) {
-    const params = new URLSearchParams();
-    if (from) params.append('from', from);
-    if (to) params.append('to', to);
-    return this.request(`/admin/reports/insights?${params.toString()}`);
-  }
-
   async getTopPerformers(): Promise<{ ok: boolean; totalCompletedJobs: number; performers: any[] }> {
     return this.request('/admin/reports/top-performers');
   }

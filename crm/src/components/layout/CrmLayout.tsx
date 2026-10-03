@@ -43,7 +43,7 @@ export function CrmLayout() {
     location.pathname.startsWith('/contracts') ||
     location.pathname.startsWith('/calendar') ||
     location.pathname.startsWith('/tasks') ||
-    location.pathname.startsWith('/reports') ||
+    location.pathname.startsWith('/analytics') ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/jobs') ||
     location.pathname.startsWith('/inspections') ||

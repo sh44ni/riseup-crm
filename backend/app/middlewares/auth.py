@@ -8,6 +8,8 @@ from sqlalchemy import text
 import orjson
 
 from app.core.config import settings
+from app.core.actor_context import actor_from_user, bind_actor_to_session, set_actor
+from app.core.audit import get_client_ip
 from app.core.database import get_db
 from app.core.redis import cache_get, cache_set, cache_delete, check_rate_limit, get_redis, is_redis_available
 from app.core.permissions import AuthUser, has_permission, has_any_permission, get_user_effective_permissions
@@ -156,10 +158,7 @@ async def verify_client_key(api_key: str, db: AsyncSession, request: Request) ->
 
 from app.core.csrf import check_csrf
 
-async def get_optional_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-) -> Optional[AuthUser]:
+async def _resolve_optional_user(request: Request, db: AsyncSession) -> Optional[AuthUser]:
     """
     Resolves the authenticated user according to the Phase 5 hierarchy:
     1. First priority: Session Cookie (__Host-session, settings.COOKIE_NAME, session)
@@ -223,6 +222,18 @@ async def get_optional_current_user(
 
     return None
 
+
+async def get_optional_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Optional[AuthUser]:
+    """Resolve the caller and bind them as the actor for the DB activity log triggers."""
+    user = await _resolve_optional_user(request, db)
+    if user:
+        actor = actor_from_user(user, get_client_ip(request))
+        set_actor(actor)
+        await bind_actor_to_session(db, actor)
+    return user
 
 async def resolve_api_key(api_key: str, db: AsyncSession, request: Request) -> Optional[AuthUser]:
     """

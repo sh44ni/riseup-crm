@@ -28,7 +28,7 @@ const InspectionsPage = lazyWithRetry(() => import('@/pages/InspectionsPage').th
 const FinancesPage = lazyWithRetry(() => import('@/pages/FinancesPage').then(m => ({ default: m.FinancesPage })));
 const SettingsPage = lazyWithRetry(() => import('@/pages/SettingsPage'));
 const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
-const ReportsPage = lazyWithRetry(() => import('@/pages/ReportsPage'));
+const AnalyticsPage = lazyWithRetry(() => import('@/features/analytics/AnalyticsPage'));
 const WarrantiesPage = lazyWithRetry(() => import('@/pages/WarrantiesPage'));
 const MarketingPage = lazyWithRetry(() => import('@/pages/MarketingPage').then(m => ({ default: m.MarketingPage })));
 const ContractSignWizardPage = lazyWithRetry(() => import('@/pages/ContractSignWizardPage').then(m => ({ default: m.ContractSignWizardPage })));
@@ -123,14 +123,9 @@ export function App() {
                     </PermissionRoute>
                   }
                 />
-                <Route
-                  path="reports"
-                  element={
-                    <PermissionRoute permission="reports.view">
-                      <ReportsPage />
-                    </PermissionRoute>
-                  }
-                />
+                <Route path="reports" element={<Navigate to="/analytics" replace />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="analytics/:tab" element={<AnalyticsPage />} />
                 <Route
                   path="marketing"
                   element={

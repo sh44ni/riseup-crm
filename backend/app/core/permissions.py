@@ -342,6 +342,8 @@ SYSTEM_PERMISSIONS = [
     ("users.assign_roles", "users", "assign_roles", "Assign roles to users"),
     # Content & Settings Management
     ("settings.edit", "settings", "edit", "Edit CRM appearance settings (banners, quotes, templates)"),
+    # Audit
+    ("activity.view", "activity", "view", "View the employee activity audit log (who changed what, and when)"),
 ]
 
 async def seed_system_rbac(conn):
