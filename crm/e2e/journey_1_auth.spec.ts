@@ -20,6 +20,11 @@ test.describe('Journey 1: Authentication & Access Control', () => {
 
     await page.waitForURL('**/', { timeout: 10000 });
     await expect(page.locator('a[href="/"]').first()).toBeVisible({ timeout: 10000 });
+
+    // Reload page to verify session persists across refresh
+    await page.reload();
+    await expect(page.locator('a[href="/"]').first()).toBeVisible({ timeout: 10000 });
+    expect(page.url()).not.toContain('/login');
   });
 
   test('invalid login shows clear error message', async ({ page }) => {

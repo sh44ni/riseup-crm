@@ -12,15 +12,31 @@ export const PUBLIC_PAGES = [
 
 export const PUBLIC_ENDPOINTS = [
   '/auth/login',
+  '/auth/me',
+  '/admin/auth/login',
+  '/admin/auth/me',
+  '/admin/auth',
   '/public/invitations',
   '/public/contracts',
   '/contract/sign',
+] as const;
+
+export const EXTERNAL_PUBLIC_PAGES = [
+  '/contract/sign',
+  '/sign/contract',
+  '/accept-invite',
 ] as const;
 
 export function isOnPublicPage(): boolean {
   if (typeof window === 'undefined') return false;
   const path = window.location.pathname;
   return PUBLIC_PAGES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+export function isExternalPublicPage(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname;
+  return EXTERNAL_PUBLIC_PAGES.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
 export function isPublicEndpoint(path: string): boolean {

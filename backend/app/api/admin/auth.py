@@ -103,11 +103,13 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
 
         raise HTTPException(status_code=401, detail="You are not authorized to access this system.")
 
-    # Create session token
-    token = generate_session_token()
-    expires_at = datetime.now() + timedelta(hours=settings.SESSION_HOURS)
+    # Create session token with duration based on remember_me
+    remember_me = bool(getattr(payload, "remember_me", True))
+    session_hours = (30 * 24) if remember_me else settings.SESSION_HOURS
+    expires_at = datetime.now() + timedelta(hours=session_hours)
     ip_addr = get_client_ip(request)
     ua = get_user_agent(request)
+    token = generate_session_token()
 
     await db.execute(text("""
         INSERT INTO admin_sessions (token, user_id, expires_at, created_at, ip_address, user_agent, last_seen_at)
@@ -132,10 +134,11 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
 
     # Set httpOnly session cookie
     is_secure = request.url.scheme == "https" or settings.ENVIRONMENT == "production"
+    cookie_max_age = (session_hours * 3600) if remember_me else None
     response.set_cookie(
         key=settings.COOKIE_NAME,
         value=token,
-        max_age=settings.SESSION_HOURS * 3600,
+        max_age=cookie_max_age,
         httponly=True,
         secure=is_secure,
         samesite="lax",
@@ -145,7 +148,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
         response.set_cookie(
             key="__Host-session",
             value=token,
-            max_age=settings.SESSION_HOURS * 3600,
+            max_age=cookie_max_age,
             httponly=True,
             secure=True,
             samesite="lax",
@@ -157,7 +160,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
     response.set_cookie(
         key=settings.CSRF_COOKIE_NAME,
         value=csrf_val,
-        max_age=settings.SESSION_HOURS * 3600,
+        max_age=cookie_max_age,
         httponly=False,
         secure=is_secure,
         samesite="lax",
@@ -187,6 +190,29 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
     if authenticated_user["role"] == "owner":
         is_protected = True
         perms["*"] = "all"
+
+    # Prime Redis session cache for instantaneous subsequent checks
+    try:
+        from app.core.redis import cache_set
+        import orjson
+        from app.middlewares.auth import SESSION_CACHE_TTL
+        redis_key = f"session_user:{token}"
+        user_cache_payload = {
+            "id": authenticated_user["id"],
+            "name": authenticated_user["name"],
+            "email": authenticated_user["email"],
+            "role": authenticated_user["role"],
+            "status": authenticated_user["status"],
+            "phone": authenticated_user.get("phone"),
+            "avatar_url": authenticated_user.get("avatar_url"),
+            "permissions": perms,
+            "is_protected_owner": is_protected,
+            "kind": "user",
+            "user_id": authenticated_user["id"],
+        }
+        await cache_set(redis_key, orjson.dumps(user_cache_payload).decode("utf-8"), ttl_seconds=SESSION_CACHE_TTL)
+    except Exception as e:
+        logger.warning(f"Could not prime Redis session cache: {e}")
 
     return {
         "ok": True,

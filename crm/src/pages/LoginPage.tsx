@@ -47,10 +47,21 @@ const CRAFT_QUOTES: CraftQuote[] = [
 ];
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('crm_remembered_email') || '';
+    }
+    return '';
+  });
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_remember_me');
+      return saved !== null ? saved === 'true' : true;
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [themeMode, setThemeMode] = useState<'coastal' | 'obsidian'>('coastal');
@@ -81,7 +92,16 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login(password, email);
+      if (typeof window !== 'undefined') {
+        if (rememberMe) {
+          localStorage.setItem('crm_remember_me', 'true');
+          localStorage.setItem('crm_remembered_email', email.trim());
+        } else {
+          localStorage.setItem('crm_remember_me', 'false');
+          localStorage.removeItem('crm_remembered_email');
+        }
+      }
+      await login(password, email, rememberMe);
       navigate('/');
     } catch (err: any) {
       // If the email is invited but account not created yet → go to accept-invite

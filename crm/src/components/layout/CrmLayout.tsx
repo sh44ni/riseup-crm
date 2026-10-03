@@ -21,7 +21,7 @@ function PageTransitionWrapper({ children }: { children: React.ReactNode }) {
 
 
 export function CrmLayout() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isHydrating } = useAuth();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const location = useLocation();
   const centerViewportRef = useRef<HTMLDivElement>(null);
@@ -51,7 +51,7 @@ export function CrmLayout() {
     location.pathname.startsWith('/warranties') ||
     location.pathname.startsWith('/marketing');
 
-  if (isLoading) {
+  if (isLoading || isHydrating) {
     return (
       <div className="min-h-screen bg-[#070B12] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">

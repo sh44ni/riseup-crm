@@ -43,6 +43,10 @@ async def resolve_auth_user(token: str, db: AsyncSession) -> Optional[AuthUser]:
 
     # Resolve effective permissions
     perms, is_protected_owner = await get_user_effective_permissions(db, row["id"])
+    if row["role"] == "owner":
+        is_protected_owner = True
+        perms["*"] = "all"
+
     auth_user = AuthUser(
         id=row["id"],
         name=row["name"],

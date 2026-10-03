@@ -21,8 +21,9 @@ export interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  isHydrating: boolean;
   isOwner: boolean;
-  login: (password: string, email?: string) => Promise<void>;
+  login: (password: string, email?: string, rememberMe?: boolean) => Promise<void>;
   setSessionUser: (token: string, user: User) => void;
   updateUserProfile: (data: Partial<User>) => void;
   refreshUser: () => Promise<void>;
@@ -33,7 +34,7 @@ export interface AuthContextType {
   hasRole: (roleName: string) => boolean;
 }
 
-import { isOnPublicPage } from '@/shared/api/publicRoutes';
+import { isExternalPublicPage } from '@/shared/api/publicRoutes';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -45,8 +46,11 @@ export interface AuthProviderProps {
 export function AuthProvider({ children, initialUser }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(initialUser ?? null);
   const [token, setTokenState] = useState<string | null>(() => api.getToken() || null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [isHydrating, setIsHydrating] = useState<boolean>(() => initialUser === undefined);
+
+  // Combined loading state: true during mount hydration OR active auth action
+  const isLoading = isHydrating || isActionLoading;
 
   // Hydrate user & permissions on mount or when token is present
   const refreshUser = useCallback(async () => {
@@ -71,8 +75,8 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       return;
     }
 
-    // Don't hydrate session on public pages — avoiding 401 redirects on signing or invite pages
-    if (isOnPublicPage()) {
+    // Only skip hydration on dedicated external public pages (e.g. /contract/sign, /accept-invite)
+    if (isExternalPublicPage()) {
       setIsHydrating(false);
       return;
     }
@@ -95,10 +99,10 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
     });
   }, []);
 
-  const login = useCallback(async (password: string, email?: string) => {
-    setIsLoading(true);
+  const login = useCallback(async (password: string, email?: string, rememberMe: boolean = true) => {
+    setIsActionLoading(true);
     try {
-      const res = await api.login(password, email);
+      const res = await api.login(password, email, rememberMe);
       if (!res.user) {
         throw new Error('Authentication failed: Invalid user profile received.');
       }
@@ -110,7 +114,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       }
       setIsHydrating(false);
     } finally {
-      setIsLoading(false);
+      setIsActionLoading(false);
     }
   }, []);
 
@@ -201,6 +205,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       user,
       token,
       isLoading,
+      isHydrating,
       isOwner,
       login,
       setSessionUser,
@@ -216,6 +221,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       user,
       token,
       isLoading,
+      isHydrating,
       isOwner,
       login,
       setSessionUser,

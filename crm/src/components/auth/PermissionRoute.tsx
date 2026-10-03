@@ -10,8 +10,19 @@ interface PermissionRouteProps {
 }
 
 export function PermissionRoute({ permission, scope, children }: PermissionRouteProps) {
-  const { user, hasPermission, isOwner } = useAuth();
+  const { user, hasPermission, isOwner, isLoading, isHydrating } = useAuth();
   const navigate = useNavigate();
+
+  if (isLoading || isHydrating) {
+    return (
+      <div className="min-h-screen bg-[#070B12] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-[#1878B8] border-t-transparent animate-spin" />
+          <div className="text-xs font-semibold text-slate-400">Loading Rise Up CRM...</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;

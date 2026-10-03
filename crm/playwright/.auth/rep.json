@@ -2,11 +2,21 @@
   "cookies": [
     {
       "name": "admin_session",
-      "value": "45d14da63d6b609af87b8729ace2efdc78d653557bdea4126adcfee31a7e2c39",
+      "value": "4e01c25adb9b8922e3c922d4a80d4c8a5a1988de0fe515cdedf3f97461d6294e",
       "domain": "localhost",
       "path": "/",
-      "expires": 1791137191.766668,
+      "expires": 1793658728.570216,
       "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "csrf_token",
+      "value": "d7b9ea994996c298e1796bbfbe56eecde9bd04a5c25426e94dae9a150bf6df0f",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1793658728.570299,
+      "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     }
@@ -16,16 +26,24 @@
       "origin": "http://localhost:5173",
       "localStorage": [
         {
-          "name": "crm_user",
-          "value": "{\"id\":306,\"name\":\"E2E Sales Rep\",\"email\":\"e2e_rep@riseuprac.local\",\"role\":\"sales_rep\",\"status\":\"active\",\"phone\":null,\"avatar_url\":null,\"permissions\":{},\"is_protected_owner\":false,\"is_api_key\":false,\"api_key_id\":null}"
-        },
-        {
-          "name": "crm_auth_token",
-          "value": "45d14da63d6b609af87b8729ace2efdc78d653557bdea4126adcfee31a7e2c39"
+          "name": "crm_remembered_email",
+          "value": "e2e_rep@riseuprac.local"
         },
         {
           "name": "crm_theme",
           "value": "light"
+        },
+        {
+          "name": "crm_remember_me",
+          "value": "true"
+        },
+        {
+          "name": "crm_weather_widget_cached_data",
+          "value": "{\"location\":\"Oceanside, California\",\"localtime\":\"2026-10-03 15:20\",\"temp_f\":81,\"temp_c\":27,\"feelslike_f\":82,\"feelslike_c\":28,\"high_f\":82,\"low_f\":68,\"high_c\":28,\"low_c\":20,\"condition_text\":\"Sunny\",\"condition_key\":\"sunny\",\"humidity\":58,\"wind_mph\":12,\"is_day\":true,\"is_fallback\":false}"
+        },
+        {
+          "name": "crm_hero_banner_config",
+          "value": "{\"globalImage\":\"https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80\",\"globalZoom\":100,\"globalPositionX\":80,\"globalPositionY\":50,\"globalOpacity\":80,\"globalOverlayStrength\":85,\"pageOverrides\":{\"dashboard\":{\"customImage\":\"https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80\",\"zoom\":100,\"positionX\":80,\"positionY\":50,\"opacity\":80,\"overlayStrength\":85,\"eyebrow\":\"Discipline Builds Freedom • North County San Diego\",\"title\":\"Rise Up Roofing COMMAND CENTER\",\"subtitle\":\"Master Operations & Revenue Hub • Oceanside, CA • CSLB #CSLB #1115874\"}}}"
         }
       ]
     }

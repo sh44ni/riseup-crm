@@ -37,11 +37,6 @@ class ApiClient {
   private token: string | null = null;
   private isRedirecting401 = false;
 
-  constructor() {
-    // Session credentials are maintained in HttpOnly cookies.
-    // Legacy tokens in localStorage are cleaned up by shared/api/client.
-  }
-
   setToken(token: string | null) {
     this.token = token;
     if (token) {
@@ -153,13 +148,17 @@ class ApiClient {
   }
 
   // ── Authentication ──
-  async login(password: string, email?: string) {
+  async login(password: string, email?: string, rememberMe: boolean = true) {
     if (!email || !email.trim()) {
       throw new Error('Email is required for authentication.');
     }
     const res = await this.request('/admin/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ password, email: email.trim().toLowerCase() }),
+      body: JSON.stringify({
+        password,
+        email: email.trim().toLowerCase(),
+        remember_me: rememberMe,
+      }),
     });
     if (res.token) {
       this.setToken(res.token);

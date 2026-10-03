@@ -16,8 +16,9 @@ class LoginRequest(BaseModel):
     """
     email: str = Field(..., min_length=3, max_length=255, description="Staff or administrator email address")
     password: str = Field(..., min_length=1, description="Account password")
+    remember_me: Optional[bool] = Field(default=True, description="Extend session duration across browser sessions")
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
 
 class TokenResponse(BaseModel):
