@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Pencil } from 'lucide-react';
-import { useWeatherWidget } from '@/lib/weatherStore';
+import { useWeatherWidget, FALLBACK_WEATHER_LOCATION } from '@/lib/weatherStore';
 import { useTheme } from '@/context/ThemeContext';
 import { WeatherCustomizerModal } from './WeatherCustomizerModal';
 import { VolumetricWeatherIcon } from './VolumetricWeatherIcon';
@@ -19,6 +19,7 @@ export function CoastalWeatherWidget({ className = '' }: CoastalWeatherWidgetPro
     effectiveCondition,
     updateConfig,
     resetConfig,
+    isSaving,
   } = useWeatherWidget();
 
   // Unit-aware metrics
@@ -43,7 +44,7 @@ export function CoastalWeatherWidget({ className = '' }: CoastalWeatherWidgetPro
         <div
           className="absolute inset-0 bg-cover bg-[position:65%_center] transition-transform duration-700 ease-out group-hover/weather:scale-105 pointer-events-none"
           style={{
-            backgroundImage: `url('${config.customImage}')`,
+            backgroundImage: config.customImage ? `url('${config.customImage}')` : 'none',
             opacity: config.imageOpacity / 100,
             filter: 'brightness(1.05) saturate(1.18)',
           }}
@@ -158,6 +159,7 @@ export function CoastalWeatherWidget({ className = '' }: CoastalWeatherWidgetPro
           weatherData={weatherData}
           onSave={updateConfig}
           onReset={resetConfig}
+          isSaving={isSaving}
         />
       )}
     </>

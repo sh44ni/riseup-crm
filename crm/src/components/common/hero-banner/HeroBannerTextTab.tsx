@@ -23,9 +23,9 @@ export function HeroBannerTextTab({
   subtitle,
   setSubtitle,
   defaultText,
-  limitEyebrow = 50,
-  limitTitle = 36,
-  limitSubtitle = 110,
+  limitEyebrow = 80,
+  limitTitle = 60,
+  limitSubtitle = 160,
 }: HeroBannerTextTabProps) {
   return (
     <div className="space-y-4">

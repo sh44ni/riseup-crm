@@ -1,121 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  fetchHeroBannersMap,
-  saveHeroBannerToBackend,
-  resetHeroBannerOnBackend,
-  HeroBannerSavePayload,
-  HeroBannerMapResponse,
-} from '@/api/heroBannerApi';
-
-export interface PageBannerOverrides {
-  customImage?: string;
-  zoom?: number;
-  positionX?: number; // 0% to 100%
-  positionY?: number; // 0% to 100%
-  opacity?: number; // 30% to 100%
-  overlayStrength?: number; // 40% to 100%
-  eyebrow?: string;
-  title?: string;
-  subtitle?: string;
-}
-
-export interface HeroBannerConfig {
-  globalImage: string;
-  globalZoom: number;
-  globalPositionX: number;
-  globalPositionY: number;
-  globalOpacity: number;
-  globalOverlayStrength: number;
-  pageOverrides: Record<string, PageBannerOverrides>;
-}
-
-export const DEFAULT_HERO_CONFIG: HeroBannerConfig = {
-  globalImage: '/hero-bg.jpg',
-  globalZoom: 100,
-  globalPositionX: 80, // Default center-right for the truck and coastal panorama
-  globalPositionY: 50,
-  globalOpacity: 80,
-  globalOverlayStrength: 85,
-  pageOverrides: {},
-};
-
-const STORAGE_KEY = 'crm_hero_banner_config';
-const SYNC_EVENT_NAME = 'crm_hero_banner_change';
-
-// Safe localStorage loader
-export function loadHeroBannerConfig(): HeroBannerConfig {
-  if (typeof window === 'undefined') return DEFAULT_HERO_CONFIG;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_HERO_CONFIG;
-    const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_HERO_CONFIG,
-      ...parsed,
-      pageOverrides: {
-        ...DEFAULT_HERO_CONFIG.pageOverrides,
-        ...(parsed.pageOverrides || {}),
-      },
-    };
-  } catch (err) {
-    console.error('Failed to parse hero banner config from storage:', err);
-    return DEFAULT_HERO_CONFIG;
-  }
-}
-
-// Safe localStorage saver & event dispatcher
-export function saveHeroBannerConfig(config: HeroBannerConfig): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    window.dispatchEvent(new CustomEvent(SYNC_EVENT_NAME, { detail: config }));
-  } catch (err) {
-    console.error('Failed to save hero banner config to storage:', err);
-  }
-}
+import { useCallback } from 'react';
+import { useCustomizationMutations, useMyCustomizationMap } from '@/hooks/useMyCustomizations';
 
 /**
- * Merge backend hero banners response into local configuration
+ * Hero banners are stored per user on the server:
+ *   hero:{pageId}  -> this page's image/framing override + custom copy
+ *   hero:all       -> the user's shared image/framing ("Apply to all pages")
+ * Nothing is customized until the user uploads/sets it: no default image exists.
  */
-export function mergeBackendIntoConfig(
-  currentConfig: HeroBannerConfig,
-  backendMap: HeroBannerMapResponse
-): HeroBannerConfig {
-  const updated: HeroBannerConfig = {
-    ...currentConfig,
-    pageOverrides: { ...currentConfig.pageOverrides },
-  };
-
-  if (backendMap.global_banner) {
-    const gb = backendMap.global_banner;
-    updated.globalImage = gb.image_url || updated.globalImage;
-    updated.globalZoom = gb.zoom ?? updated.globalZoom;
-    updated.globalPositionX = gb.position_x ?? updated.globalPositionX;
-    updated.globalPositionY = gb.position_y ?? updated.globalPositionY;
-    updated.globalOpacity = gb.opacity ?? updated.globalOpacity;
-    updated.globalOverlayStrength = gb.overlay_strength ?? updated.globalOverlayStrength;
-  }
-
-  if (backendMap.pages && Object.keys(backendMap.pages).length > 0) {
-    for (const [pid, pdata] of Object.entries(backendMap.pages)) {
-      const existing = updated.pageOverrides[pid] || {};
-      updated.pageOverrides[pid] = {
-        ...existing,
-        customImage: pdata.image_url || existing.customImage,
-        zoom: pdata.zoom ?? existing.zoom,
-        positionX: pdata.position_x ?? existing.positionX,
-        positionY: pdata.position_y ?? existing.positionY,
-        opacity: pdata.opacity ?? existing.opacity,
-        overlayStrength: pdata.overlay_strength ?? existing.overlayStrength,
-        eyebrow: pdata.eyebrow ?? existing.eyebrow,
-        title: pdata.title ?? existing.title,
-        subtitle: pdata.subtitle ?? existing.subtitle,
-      };
-    }
-  }
-
-  return updated;
-}
 
 export interface DefaultBannerText {
   eyebrow: string;
@@ -124,6 +15,7 @@ export interface DefaultBannerText {
 }
 
 export interface ActiveHeroBanner {
+  /** Empty string = nothing uploaded yet (the hero shows its neutral background). */
   imageUrl: string;
   zoom: number;
   positionX: number;
@@ -137,196 +29,94 @@ export interface ActiveHeroBanner {
   hasCustomText: boolean;
 }
 
-/**
- * Custom React hook for reading and updating hero banner settings
- * Supports reactive synchronization across pages, tabs, and FastAPI backend.
- */
-export function useHeroBanner(pageId: string, defaultText: DefaultBannerText) {
-  const [config, setConfig] = useState<HeroBannerConfig>(() => loadHeroBannerConfig());
+export interface HeroSaveParams {
+  applyGlobally: boolean;
+  imageUrl: string;
+  zoom: number;
+  positionX: number;
+  positionY: number;
+  opacity: number;
+  overlayStrength: number;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+}
 
-  // Background revalidation on mount from FastAPI backend
-  useEffect(() => {
-    let isMounted = true;
-    fetchHeroBannersMap().then((backendData) => {
-      if (!isMounted || !backendData) return;
-      const current = loadHeroBannerConfig();
-      const merged = mergeBackendIntoConfig(current, backendData);
-      saveHeroBannerConfig(merged);
-      setConfig(merged);
-    });
+export const HERO_FRAMING_DEFAULTS = {
+  zoom: 100,
+  positionX: 50,
+  positionY: 50,
+  opacity: 80,
+  overlayStrength: 85,
+} as const;
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+/** Backend limits for hero copy (kept in sync with app/schemas/customization.py). */
+export const HERO_TEXT_LIMITS = { eyebrow: 80, title: 60, subtitle: 160 } as const;
 
-  // Listen for real-time changes across components and storage
-  useEffect(() => {
-    const handleSync = (e: Event) => {
-      const customEvent = e as CustomEvent<HeroBannerConfig>;
-      if (customEvent.detail) {
-        setConfig(customEvent.detail);
-      } else {
-        setConfig(loadHeroBannerConfig());
-      }
-    };
+type SlotConfig = {
+  image_url?: string | null;
+  zoom?: number | null;
+  position_x?: number | null;
+  position_y?: number | null;
+  opacity?: number | null;
+  overlay_strength?: number | null;
+  eyebrow?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+};
 
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
-        setConfig(loadHeroBannerConfig());
-      }
-    };
-
-    window.addEventListener(SYNC_EVENT_NAME, handleSync);
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener(SYNC_EVENT_NAME, handleSync);
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  const pageOverride = config.pageOverrides[pageId] || {};
-
-  // Resolved active values
-  const activeBanner: ActiveHeroBanner = {
-    imageUrl: pageOverride.customImage || config.globalImage,
-    zoom: pageOverride.zoom !== undefined ? pageOverride.zoom : config.globalZoom,
-    positionX: pageOverride.positionX !== undefined ? pageOverride.positionX : config.globalPositionX,
-    positionY: pageOverride.positionY !== undefined ? pageOverride.positionY : config.globalPositionY,
-    opacity: pageOverride.opacity !== undefined ? pageOverride.opacity : config.globalOpacity,
-    overlayStrength:
-      pageOverride.overlayStrength !== undefined
-        ? pageOverride.overlayStrength
-        : config.globalOverlayStrength,
-    isCustomImage: Boolean(pageOverride.customImage),
-    eyebrow: pageOverride.eyebrow || defaultText.eyebrow,
-    title: pageOverride.title || defaultText.title,
-    subtitle: pageOverride.subtitle || defaultText.subtitle,
-    hasCustomText: Boolean(pageOverride.eyebrow || pageOverride.title || pageOverride.subtitle),
+export function resolveHeroBanner(
+  page: SlotConfig | undefined,
+  all: SlotConfig | undefined,
+  defaultText: DefaultBannerText
+): ActiveHeroBanner {
+  const framing = page?.image_url ? page : all?.image_url ? all : page;
+  return {
+    imageUrl: page?.image_url || all?.image_url || '',
+    zoom: framing?.zoom ?? HERO_FRAMING_DEFAULTS.zoom,
+    positionX: framing?.position_x ?? HERO_FRAMING_DEFAULTS.positionX,
+    positionY: framing?.position_y ?? HERO_FRAMING_DEFAULTS.positionY,
+    opacity: framing?.opacity ?? HERO_FRAMING_DEFAULTS.opacity,
+    overlayStrength: framing?.overlay_strength ?? HERO_FRAMING_DEFAULTS.overlayStrength,
+    isCustomImage: Boolean(page?.image_url),
+    eyebrow: page?.eyebrow || defaultText.eyebrow,
+    title: page?.title || defaultText.title,
+    subtitle: page?.subtitle || defaultText.subtitle,
+    hasCustomText: Boolean(page?.eyebrow || page?.title || page?.subtitle),
   };
+}
 
-  // Save changes from the customizer modal
+export function useHeroBanner(pageId: string, defaultText: DefaultBannerText) {
+  const { data: map } = useMyCustomizationMap();
+  const { save, reset, isSaving } = useCustomizationMutations();
+
+  const page = map?.[`hero:${pageId}`] as SlotConfig | undefined;
+  const all = map?.['hero:all'] as SlotConfig | undefined;
+  const activeBanner = resolveHeroBanner(page, all, defaultText);
+
   const saveCustomization = useCallback(
-    (params: {
-      applyGlobally: boolean;
-      imageUrl: string;
-      zoom: number;
-      positionX: number;
-      positionY: number;
-      opacity: number;
-      overlayStrength: number;
-      eyebrow: string;
-      title: string;
-      subtitle: string;
-    }) => {
-      const currentConfig = loadHeroBannerConfig();
-      const existingPage = currentConfig.pageOverrides[pageId] || {};
-
-      let updatedConfig: HeroBannerConfig;
-
-      if (params.applyGlobally) {
-        // Apply image, zoom, position, opacity, and overlay strength globally
-        updatedConfig = {
-          ...currentConfig,
-          globalImage: params.imageUrl,
-          globalZoom: params.zoom,
-          globalPositionX: params.positionX,
-          globalPositionY: params.positionY,
-          globalOpacity: params.opacity,
-          globalOverlayStrength: params.overlayStrength,
-          pageOverrides: {
-            ...currentConfig.pageOverrides,
-            // Clean up any page-specific image override so it inherits globally, but keep page text
-            [pageId]: {
-              ...existingPage,
-              customImage: undefined,
-              zoom: undefined,
-              positionX: undefined,
-              positionY: undefined,
-              opacity: undefined,
-              overlayStrength: undefined,
-              eyebrow: params.eyebrow !== defaultText.eyebrow ? params.eyebrow : undefined,
-              title: params.title !== defaultText.title ? params.title : undefined,
-              subtitle: params.subtitle !== defaultText.subtitle ? params.subtitle : undefined,
-            },
-          },
-        };
-      } else {
-        // Apply image and crop only to this specific page
-        updatedConfig = {
-          ...currentConfig,
-          pageOverrides: {
-            ...currentConfig.pageOverrides,
-            [pageId]: {
-              ...existingPage,
-              customImage: params.imageUrl,
-              zoom: params.zoom,
-              positionX: params.positionX,
-              positionY: params.positionY,
-              opacity: params.opacity,
-              overlayStrength: params.overlayStrength,
-              eyebrow: params.eyebrow !== defaultText.eyebrow ? params.eyebrow : undefined,
-              title: params.title !== defaultText.title ? params.title : undefined,
-              subtitle: params.subtitle !== defaultText.subtitle ? params.subtitle : undefined,
-            },
-          },
-        };
-      }
-
-      saveHeroBannerConfig(updatedConfig);
-      setConfig(updatedConfig);
-
-      // Asynchronous background persistence to FastAPI backend (silent fallback if offline)
-      const backendPayload: HeroBannerSavePayload = {
-        image_url: params.imageUrl,
+    async (params: HeroSaveParams): Promise<boolean> => {
+      const textOrNull = (value: string, fallback: string) => {
+        const trimmed = value.trim();
+        return trimmed && trimmed !== fallback ? trimmed : null;
+      };
+      return save(`hero:${pageId}`, {
+        image_url: params.imageUrl || null,
         zoom: params.zoom,
         position_x: params.positionX,
         position_y: params.positionY,
         opacity: params.opacity,
         overlay_strength: params.overlayStrength,
-        eyebrow: params.eyebrow,
-        title: params.title,
-        subtitle: params.subtitle,
-        apply_globally: params.applyGlobally,
-      };
-      saveHeroBannerToBackend(pageId, backendPayload).catch((err) => {
-        console.debug('[heroBannerStore] Background backend save suppressed:', err);
+        eyebrow: textOrNull(params.eyebrow, defaultText.eyebrow),
+        title: textOrNull(params.title, defaultText.title),
+        subtitle: textOrNull(params.subtitle, defaultText.subtitle),
+        apply_to_all: params.applyGlobally,
       });
     },
-    [pageId, defaultText]
+    [save, pageId, defaultText.eyebrow, defaultText.title, defaultText.subtitle]
   );
 
-  // Reset page customizations
-  const resetPageToDefaults = useCallback(() => {
-    const currentConfig = loadHeroBannerConfig();
-    const newOverrides = { ...currentConfig.pageOverrides };
-    delete newOverrides[pageId];
+  const resetPageToDefaults = useCallback(() => reset(`hero:${pageId}`), [reset, pageId]);
 
-    const updatedConfig: HeroBannerConfig = {
-      ...currentConfig,
-      pageOverrides: newOverrides,
-    };
-
-    saveHeroBannerConfig(updatedConfig);
-    setConfig(updatedConfig);
-
-    // Asynchronous background deletion on FastAPI backend
-    resetHeroBannerOnBackend(pageId).catch((err) => {
-      console.debug('[heroBannerStore] Background backend reset suppressed:', err);
-    });
-  }, [pageId]);
-
-  // Reset everything to factory defaults
-  const resetAllToFactoryDefaults = useCallback(() => {
-    saveHeroBannerConfig(DEFAULT_HERO_CONFIG);
-    setConfig(DEFAULT_HERO_CONFIG);
-  }, []);
-
-  return {
-    activeBanner,
-    rawConfig: config,
-    saveCustomization,
-    resetPageToDefaults,
-    resetAllToFactoryDefaults,
-  };
+  return { activeBanner, saveCustomization, resetPageToDefaults, isSaving };
 }

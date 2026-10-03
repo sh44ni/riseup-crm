@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sliders, Palette, Image as ImageIcon } from 'lucide-react';
-import { WeatherWidgetConfig, WeatherTextColors, DEFAULT_TEXT_COLORS } from '@/lib/weatherStore';
+import {
+  WeatherWidgetConfig,
+  WeatherTextColors,
+  DEFAULT_TEXT_COLORS,
+  FALLBACK_WEATHER_LOCATION,
+} from '@/lib/weatherStore';
 import { WeatherData } from '@/api/weatherApi';
-import { useToast } from '@/context/ToastContext';
 import { CustomizerShell } from './CustomizerShell';
+import { CustomizerBody, CustomizerTabs } from './customizer/CustomizerParts';
 import { WeatherPreview } from './weather/WeatherPreview';
-import { WeatherImageTab, PresetWallpaper } from './weather/WeatherImageTab';
+import { WeatherImageTab } from './weather/WeatherImageTab';
 import { WeatherColorsTab, ColorPreset } from './weather/WeatherColorsTab';
 
 export interface WeatherCustomizerModalProps {
@@ -13,8 +18,10 @@ export interface WeatherCustomizerModalProps {
   onClose: () => void;
   currentConfig: WeatherWidgetConfig;
   weatherData: WeatherData;
-  onSave: (config: WeatherWidgetConfig) => void;
-  onReset: () => void;
+  /** Resolves true when the server accepted the change. */
+  onSave: (config: WeatherWidgetConfig) => Promise<boolean>;
+  onReset: () => Promise<boolean>;
+  isSaving?: boolean;
 }
 
 const PRESET_LOCATIONS = [
@@ -24,39 +31,6 @@ const PRESET_LOCATIONS = [
   'Vista, CA',
   'Encinitas, CA',
   'Poway, CA',
-];
-
-const PRESET_WALLPAPERS: PresetWallpaper[] = [
-  {
-    id: 'default-rig',
-    name: 'Coastal Rig & Villa (Default)',
-    url: '/hero-bg.jpg',
-    thumb: '/hero-bg.jpg',
-  },
-  {
-    id: 'oceanside-beach',
-    name: 'Oceanside Pacific Beach',
-    url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
-    thumb: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=300&q=70',
-  },
-  {
-    id: 'modern-estate',
-    name: 'Architectural Roofing Estate',
-    url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
-    thumb: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=300&q=70',
-  },
-  {
-    id: 'sunset-coast',
-    name: 'California Sunset Horizon',
-    url: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1200&q=80',
-    thumb: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=300&q=70',
-  },
-  {
-    id: 'midnight-minimal',
-    name: 'Obsidian Midnight Minimal',
-    url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1200&q=80',
-    thumb: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=300&q=70',
-  },
 ];
 
 const COLOR_PRESETS: ColorPreset[] = [
@@ -132,84 +106,51 @@ export function WeatherCustomizerModal({
   weatherData,
   onSave,
   onReset,
+  isSaving = false,
 }: WeatherCustomizerModalProps) {
-  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'image' | 'colors'>('image');
 
-  // Image & Framing state
+  // Draft is initialised once per open; background refetches never overwrite edits.
   const [location, setLocation] = useState(currentConfig.location);
   const [customImage, setCustomImage] = useState(currentConfig.customImage);
   const [imageOpacity, setImageOpacity] = useState(currentConfig.imageOpacity);
   const [overlayStrength, setOverlayStrength] = useState(currentConfig.overlayStrength);
   const [tempUnit, setTempUnit] = useState<'F' | 'C'>(currentConfig.tempUnit);
-  const [customUrlInput, setCustomUrlInput] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Individual Text Colors state
   const [textColors, setTextColors] = useState<WeatherTextColors>({
     ...DEFAULT_TEXT_COLORS,
     ...(currentConfig.textColors || {}),
   });
 
+  const latest = useRef(currentConfig);
+  latest.current = currentConfig;
+
   useEffect(() => {
-    if (isOpen) {
-      setLocation(currentConfig.location);
-      setCustomImage(currentConfig.customImage);
-      setImageOpacity(currentConfig.imageOpacity);
-      setOverlayStrength(currentConfig.overlayStrength);
-      setTempUnit(currentConfig.tempUnit);
-      setTextColors({
-        ...DEFAULT_TEXT_COLORS,
-        ...(currentConfig.textColors || {}),
-      });
-      setCustomUrlInput('');
-    }
-  }, [isOpen, currentConfig]);
-
-  const handleFileUpload = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.warning('Please upload a valid image file (JPG, PNG, WEBP, SVG).');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (typeof e.target?.result === 'string') {
-        setCustomImage(e.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleApplyCustomUrl = () => {
-    if (!customUrlInput.trim()) return;
-    setCustomImage(customUrlInput.trim());
-    setCustomUrlInput('');
-  };
+    if (!isOpen) return;
+    const c = latest.current;
+    setLocation(c.location);
+    setCustomImage(c.customImage);
+    setImageOpacity(c.imageOpacity);
+    setOverlayStrength(c.overlayStrength);
+    setTempUnit(c.tempUnit);
+    setTextColors({ ...DEFAULT_TEXT_COLORS, ...(c.textColors || {}) });
+    setActiveTab('image');
+  }, [isOpen]);
 
   const updateColorKey = (key: keyof WeatherTextColors, value: string) => {
-    setTextColors((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setTextColors((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
-    onSave({
-      location: location.trim() || 'Oceanside, CA',
+  const handleSave = async () => {
+    const ok = await onSave({
+      location: location.trim(),
       customImage,
       imageOpacity,
       overlayStrength,
       tempUnit,
       textColors,
     });
-    onClose();
+    if (ok) onClose();
   };
-
-  const badge = (
-    <span className="px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-400/30 text-[#1878B8] dark:text-sky-300 text-[10px] font-black uppercase tracking-wider">
-      IMAGE &amp; TEXT COLORS
-    </span>
-  );
 
   return (
     <CustomizerShell
@@ -217,56 +158,36 @@ export function WeatherCustomizerModal({
       onClose={onClose}
       maxWidth="max-w-2xl"
       icon={<Sliders size={18} className="stroke-[2.5]" />}
-      title="Weather Widget Customizer"
-      subtitle="Customize background wallpaper, clarity, and individual text colors. Weather data is live from the API."
-      badge={badge}
-      onReset={onReset}
-      resetLabel="Reset to Factory Defaults"
-      resetConfirmTitle="Reset Weather Widget"
-      resetConfirmMessage="Reset weather widget configuration back to original defaults?"
+      title="Weather Widget"
+      subtitle="Background image, location and text colors. Weather data is live."
+      onReset={() => void onReset()}
+      resetLabel="Clear widget"
+      resetConfirmTitle="Clear weather widget"
+      resetConfirmMessage="Remove your weather background and settings?"
       onSave={handleSave}
-      saveLabel="Apply & Save Changes"
+      saveLabel="Save"
+      isSaving={isSaving}
     >
       <WeatherPreview
         weatherData={weatherData}
         customImage={customImage}
         imageOpacity={imageOpacity}
         overlayStrength={overlayStrength}
-        location={location}
+        location={location.trim() || FALLBACK_WEATHER_LOCATION}
         textColors={textColors}
         tempUnit={tempUnit}
       />
 
-      {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 px-6 pt-2 border-b border-slate-200/80 dark:border-white/10 bg-slate-50/30 dark:bg-white/[0.01]">
-        <button
-          type="button"
-          onClick={() => setActiveTab('image')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'image'
-              ? 'border-[#1878B8] text-[#1878B8] dark:border-sky-400 dark:text-sky-300'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-          }`}
-        >
-          <ImageIcon size={14} />
-          <span>Wallpaper &amp; Visibility</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('colors')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'colors'
-              ? 'border-[#1878B8] text-[#1878B8] dark:border-sky-400 dark:text-sky-300'
-              : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-          }`}
-        >
-          <Palette size={14} />
-          <span>Individual Text Colors</span>
-        </button>
-      </div>
+      <CustomizerTabs
+        tabs={[
+          { id: 'image', label: 'Image & location', icon: <ImageIcon size={14} /> },
+          { id: 'colors', label: 'Text colors', icon: <Palette size={14} /> },
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
 
-      {/* Tab Content */}
-      <div className="p-6 overflow-y-auto space-y-6 flex-1 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]">
+      <CustomizerBody>
         {activeTab === 'image' ? (
           <WeatherImageTab
             location={location}
@@ -276,16 +197,11 @@ export function WeatherCustomizerModal({
             setTempUnit={setTempUnit}
             customImage={customImage}
             setCustomImage={setCustomImage}
-            presetWallpapers={PRESET_WALLPAPERS}
-            fileInputRef={fileInputRef}
-            onFileUpload={handleFileUpload}
-            customUrlInput={customUrlInput}
-            setCustomUrlInput={setCustomUrlInput}
-            onApplyCustomUrl={handleApplyCustomUrl}
             imageOpacity={imageOpacity}
             setImageOpacity={setImageOpacity}
             overlayStrength={overlayStrength}
             setOverlayStrength={setOverlayStrength}
+            locationPlaceholder={FALLBACK_WEATHER_LOCATION}
           />
         ) : (
           <WeatherColorsTab
@@ -297,7 +213,7 @@ export function WeatherCustomizerModal({
             conditionLabel={weatherData.condition_text || 'Sunny'}
           />
         )}
-      </div>
+      </CustomizerBody>
     </CustomizerShell>
   );
 }

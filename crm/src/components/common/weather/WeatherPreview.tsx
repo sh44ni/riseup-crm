@@ -35,10 +35,10 @@ export function WeatherPreview({
       <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
         <span className="flex items-center gap-1.5">
           <Sparkles size={12} className="text-amber-500 dark:text-amber-400" />
-          <span>Live Responsive Preview</span>
+          <span>Preview</span>
         </span>
         <span className="text-[10px] text-slate-500 font-mono">
-          Live API: {weatherData.location} &bull; {weatherData.temp_f}&deg;F
+          {weatherData.location} &bull; {weatherData.temp_f}&deg;F
         </span>
       </div>
 
@@ -48,7 +48,7 @@ export function WeatherPreview({
         <div
           className="absolute inset-0 bg-cover bg-[position:65%_center] transition-transform duration-700 pointer-events-none"
           style={{
-            backgroundImage: `url('${customImage}')`,
+            backgroundImage: customImage ? `url('${customImage}')` : 'none',
             opacity: imageOpacity / 100,
             filter: 'brightness(1.05) saturate(1.18)',
           }}

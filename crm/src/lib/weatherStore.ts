@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useCustomizationMutations, useMySlot } from '@/hooks/useMyCustomizations';
 import {
   WeatherData,
   WeatherConditionKey,
@@ -33,49 +34,59 @@ export const DEFAULT_TEXT_COLORS: WeatherTextColors = {
   conditionBadgeBg: 'rgba(255, 255, 255, 0.85)',
 };
 
+/** Empty by design: no wallpaper until the user uploads one. */
 export const DEFAULT_WEATHER_CONFIG: WeatherWidgetConfig = {
-  location: 'Oceanside, CA',
-  customImage: '/hero-bg.jpg',
-  imageOpacity: 95, // High clarity to make the rig and villa crisp and visible
-  overlayStrength: 45, // Soft ambient liquid glass wash instead of washed out opaque white
+  location: '',
+  customImage: '',
+  imageOpacity: 95,
+  overlayStrength: 45,
   tempUnit: 'F',
   textColors: DEFAULT_TEXT_COLORS,
 };
 
-const CONFIG_STORAGE_KEY = 'crm_weather_widget_config';
+/** Used for the live weather lookup only when the user hasn't chosen a location. */
+export const FALLBACK_WEATHER_LOCATION = 'Oceanside, CA';
+
+export const WEATHER_SLOT = 'weather_widget';
+
+interface StoredWeather {
+  location?: string;
+  custom_image?: string;
+  image_opacity?: number;
+  overlay_strength?: number;
+  temp_unit?: 'F' | 'C';
+  text_colors?: Record<string, string>;
+}
+
+export function weatherFromStored(stored: Partial<StoredWeather> | undefined): WeatherWidgetConfig {
+  const d = DEFAULT_WEATHER_CONFIG;
+  if (!stored) return d;
+  return {
+    location: stored.location ?? d.location,
+    customImage: stored.custom_image ?? d.customImage,
+    imageOpacity: stored.image_opacity ?? d.imageOpacity,
+    overlayStrength: stored.overlay_strength ?? d.overlayStrength,
+    tempUnit: stored.temp_unit ?? d.tempUnit,
+    textColors: { ...DEFAULT_TEXT_COLORS, ...(stored.text_colors || {}) },
+  };
+}
+
+export function weatherToStored(config: WeatherWidgetConfig): Record<string, unknown> {
+  const colors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(config.textColors || {})) {
+    if (value) colors[key] = value;
+  }
+  return {
+    location: config.location.trim(),
+    custom_image: config.customImage || '',
+    image_opacity: config.imageOpacity,
+    overlay_strength: config.overlayStrength,
+    temp_unit: config.tempUnit,
+    text_colors: colors,
+  };
+}
+
 const CACHED_DATA_KEY = 'crm_weather_widget_cached_data';
-const SYNC_EVENT_NAME = 'crm_weather_change';
-
-export function loadWeatherConfig(): WeatherWidgetConfig {
-  if (typeof window === 'undefined') return DEFAULT_WEATHER_CONFIG;
-  try {
-    const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (!raw) return DEFAULT_WEATHER_CONFIG;
-    const parsed = JSON.parse(raw);
-    return {
-      ...DEFAULT_WEATHER_CONFIG,
-      ...parsed,
-      textColors: {
-        ...DEFAULT_TEXT_COLORS,
-        ...(parsed.textColors || {}),
-      },
-    };
-  } catch (err) {
-    console.error('Failed to parse weather config from storage:', err);
-    return DEFAULT_WEATHER_CONFIG;
-  }
-}
-
-export function saveWeatherConfig(config: WeatherWidgetConfig): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
-    window.dispatchEvent(new CustomEvent(SYNC_EVENT_NAME, { detail: config }));
-  } catch (err) {
-    console.error('Failed to save weather config to storage:', err);
-  }
-}
-
 export function loadCachedWeatherData(): WeatherData {
   if (typeof window === 'undefined') return FALLBACK_WEATHER_DATA;
   try {
@@ -97,20 +108,24 @@ export function saveCachedWeatherData(data: WeatherData): void {
 }
 
 /**
- * Custom React hook for the Coastal Weather Widget
+ * Weather widget hook. Appearance settings come from the server (per user);
+ * only the last live weather reading is cached locally to avoid a loading flash.
  */
 export function useWeatherWidget() {
-  const [config, setConfig] = useState<WeatherWidgetConfig>(() => loadWeatherConfig());
+  const { config: stored } = useMySlot<StoredWeather & Record<string, unknown>>(WEATHER_SLOT);
+  const { save, reset, isSaving } = useCustomizationMutations();
+  const config = weatherFromStored(stored);
+
   const [weatherData, setWeatherData] = useState<WeatherData>(() => loadCachedWeatherData());
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Background fetch from backend weather API
+  const lookupLocation = config.location || FALLBACK_WEATHER_LOCATION;
+
   const refreshWeather = useCallback(
     async (targetLocation?: string) => {
-      const loc = targetLocation || config.location;
       setIsLoading(true);
       try {
-        const live = await fetchCurrentWeather(loc);
+        const live = await fetchCurrentWeather(targetLocation || lookupLocation);
         if (live) {
           setWeatherData(live);
           saveCachedWeatherData(live);
@@ -119,59 +134,25 @@ export function useWeatherWidget() {
         setIsLoading(false);
       }
     },
-    [config.location]
+    [lookupLocation]
   );
 
-  // Initial load background revalidation
   useEffect(() => {
-    refreshWeather();
+    void refreshWeather();
   }, [refreshWeather]);
 
-  // Sync state across components & tabs
-  useEffect(() => {
-    const handleSync = (e: Event) => {
-      const customEvent = e as CustomEvent<WeatherWidgetConfig>;
-      if (customEvent.detail) {
-        setConfig(customEvent.detail);
-      } else {
-        setConfig(loadWeatherConfig());
-      }
-    };
-
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === CONFIG_STORAGE_KEY) {
-        setConfig(loadWeatherConfig());
-      }
-      if (e.key === CACHED_DATA_KEY) {
-        setWeatherData(loadCachedWeatherData());
-      }
-    };
-
-    window.addEventListener(SYNC_EVENT_NAME, handleSync);
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener(SYNC_EVENT_NAME, handleSync);
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  const updateConfig = useCallback((newConfig: WeatherWidgetConfig) => {
-    saveWeatherConfig(newConfig);
-    setConfig(newConfig);
-  }, []);
-
-  const resetConfig = useCallback(() => {
-    saveWeatherConfig(DEFAULT_WEATHER_CONFIG);
-    setConfig(DEFAULT_WEATHER_CONFIG);
-    setWeatherData(FALLBACK_WEATHER_DATA);
-    saveCachedWeatherData(FALLBACK_WEATHER_DATA);
-  }, []);
+  const updateConfig = useCallback(
+    (next: WeatherWidgetConfig): Promise<boolean> => save(WEATHER_SLOT, weatherToStored(next)),
+    [save]
+  );
+  const resetConfig = useCallback(() => reset(WEATHER_SLOT), [reset]);
 
   return {
     config,
     weatherData,
     effectiveCondition: weatherData.condition_key,
     isLoading,
+    isSaving,
     updateConfig,
     resetConfig,
     refreshWeather,

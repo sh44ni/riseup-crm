@@ -37,7 +37,7 @@ export function HeroBannerPreview({
     <div className="px-6 pt-5 pb-1 bg-slate-50/50 dark:bg-white/[0.01] shrink-0 border-b border-slate-200/80 dark:border-white/10">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Live Interactive Preview &bull; Click &amp; Drag to Reframe
+          Preview &bull; Drag to reframe
         </span>
         <span className="text-[10px] text-slate-400 font-mono">
           Zoom: {zoom}% &bull; Focal ({positionX}%, {positionY}%)
@@ -58,7 +58,7 @@ export function HeroBannerPreview({
         <div
           className="absolute inset-0 bg-no-repeat transition-transform duration-75 pointer-events-none"
           style={{
-            backgroundImage: `url('${imageUrl}')`,
+            backgroundImage: imageUrl ? `url('${imageUrl}')` : 'none',
             backgroundSize: `${zoom}% auto`,
             backgroundPosition: `${positionX}% ${positionY}%`,
             opacity: opacity / 100,

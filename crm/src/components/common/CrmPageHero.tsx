@@ -59,7 +59,7 @@ export function CrmPageHero({
     subtitle: defaultSubtitle,
   };
 
-  const { activeBanner, saveCustomization, resetPageToDefaults } = useHeroBanner(
+  const { activeBanner, saveCustomization, resetPageToDefaults, isSaving } = useHeroBanner(
     pageId,
     defaultText
   );
@@ -79,7 +79,7 @@ export function CrmPageHero({
         <div
           className="absolute inset-0 bg-no-repeat transition-all duration-700 pointer-events-none group-hover/hero:scale-[1.01]"
           style={{
-            backgroundImage: `url('${activeBanner.imageUrl}')`,
+            backgroundImage: activeBanner.imageUrl ? `url('${activeBanner.imageUrl}')` : 'none',
             backgroundSize: `${activeBanner.zoom}% auto`,
             backgroundPosition: `${activeBanner.positionX}% ${activeBanner.positionY}%`,
             opacity: activeBanner.opacity / 100,
@@ -235,6 +235,7 @@ export function CrmPageHero({
           defaultText={defaultText}
           onSave={saveCustomization}
           onResetPage={resetPageToDefaults}
+          isSaving={isSaving}
         />
       )}
     </>

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { SidebarPhotoModal } from './SidebarPhotoModal';
+import { useSidebarPhoto } from '@/lib/sidebarPhotoStore';
 import { CoastalPalmTrees, MicroPalmTree } from '@/components/common/CoastalPalmTrees';
 import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
@@ -91,9 +92,7 @@ export function CrmSidebar() {
   const { city, websiteUrl } = useCompany();
   const { activeCount: pendingPersonalTasksCount } = usePersonalTasks();
   const { stats } = useDashboardStats();
-  const [sidebarPhoto, setSidebarPhoto] = useState<string>(() => {
-    return localStorage.getItem('crm_sidebar_bg') || '/hero-bg.jpg';
-  });
+  const { photoUrl: sidebarPhoto, savePhoto, resetPhoto, isSaving: isSavingPhoto } = useSidebarPhoto();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   const isInspectionsEnabled = useFeature('inspections');
@@ -121,11 +120,6 @@ export function CrmSidebar() {
     if (path === '#') return; // disabled items
     setPendingPath(path);
   }, []);
-
-  const handleUpdatePhoto = (newUrl: string) => {
-    setSidebarPhoto(newUrl);
-    localStorage.setItem('crm_sidebar_bg', newUrl);
-  };
 
   // Dedicated query-aware active matcher.
   // Checks pendingPath FIRST so the active style fires the instant the user
@@ -165,7 +159,7 @@ export function CrmSidebar() {
         {/* ========================================================
             DYNAMIC PHOTO CANVAS LAYER (Lower Zone with Seamless Blend)
             ======================================================== */}
-        {sidebarPhoto !== 'none' && (
+        {sidebarPhoto && (
           <div
             className="absolute bottom-0 left-0 right-0 h-[75%] bg-cover bg-center transition-all duration-700 pointer-events-none opacity-40 mix-blend-overlay"
             style={{
@@ -512,7 +506,9 @@ export function CrmSidebar() {
           isOpen={showPhotoModal}
           onClose={() => setShowPhotoModal(false)}
           currentPhoto={sidebarPhoto}
-          onSelectPhoto={handleUpdatePhoto}
+          onSave={savePhoto}
+          onReset={resetPhoto}
+          isSaving={isSavingPhoto}
         />
       )}
     </>

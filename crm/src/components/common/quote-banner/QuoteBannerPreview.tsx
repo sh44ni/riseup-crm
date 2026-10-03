@@ -32,7 +32,7 @@ export function QuoteBannerPreview({
       <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between">
         <span className="flex items-center gap-1.5">
           <Sparkles size={12} className="text-amber-500 dark:text-amber-400" />
-          <span>Live Card Preview</span>
+          <span>Preview</span>
         </span>
         <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
           <span>Mode: {mode === 'slideshow' ? `Slideshow (${slides.length} slides)` : 'Single Image'}</span>
@@ -50,7 +50,7 @@ export function QuoteBannerPreview({
             imageFit === 'contain' ? 'bg-contain bg-center bg-no-repeat' : 'bg-cover bg-[position:65%_center]'
           }`}
           style={{
-            backgroundImage: `url('${activePreviewImage}')`,
+            backgroundImage: activePreviewImage ? `url('${activePreviewImage}')` : 'none',
           }}
         />
 

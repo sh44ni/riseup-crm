@@ -2,20 +2,20 @@
   "cookies": [
     {
       "name": "admin_session",
-      "value": "3ab3dc7fdecad4039eb350c4d2c8075c5c8f60ccc6590e86321a2e77eb867d77",
+      "value": "1c02294168f5e005752c0503bbd60568e48ee74c6185ef71d21c8e2a528ffc7a",
       "domain": "localhost",
       "path": "/",
-      "expires": 1793658726.696007,
+      "expires": 1793661581.264789,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "csrf_token",
-      "value": "c720c79a01988acab022e49d621840729eaac4ec5000687ca53606996f55fd63",
+      "value": "13c219cacd865a2582e3ddd080b21040f6023b9f56e5b89a7f8e3e4060c1f4cd",
       "domain": "localhost",
       "path": "/",
-      "expires": 1793658726.696942,
+      "expires": 1793661581.266029,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
@@ -39,11 +39,7 @@
         },
         {
           "name": "crm_weather_widget_cached_data",
-          "value": "{\"location\":\"Oceanside, California\",\"localtime\":\"2026-10-03 15:20\",\"temp_f\":81,\"temp_c\":27,\"feelslike_f\":82,\"feelslike_c\":28,\"high_f\":82,\"low_f\":68,\"high_c\":28,\"low_c\":20,\"condition_text\":\"Sunny\",\"condition_key\":\"sunny\",\"humidity\":58,\"wind_mph\":12,\"is_day\":true,\"is_fallback\":false}"
-        },
-        {
-          "name": "crm_hero_banner_config",
-          "value": "{\"globalImage\":\"https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80\",\"globalZoom\":100,\"globalPositionX\":80,\"globalPositionY\":50,\"globalOpacity\":80,\"globalOverlayStrength\":85,\"pageOverrides\":{\"dashboard\":{\"customImage\":\"https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80\",\"zoom\":100,\"positionX\":80,\"positionY\":50,\"opacity\":80,\"overlayStrength\":85,\"eyebrow\":\"Discipline Builds Freedom • North County San Diego\",\"title\":\"Rise Up Roofing COMMAND CENTER\",\"subtitle\":\"Master Operations & Revenue Hub • Oceanside, CA • CSLB #CSLB #1115874\"}}}"
+          "value": "{\"location\":\"Oceanside, California\",\"localtime\":\"2026-10-03 15:54\",\"temp_f\":81,\"temp_c\":27,\"feelslike_f\":82,\"feelslike_c\":28,\"high_f\":82,\"low_f\":68,\"high_c\":28,\"low_c\":20,\"condition_text\":\"Sunny\",\"condition_key\":\"sunny\",\"humidity\":58,\"wind_mph\":12,\"is_day\":true,\"is_fallback\":false}"
         }
       ]
     }

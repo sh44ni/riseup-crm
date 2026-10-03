@@ -1,19 +1,61 @@
 import React from 'react';
+import { CustomizerSection, SliderField, ToggleField } from '../customizer/CustomizerParts';
+
+type Height = 'compact' | 'balanced' | 'tall';
+type Fit = 'cover' | 'contain';
+type Effect = 'fade' | 'slide';
 
 export interface QuoteBannerSettingsTabProps {
   mode: 'single' | 'slideshow';
-  cardHeight: 'compact' | 'balanced' | 'tall';
-  setCardHeight: (h: 'compact' | 'balanced' | 'tall') => void;
-  imageFit: 'cover' | 'contain';
-  setImageFit: (f: 'cover' | 'contain') => void;
+  cardHeight: Height;
+  setCardHeight: (h: Height) => void;
+  imageFit: Fit;
+  setImageFit: (f: Fit) => void;
   autoplay: boolean;
-  setAutoplay: (updater: (prev: boolean) => boolean) => void;
+  setAutoplay: (v: boolean) => void;
   slideDuration: number;
   setSlideDuration: (d: number) => void;
-  transitionEffect: 'fade' | 'slide';
-  setTransitionEffect: (t: 'fade' | 'slide') => void;
+  transitionEffect: Effect;
+  setTransitionEffect: (t: Effect) => void;
   linkUrl: string;
   setLinkUrl: (u: string) => void;
+}
+
+function Choice<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: Array<{ id: T; name: string; desc?: string }>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div>
+      <div className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">{label}</div>
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={value === o.id}
+            onClick={() => onChange(o.id)}
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+              value === o.id
+                ? 'bg-sky-500/15 border-[#0284c7] dark:border-sky-400 text-slate-900 dark:text-white'
+                : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'
+            }`}
+          >
+            <div className="text-xs font-bold">{o.name}</div>
+            {o.desc && <div className="text-[10px] text-slate-500">{o.desc}</div>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function QuoteBannerSettingsTab({
@@ -31,175 +73,70 @@ export function QuoteBannerSettingsTab({
   linkUrl,
   setLinkUrl,
 }: QuoteBannerSettingsTabProps) {
-  const heightOptions: { id: 'compact' | 'balanced' | 'tall'; name: string; desc: string }[] = [
-    { id: 'compact', name: 'Compact', desc: '105px height' },
-    { id: 'balanced', name: 'Balanced', desc: '128px standard' },
-    { id: 'tall', name: 'Tall', desc: '155px extended' },
-  ];
-
   return (
-    <div className="space-y-6">
-      {/* Card Height */}
-      <div>
-        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
-          Sidebar Banner Height
-        </label>
-        <div className="grid grid-cols-3 gap-3">
-          {heightOptions.map((h) => (
-            <button
-              key={h.id}
-              type="button"
-              onClick={() => setCardHeight(h.id)}
-              className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                cardHeight === h.id
-                  ? 'bg-sky-500/15 border-[#0284c7] dark:border-sky-400 text-slate-900 dark:text-white'
-                  : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              <div className="text-xs font-bold">{h.name}</div>
-              <div className="text-[10px] text-slate-500">{h.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="space-y-5">
+      <CustomizerSection title="Appearance">
+        <Choice
+          label="Banner height"
+          value={cardHeight}
+          onChange={setCardHeight}
+          options={[
+            { id: 'compact', name: 'Compact', desc: '105px' },
+            { id: 'balanced', name: 'Balanced', desc: '128px' },
+            { id: 'tall', name: 'Tall', desc: '155px' },
+          ]}
+        />
+        <Choice
+          label="Image fit"
+          value={imageFit}
+          onChange={setImageFit}
+          options={[
+            { id: 'cover', name: 'Cover', desc: 'Fills the card edge to edge' },
+            { id: 'contain', name: 'Contain', desc: 'Shows the whole image' },
+          ]}
+        />
+      </CustomizerSection>
 
-      {/* Image Fit Mode */}
-      <div>
-        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
-          Image Fit Mode
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setImageFit('cover')}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-              imageFit === 'cover'
-                ? 'bg-sky-500/15 border-[#0284c7] dark:border-sky-400 text-slate-900 dark:text-white'
-                : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'
-            }`}
-          >
-            <div className="text-xs font-bold">Cover (Full Bleed)</div>
-            <div className="text-[10px] text-slate-500">Fills container edge-to-edge</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setImageFit('contain')}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-              imageFit === 'contain'
-                ? 'bg-sky-500/15 border-[#0284c7] dark:border-sky-400 text-slate-900 dark:text-white'
-                : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10'
-            }`}
-          >
-            <div className="text-xs font-bold">Contain (Full Aspect)</div>
-            <div className="text-[10px] text-slate-500">Displays complete image without cropping</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Slideshow Specific Settings */}
       {mode === 'slideshow' && (
-        <div className="p-4 rounded-2xl bg-slate-100/70 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-slate-900 dark:text-white">Autoplay Slides</div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Automatically advance slides on an interval (pauses on hover)
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAutoplay((prev) => !prev)}
-              className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                autoplay ? 'bg-sky-500' : 'bg-slate-400 dark:bg-slate-700'
-              }`}
-            >
-              <span
-                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                  autoplay ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-
+        <CustomizerSection title="Slideshow">
+          <ToggleField
+            label="Autoplay"
+            description="Advance slides automatically (pauses on hover)"
+            checked={autoplay}
+            onChange={setAutoplay}
+          />
           {autoplay && (
-            <div>
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="font-bold text-slate-700 dark:text-slate-300">Slide Display Duration</span>
-                <span className="font-mono text-[#0284c7] dark:text-sky-400 font-bold">{slideDuration} seconds</span>
-              </div>
-              <input
-                type="range"
-                min="2"
-                max="15"
-                step="1"
-                value={slideDuration}
-                onChange={(e) => setSlideDuration(Number(e.target.value))}
-                className="w-full accent-sky-500 cursor-pointer"
-              />
-            </div>
+            <SliderField label="Seconds per slide" value={slideDuration} min={2} max={15} unit="s" onChange={setSlideDuration} />
           )}
-
-          <div>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-              Slide Transition Style
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setTransitionEffect('fade')}
-                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  transitionEffect === 'fade'
-                    ? 'bg-sky-500/20 border-sky-400 text-slate-900 dark:text-white'
-                    : 'bg-white dark:bg-black/30 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Smooth Fade
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTransitionEffect('slide')}
-                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                  transitionEffect === 'slide'
-                    ? 'bg-sky-500/20 border-sky-400 text-slate-900 dark:text-white'
-                    : 'bg-white dark:bg-black/30 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Horizontal Slide
-              </button>
-            </div>
-          </div>
-        </div>
+          <Choice
+            label="Transition"
+            value={transitionEffect}
+            onChange={setTransitionEffect}
+            options={[
+              { id: 'fade', name: 'Fade' },
+              { id: 'slide', name: 'Slide' },
+            ]}
+          />
+        </CustomizerSection>
       )}
 
-      {/* Optional Click-Through URL */}
-      <div>
-        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
-          Optional Click Destination URL
-        </label>
+      <CustomizerSection title="Click destination" description="Optional. Leave blank if the banner shouldn't be clickable.">
         <div className="flex items-center gap-2">
           <input
             type="text"
-            placeholder="e.g. /pipeline, /tasks, or external https://..."
+            aria-label="Click destination"
+            placeholder="e.g. /pipeline or https://…"
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
-            className="flex-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#0284c7] dark:focus:border-sky-400"
+            className="flex-1 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/15 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#0284c7] dark:focus:border-sky-400"
           />
           {linkUrl && (
-            <button
-              type="button"
-              onClick={() => setLinkUrl('')}
-              className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-xs"
-            >
+            <button type="button" onClick={() => setLinkUrl('')} className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-600 dark:text-slate-400 text-xs cursor-pointer">
               Clear
             </button>
           )}
         </div>
-        <p className="text-[10px] text-slate-500 mt-1">
-          Leave blank if the card should not trigger page navigation when clicked.
-        </p>
-      </div>
+      </CustomizerSection>
     </div>
   );
 }

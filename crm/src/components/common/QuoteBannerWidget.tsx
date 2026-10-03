@@ -21,15 +21,14 @@ export function QuoteBannerWidget({ className = '' }: QuoteBannerWidgetProps) {
     setIsHovered,
     updateConfig,
     resetConfig,
+    isSaving,
   } = useQuoteBanner();
 
   const isSlideshow = config.mode === 'slideshow';
   const slides = config.slides?.length ? config.slides : [];
   const currentSlide = slides[currentSlideIndex] || slides[0];
 
-  const activeImageUrl = isSlideshow
-    ? currentSlide?.imageUrl || config.singleImageUrl
-    : config.singleImageUrl;
+  const activeImageUrl = isSlideshow ? currentSlide?.imageUrl || '' : config.singleImageUrl;
 
   const heightClasses = {
     compact: 'min-h-[105px] h-[105px]',
@@ -68,10 +67,23 @@ export function QuoteBannerWidget({ className = '' }: QuoteBannerWidgetProps) {
               : 'bg-cover bg-[position:65%_center]'
           }`}
           style={{
-            backgroundImage: `url('${activeImageUrl}')`,
+            backgroundImage: activeImageUrl ? `url('${activeImageUrl}')` : 'none',
             filter: 'brightness(1.02) saturate(1.08)',
           }}
         />
+
+        {!activeImageUrl && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsModalOpen(true);
+            }}
+            className="absolute inset-0 z-10 flex items-center justify-center text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-[#1878B8] dark:hover:text-sky-300 cursor-pointer"
+          >
+            Add banner image
+          </button>
+        )}
 
         {/* Tactile Edge Sheen (Subtle glass reflection preserving aesthetic without obscuring graphic) */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-white/10 pointer-events-none" />
@@ -158,6 +170,7 @@ export function QuoteBannerWidget({ className = '' }: QuoteBannerWidgetProps) {
           currentConfig={config}
           onSave={updateConfig}
           onReset={resetConfig}
+          isSaving={isSaving}
         />
       )}
     </>
