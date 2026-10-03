@@ -105,6 +105,11 @@ services:
     container_name: riseup_arq_worker
     restart: unless-stopped
     command: ["arq", "app.tasks.worker.WorkerSettings"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import redis; r = redis.from_url(\"redis://redis:6379/0\"); r.ping()' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     env_file:
       - .env
     environment:
