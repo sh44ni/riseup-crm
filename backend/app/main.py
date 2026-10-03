@@ -51,10 +51,10 @@ async def lifespan(app: FastAPI):
                     page_referer TEXT,
                     payload_snapshot JSONB,
                     submitted_at TIMESTAMPTZ DEFAULT NOW()
-                );
-                CREATE INDEX IF NOT EXISTS idx_spam_attempts_submitted_at ON spam_attempts (submitted_at DESC);
-                CREATE INDEX IF NOT EXISTS idx_spam_attempts_block_reason ON spam_attempts (block_reason);
+                )
             """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_spam_attempts_submitted_at ON spam_attempts (submitted_at DESC)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_spam_attempts_block_reason ON spam_attempts (block_reason)"))
         logger.warning("Async PostgreSQL connection and spam_attempts schema healthy.")
     except Exception as e:
         logger.warning(f"Startup connection/schema notice: {e}")

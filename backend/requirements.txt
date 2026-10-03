@@ -179,3 +179,5 @@ wrapt==1.17.3
     # via aiobotocore
 yarl==1.25.1
     # via aiohttp
+structlog==26.1.0
+    # via riseup-backend
