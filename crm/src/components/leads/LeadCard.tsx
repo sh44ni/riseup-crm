@@ -5,6 +5,7 @@ import { getServiceBadgeClass, getSourceBadges } from '@/utils/leadHelpers';
 import { getTelUrl, getSmsUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { LOSS_REASONS } from '@/components/leads/MarkLeadLostModal';
 import { DealValueText } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 
 interface LeadCardProps {
@@ -107,61 +108,52 @@ export function LeadCard({
             <span>{LOSS_REASONS[lead.lossReason]?.icon}</span>
             <span>{LOSS_REASONS[lead.lossReason]?.label}</span>
           </span>
-        ) : lead.source === 'website' ? (
-          (() => {
-            const src = getSourceBadges(lead);
-            return (
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold text-[10px] border border-sky-200/80 dark:border-sky-800/60 shadow-2xs">
-                  <Globe size={10} className="text-sky-600" />
-                  <span>Website Lead</span>
-                </span>
-                {src.detailLabel && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-[9.5px]">
-                    {src.detailLabel}
-                  </span>
-                )}
-                {(lead.isClaimed || (lead.assignedRep && lead.assignedRep !== 'Unassigned')) ? (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9.5px] border border-emerald-200/80 dark:border-emerald-800/60">
-                    <span>Claimed: {lead.assignedRep}</span>
-                    {canReassignLead && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setReassignModalLead(lead);
-                        }}
-                        className="p-0.5 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
-                        title="Reassign lead"
-                        aria-label={`Reassign lead ${lead.name}`}
-                      >
-                        <UserCog size={10} />
-                      </button>
-                    )}
-                  </span>
-                ) : canClaimLead ? (
+        ) : (
+          <div className="flex items-center gap-1 flex-wrap">
+            <LeadSourceBadge dealOrLead={lead} size="sm" />
+            {lead.leadSourceDetail && !lead.leadSourceDetail.toLowerCase().includes('website') && (
+              <span
+                className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-[9.5px] max-w-[120px] truncate"
+                title={lead.leadSourceDetail}
+              >
+                {lead.leadSourceDetail}
+              </span>
+            )}
+            {(lead.isClaimed || (lead.assignedRep && lead.assignedRep !== 'Unassigned')) ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9.5px] border border-emerald-200/80 dark:border-emerald-800/60">
+                <span>Claimed: {lead.assignedRep}</span>
+                {canReassignLead && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setClaimModalLead(lead);
+                      setReassignModalLead(lead);
                     }}
-                    aria-label={`Claim lead ${lead.name}`}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] shadow-2xs transition-colors cursor-pointer"
+                    className="p-0.5 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
+                    title="Reassign lead"
+                    aria-label={`Reassign lead ${lead.name}`}
                   >
-                    <UserCheck size={10} />
-                    <span>Claim Lead</span>
+                    <UserCog size={10} />
                   </button>
-                ) : (
-                  <span className="text-slate-400 dark:text-slate-500 font-medium text-[10px]">Unassigned</span>
                 )}
-              </div>
-            );
-          })()
-        ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[10px] border border-slate-200/60 dark:border-white/10">
-            {lead.sourceLabel}
-          </span>
+              </span>
+            ) : canClaimLead ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setClaimModalLead(lead);
+                }}
+                aria-label={`Claim lead ${lead.name}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9.5px] shadow-2xs transition-colors cursor-pointer"
+              >
+                <UserCheck size={10} />
+                <span>Claim Lead</span>
+              </button>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500 font-medium text-[10px]">Unassigned</span>
+            )}
+          </div>
         )}
       </div>
 

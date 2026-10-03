@@ -16,6 +16,7 @@ import {
   PipelineStageId,
 } from '@/components/pipeline/pipelineTypes';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 export interface KanbanDealCardProps {
   deal: PipelineDealItem;
@@ -159,18 +160,7 @@ export function KanbanDealCard({
             </span>
           </div>
         </div>
-        {deal.leadSource === 'website' ? (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 shrink-0">
-            Website
-          </span>
-        ) : (
-          <span
-            className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 shrink-0 truncate max-w-[100px]"
-            title={deal.createdByName || deal.leadSourceDetail || 'Manual'}
-          >
-            {deal.createdByName || deal.leadSourceDetail || 'Manual'}
-          </span>
-        )}
+        <LeadSourceBadge dealOrLead={deal} />
       </div>
 
       {/* Service Badge & Deal Value */}

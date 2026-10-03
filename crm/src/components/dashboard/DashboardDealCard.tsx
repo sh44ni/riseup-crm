@@ -18,6 +18,7 @@ import {
 import { DealCard, ColumnData } from './dashboardTypes';
 import { LeadAddressEditor } from '@/components/pipeline/LeadAddressEditor';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 export interface DashboardDealCardProps {
   card: DealCard;
@@ -234,15 +235,7 @@ export function DashboardDealCard({
 
       {/* Source Badges */}
       <div className="flex items-center gap-1 flex-wrap pt-0.5">
-        {card.leadSource === 'website' || card.leadSourceDetail?.toLowerCase().includes('website') ? (
-          <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 shrink-0">
-            {card.leadSourceDetail || 'Website'}
-          </span>
-        ) : (
-          <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10 shrink-0 truncate max-w-[120px]" title={card.createdByName || card.leadSourceDetail || 'Manual'}>
-            {card.createdByName || card.leadSourceDetail || 'Manual'}
-          </span>
-        )}
+        <LeadSourceBadge dealOrLead={card} />
 
         {card.assignedToName && card.assignedToName !== 'Unassigned' && (
           <span className="text-[8px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shrink-0 truncate max-w-[120px]">

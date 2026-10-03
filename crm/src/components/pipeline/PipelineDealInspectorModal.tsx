@@ -37,6 +37,7 @@ import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
 import { ClientEditContactModal, ClientContactData } from '@/components/clients/ClientEditContactModal';
 import { broadcastContactUpdated } from '@/utils/syncEventBus';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 interface PipelineDealInspectorModalProps {
   deal: PipelineDealItem | null;
@@ -195,10 +196,11 @@ export function PipelineDealInspectorModal({
         {/* Header Strip */}
         <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200/70 dark:border-white/10">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/25">
                 {currentStage ? currentStage.shortTitle : deal.stageId}
               </span>
+              <LeadSourceBadge dealOrLead={deal} size="sm" />
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">ID: #{deal.id.toUpperCase()}</span>
             </div>
             <h2 className="text-xl font-black text-[#1F1F1F] dark:text-white tracking-tight">{deal.name}</h2>
@@ -454,7 +456,7 @@ export function PipelineDealInspectorModal({
         {activeTab === 'details' && (
           <div className="space-y-4">
             {/* Quick Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <div className="p-3 rounded-2xl liquid-glass-tile space-y-1">
                 <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
                   Deal Value
@@ -485,7 +487,16 @@ export function PipelineDealInspectorModal({
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl liquid-glass-tile space-y-1 col-span-2 sm:col-span-1">
+              <div className="p-3 rounded-2xl liquid-glass-tile space-y-1">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
+                  Lead Origin
+                </span>
+                <div className="pt-0.5">
+                  <LeadSourceBadge dealOrLead={deal} size="sm" />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl liquid-glass-tile space-y-1">
                 <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">
                   Assigned Estimator
                 </span>
@@ -495,7 +506,7 @@ export function PipelineDealInspectorModal({
                     alt={deal.estimator.name}
                     className="w-5 h-5 rounded-full object-cover border border-white dark:border-white/10"
                   />
-                  <span className="text-xs font-bold text-slate-800 dark:text-white">{deal.estimator.name}</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-white truncate">{deal.estimator.name}</span>
                 </div>
               </div>
             </div>

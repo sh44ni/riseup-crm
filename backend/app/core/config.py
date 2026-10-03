@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     RESEND_VERIFICATION_EMAIL: str = "Rise Up Roofing <verification@riseuprac.com>"
     CRM_FRONTEND_URL: str = "https://crm.riseuprac.com"
 
+    # Cloudflare Turnstile Spam Defense
+    CLOUDFLARE_TURNSTILE_SECRET_KEY: str = ""
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

@@ -1,14 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from '@/components/shared/Icon';
 import { PHONE_HREF, PHONE_NUMBER } from '@/lib/utils';
 import CustomSelect from '@/components/shared/CustomSelect';
+import { Turnstile } from '@/components/shared/Turnstile';
 
 export function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [serviceType, setServiceType] = useState('residential');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [formStartedAt, setFormStartedAt] = useState<number>(0);
+
+  useEffect(() => {
+    setFormStartedAt(Date.now());
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -22,6 +29,11 @@ export function ContactForm() {
         serviceType: fd.get('serviceType'),
         address: fd.get('address'),
         message: fd.get('message'),
+        // Anti-Spam Defenses
+        business_fax: fd.get('business_fax') || '',
+        company_website: fd.get('company_website') || '',
+        formStartedAt,
+        turnstileToken,
       };
       await fetch('/api/contact', {
         method: 'POST',
@@ -160,6 +172,15 @@ export function ContactForm() {
               className="glass-input w-full px-4 py-3 rounded-xl text-sm font-medium resize-none"
             />
           </div>
+
+          {/* Invisible Multi-Decoy Honeypots */}
+          <div className="opacity-0 absolute -left-[9999px] h-0 w-0 pointer-events-none overflow-hidden" aria-hidden="true" tabIndex={-1}>
+            <input type="text" name="business_fax" tabIndex={-1} autoComplete="off" defaultValue="" />
+            <input type="text" name="company_website" tabIndex={-1} autoComplete="off" defaultValue="" />
+          </div>
+
+          {/* Cloudflare Turnstile (Managed/Invisible) */}
+          <Turnstile onVerify={(token) => setTurnstileToken(token)} />
 
           <button
             type="submit"

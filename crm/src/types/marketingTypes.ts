@@ -125,3 +125,51 @@ export interface MarketingFilterParams {
   from?: string;
   to?: string;
 }
+
+export interface SpamAttemptItem {
+  id: number;
+  block_reason: string;
+  block_detail: string | null;
+  form_type: string | null;
+  ip_address: string | null;
+  page_referer: string | null;
+  submitted_at: string;
+  payload_snapshot?: Record<string, any> | null;
+}
+
+export interface SpamBlockReasonItem {
+  reason: string;
+  count: number;
+  pct: number;
+}
+
+export interface SpamFormTypeItem {
+  form_type: string;
+  count: number;
+}
+
+export interface SpamTopIpItem {
+  ip: string;
+  count: number;
+}
+
+export interface SpamTimelinePoint {
+  day: string;
+  label: string;
+  count: number;
+}
+
+export interface SpamShieldData {
+  totalBlocked: number;
+  honeypotCaught: number;
+  speedTrapCaught: number;
+  invalidPhoneCaught: number;
+  spamContentCaught: number;
+  turnstileCaught: number;
+  timeline: SpamTimelinePoint[];
+  blockReasonBreakdown: SpamBlockReasonItem[];
+  formTypeBreakdown: SpamFormTypeItem[];
+  topIps: SpamTopIpItem[];
+  recentAttempts: SpamAttemptItem[];
+}
+

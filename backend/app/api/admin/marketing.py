@@ -1106,3 +1106,193 @@ async def delete_review(
     await db.execute(text("DELETE FROM reviews WHERE id = :id"), {"id": id})
     await db.commit()
     return {"ok": True}
+
+
+# ── BOT SHIELD & HONEYPOT AUDIT ──────────────────────────────────────────────
+
+@router.get("/spam-shield")
+async def get_spam_shield(
+    request: Request,
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    days: Optional[int] = Query(None, ge=1, le=1100),
+    hours: Optional[int] = Query(None, ge=1, le=168),
+    timeframe: Optional[str] = Query(None),
+    user: Dict[str, Any] = Depends(require_any_permission(["analytics:view", "reports:view", "reports.view"])),
+    db: AsyncSession = Depends(get_db)
+):
+    tf = (timeframe or "").strip().lower()
+    if tf == "2h":
+        hours = 2
+        days = None
+    elif tf == "24h" or tf == "today":
+        hours = 24
+        days = None
+    elif tf == "7d":
+        days = 7
+        hours = None
+    elif tf == "30d":
+        days = 30
+        hours = None
+    elif tf == "90d":
+        days = 90
+        hours = None
+    elif tf == "ytd":
+        now_dt = datetime.now(timezone.utc)
+        start_of_year = datetime(now_dt.year, 1, 1, tzinfo=timezone.utc)
+        days = max(1, (now_dt - start_of_year).days)
+        hours = None
+    elif tf in ("365d", "1y", "year"):
+        days = 365
+        hours = None
+    elif tf in ("730d", "2y", "2years"):
+        days = 730
+        hours = None
+
+    date_regex = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    time_params: dict = {}
+    valid_custom_dates = False
+    is_hourly = False
+
+    if from_date and to_date and date_regex.match(from_date.strip()) and date_regex.match(to_date.strip()):
+        try:
+            parsed_from = datetime.strptime(from_date.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            parsed_to = datetime.strptime(to_date.strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
+            time_params = {"from_dt": parsed_from, "to_dt": parsed_to}
+            valid_custom_dates = True
+        except ValueError:
+            valid_custom_dates = False
+
+    if not valid_custom_dates:
+        now = datetime.now(timezone.utc)
+        if hours:
+            time_params = {"from_dt": now - timedelta(hours=int(hours)), "to_dt": now}
+            is_hourly = True
+        else:
+            num_days = int(days) if days is not None else 30
+            time_params = {"from_dt": now - timedelta(days=num_days), "to_dt": now}
+
+    time_clause = "submitted_at >= :from_dt AND submitted_at < :to_dt"
+
+    # 1. Total counts by reason
+    kpi_query = text(f"""
+        SELECT
+            COUNT(*) AS total_blocked,
+            COUNT(*) FILTER (WHERE block_reason = 'honeypot') AS honeypot_caught,
+            COUNT(*) FILTER (WHERE block_reason = 'speed_trap') AS speed_trap_caught,
+            COUNT(*) FILTER (WHERE block_reason = 'invalid_phone') AS invalid_phone_caught,
+            COUNT(*) FILTER (WHERE block_reason = 'spam_content') AS spam_content_caught,
+            COUNT(*) FILTER (WHERE block_reason = 'turnstile') AS turnstile_caught
+        FROM spam_attempts
+        WHERE {time_clause}
+    """)
+    kpi_res = (await db.execute(kpi_query, time_params)).first()
+    
+    total_blocked = int(kpi_res.total_blocked or 0) if kpi_res else 0
+    honeypot_caught = int(kpi_res.honeypot_caught or 0) if kpi_res else 0
+    speed_trap_caught = int(kpi_res.speed_trap_caught or 0) if kpi_res else 0
+    invalid_phone_caught = int(kpi_res.invalid_phone_caught or 0) if kpi_res else 0
+    spam_content_caught = int(kpi_res.spam_content_caught or 0) if kpi_res else 0
+    turnstile_caught = int(kpi_res.turnstile_caught or 0) if kpi_res else 0
+
+    # 2. Timeline
+    if is_hourly:
+        timeline_q = text(f"""
+            SELECT TO_CHAR(DATE_TRUNC('hour', submitted_at), 'YYYY-MM-DD HH24:00') AS day,
+                   TO_CHAR(DATE_TRUNC('hour', submitted_at), 'HH12 AM') AS label,
+                   COUNT(*) AS count
+            FROM spam_attempts
+            WHERE {time_clause}
+            GROUP BY 1, 2
+            ORDER BY 1 ASC
+        """)
+    else:
+        timeline_q = text(f"""
+            SELECT TO_CHAR(DATE_TRUNC('day', submitted_at), 'YYYY-MM-DD') AS day,
+                   TO_CHAR(DATE_TRUNC('day', submitted_at), 'Mon DD') AS label,
+                   COUNT(*) AS count
+            FROM spam_attempts
+            WHERE {time_clause}
+            GROUP BY 1, 2
+            ORDER BY 1 ASC
+        """)
+    timeline_rows = (await db.execute(timeline_q, time_params)).fetchall()
+    timeline = [{"day": r.day, "label": r.label, "count": int(r.count)} for r in timeline_rows]
+
+    # 3. Block reason breakdown
+    reason_q = text(f"""
+        SELECT block_reason AS reason, COUNT(*) AS count
+        FROM spam_attempts
+        WHERE {time_clause}
+        GROUP BY 1
+        ORDER BY count DESC
+    """)
+    reason_rows = (await db.execute(reason_q, time_params)).fetchall()
+    block_reason_breakdown = [
+        {
+            "reason": r.reason,
+            "count": int(r.count),
+            "pct": round((int(r.count) / total_blocked * 100), 1) if total_blocked > 0 else 0
+        }
+        for r in reason_rows
+    ]
+
+    # 4. Form type breakdown
+    form_q = text(f"""
+        SELECT COALESCE(form_type, 'unknown') AS form_type, COUNT(*) AS count
+        FROM spam_attempts
+        WHERE {time_clause}
+        GROUP BY 1
+        ORDER BY count DESC
+    """)
+    form_rows = (await db.execute(form_q, time_params)).fetchall()
+    form_type_breakdown = [{"form_type": r.form_type, "count": int(r.count)} for r in form_rows]
+
+    # 5. Top Offending IPs
+    ip_q = text(f"""
+        SELECT ip_address AS ip, COUNT(*) AS count
+        FROM spam_attempts
+        WHERE {time_clause} AND ip_address IS NOT NULL AND ip_address != ''
+        GROUP BY 1
+        ORDER BY count DESC
+        LIMIT 10
+    """)
+    ip_rows = (await db.execute(ip_q, time_params)).fetchall()
+    top_ips = [{"ip": r.ip, "count": int(r.count)} for r in ip_rows]
+
+    # 6. Recent 50 attempts
+    recent_q = text(f"""
+        SELECT id, block_reason, block_detail, form_type, ip_address, page_referer, submitted_at, payload_snapshot
+        FROM spam_attempts
+        ORDER BY submitted_at DESC
+        LIMIT 50
+    """)
+    recent_rows = (await db.execute(recent_q)).fetchall()
+    recent_attempts = [
+        {
+            "id": r.id,
+            "block_reason": r.block_reason,
+            "block_detail": r.block_detail,
+            "form_type": r.form_type,
+            "ip_address": r.ip_address,
+            "page_referer": r.page_referer,
+            "submitted_at": r.submitted_at.isoformat() if r.submitted_at else None,
+            "payload_snapshot": r.payload_snapshot,
+        }
+        for r in recent_rows
+    ]
+
+    return {
+        "totalBlocked": total_blocked,
+        "honeypotCaught": honeypot_caught,
+        "speedTrapCaught": speed_trap_caught,
+        "invalidPhoneCaught": invalid_phone_caught,
+        "spamContentCaught": spam_content_caught,
+        "turnstileCaught": turnstile_caught,
+        "timeline": timeline,
+        "blockReasonBreakdown": block_reason_breakdown,
+        "formTypeBreakdown": form_type_breakdown,
+        "topIps": top_ips,
+        "recentAttempts": recent_attempts,
+    }
+

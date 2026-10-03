@@ -11,14 +11,18 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
-import { fetchMarketingAnalytics } from '@/api/marketingApi';
-import type { MarketingAnalyticsData, MarketingTimeframe } from '@/types/marketingTypes';
+import { fetchMarketingAnalytics, fetchSpamShield } from '@/api/marketingApi';
+import type { MarketingAnalyticsData, MarketingTimeframe, SpamShieldData } from '@/types/marketingTypes';
 import { MarketingKpiCards } from '@/components/marketing/MarketingKpiCards';
 import { MarketingTrafficChart } from '@/components/marketing/MarketingTrafficChart';
 import { MarketingSourcesCard } from '@/components/marketing/MarketingSourcesCard';
 import { MarketingCallsCard } from '@/components/marketing/MarketingCallsCard';
 import { MarketingPagesTable } from '@/components/marketing/MarketingPagesTable';
 import { MarketingActivityFeed } from '@/components/marketing/MarketingActivityFeed';
+import { MarketingSpamShieldKpis } from '@/components/marketing/MarketingSpamShieldKpis';
+import { MarketingSpamTimeline } from '@/components/marketing/MarketingSpamTimeline';
+import { MarketingSpamBreakdown } from '@/components/marketing/MarketingSpamBreakdown';
+import { MarketingSpamFeed } from '@/components/marketing/MarketingSpamFeed';
 
 const TIMEFRAME_OPTIONS: { id: MarketingTimeframe; label: string; short: string }[] = [
   { id: '2h', label: 'Last 2 Hours', short: '2h' },
@@ -33,6 +37,7 @@ const TIMEFRAME_OPTIONS: { id: MarketingTimeframe; label: string; short: string 
 ];
 
 export const MarketingPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'traffic' | 'shield'>('traffic');
   const [timeframe, setTimeframe] = useState<MarketingTimeframe>('30d');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
@@ -44,6 +49,9 @@ export const MarketingPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+
+  const [spamData, setSpamData] = useState<SpamShieldData | null>(null);
+  const [spamLoading, setSpamLoading] = useState<boolean>(false);
 
   const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -74,9 +82,33 @@ export const MarketingPage: React.FC = () => {
     }
   }, [timeframe, customFrom, customTo]);
 
+  const loadSpamShield = useCallback(async (isSilent = false) => {
+    if (!isSilent) setSpamLoading(true);
+    try {
+      const params: any = {};
+      if (timeframe === 'custom') {
+        if (customFrom && customTo) {
+          params.from = customFrom;
+          params.to = customTo;
+        } else {
+          params.timeframe = '30d';
+        }
+      } else {
+        params.timeframe = timeframe;
+      }
+      const res = await fetchSpamShield(params);
+      setSpamData(res);
+    } catch (err: any) {
+      console.warn('Failed to load spam shield telemetry:', err);
+    } finally {
+      if (!isSilent) setSpamLoading(false);
+    }
+  }, [timeframe, customFrom, customTo]);
+
   useEffect(() => {
     loadAnalytics(false);
-  }, [loadAnalytics]);
+    loadSpamShield(true);
+  }, [loadAnalytics, loadSpamShield]);
 
   useEffect(() => {
     if (autoRefreshTimerRef.current) {
@@ -86,7 +118,11 @@ export const MarketingPage: React.FC = () => {
 
     if (autoRefresh) {
       autoRefreshTimerRef.current = setInterval(() => {
-        loadAnalytics(true);
+        if (activeTab === 'traffic') {
+          loadAnalytics(true);
+        } else {
+          loadSpamShield(true);
+        }
       }, 30000);
     }
 
@@ -95,7 +131,7 @@ export const MarketingPage: React.FC = () => {
         clearInterval(autoRefreshTimerRef.current);
       }
     };
-  }, [autoRefresh, loadAnalytics]);
+  }, [autoRefresh, activeTab, loadAnalytics, loadSpamShield]);
 
   const handleApplyCustom = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +139,15 @@ export const MarketingPage: React.FC = () => {
       setTimeframe('custom');
       setShowCustomPicker(false);
       loadAnalytics(false);
+      loadSpamShield(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (activeTab === 'traffic') {
+      loadAnalytics(false);
+    } else {
+      loadSpamShield(false);
     }
   };
 
@@ -148,6 +193,19 @@ export const MarketingPage: React.FC = () => {
               <span>{data?.websiteLeadsCount ?? 0} Website Leads</span>
               <ArrowUpRight size={10} />
             </Link>
+            <button
+              type="button"
+              onClick={() => setActiveTab('shield')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold shadow-2xs shrink-0 transition-colors cursor-pointer ${
+                activeTab === 'shield'
+                  ? 'bg-rose-600 text-white border-rose-700'
+                  : 'bg-rose-50/90 hover:bg-rose-100/90 dark:bg-rose-950/60 hover:dark:bg-rose-900/60 border-rose-200/90 dark:border-rose-800/60 text-rose-800 dark:text-rose-300'
+              }`}
+              title="View Bot Shield & Honeypot Health"
+            >
+              <ShieldCheck size={11} className={activeTab === 'shield' ? 'text-white' : 'text-rose-600 dark:text-rose-400'} />
+              <span>{spamData?.totalBlocked ?? 0} Bots Blocked</span>
+            </button>
             <a
               href="https://riseuprac.com"
               target="_blank"
@@ -212,12 +270,12 @@ export const MarketingPage: React.FC = () => {
           </span>
           <button
             type="button"
-            onClick={() => loadAnalytics(false)}
-            disabled={loading}
+            onClick={handleRefresh}
+            disabled={loading || spamLoading}
             className="p-1 rounded-lg bg-white/70 dark:bg-slate-800/70 hover:bg-white hover:dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-white/10 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
             title="Refresh now"
           >
-            <RefreshCw size={12} className={loading ? 'animate-spin text-[#1878B8]' : ''} />
+            <RefreshCw size={12} className={(loading || spamLoading) ? 'animate-spin text-[#1878B8]' : ''} />
           </button>
         </div>
       </div>
@@ -286,50 +344,128 @@ export const MarketingPage: React.FC = () => {
         </div>
       )}
 
-      {/* 3. KPI METRIC CARDS ROW (5 Executive Glass Cards) */}
-      <MarketingKpiCards data={data} loading={loading} />
-
-      {/* 4. TRAFFIC VELOCITY OVER TIME */}
-      <MarketingTrafficChart
-        timeline={data?.timeline || []}
-        isHourly={data?.isHourly}
-        isMonthly={data?.isMonthly}
-        loading={loading}
-      />
-
-      {/* 5. CALLS & SOURCES DUAL COLUMNS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-        <MarketingCallsCard
-          totalCalls={data?.totalCalls || 0}
-          callConversionRate={data?.callConversionRate || 0}
-          callsByPage={data?.callsByPage || []}
-          callsByHour={data?.callsByHour || []}
-          topButtons={data?.topButtons || []}
-        />
-
-        <MarketingSourcesCard
-          sources={data?.utmSources || []}
-          referrers={data?.referrers || []}
-          devices={data?.deviceBreakdown || []}
-          totalSessions={data?.totalSessions || 0}
-        />
+      {/* 3. TAB SELECTION BAR */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 bg-white/70 dark:bg-slate-900/70 p-1 rounded-xl border border-white/80 dark:border-white/10 backdrop-blur-md text-xs font-bold shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('traffic')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              activeTab === 'traffic'
+                ? 'bg-gradient-to-r from-[#1878B8] to-[#55C4F5] text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
+            }`}
+          >
+            <TrendingUp size={13} />
+            <span>Traffic &amp; Conversion Telemetry</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('shield');
+              if (!spamData) loadSpamShield(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              activeTab === 'shield'
+                ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/10'
+            }`}
+          >
+            <ShieldCheck size={13} />
+            <span>Bot Shield &amp; Honeypots</span>
+            {spamData && spamData.totalBlocked > 0 && (
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                  activeTab === 'shield'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                }`}
+              >
+                {spamData.totalBlocked.toLocaleString()}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* 6. TOP PAGES & LIVE ACTIVITY DUAL COLUMNS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-        <MarketingPagesTable
-          topPages={filteredPages}
-          totalPageviews={data?.totalPageviews || 0}
-        />
+      {/* 4. TAB CONTENT: TRAFFIC & LEADS TELEMETRY */}
+      {activeTab === 'traffic' && (
+        <div className="space-y-2.5 animate-in fade-in duration-200">
+          {/* A. KPI METRIC CARDS ROW (5 Executive Glass Cards) */}
+          <MarketingKpiCards data={data} loading={loading} />
 
-        <MarketingActivityFeed
-          activityFeed={filteredActivity}
-          loading={loading}
-          onRefresh={() => loadAnalytics(false)}
-          autoRefresh={autoRefresh}
-          onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
-        />
-      </div>
+          {/* B. TRAFFIC VELOCITY OVER TIME */}
+          <MarketingTrafficChart
+            timeline={data?.timeline || []}
+            isHourly={data?.isHourly}
+            isMonthly={data?.isMonthly}
+            loading={loading}
+          />
+
+          {/* C. CALLS & SOURCES DUAL COLUMNS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            <MarketingCallsCard
+              totalCalls={data?.totalCalls || 0}
+              callConversionRate={data?.callConversionRate || 0}
+              callsByPage={data?.callsByPage || []}
+              callsByHour={data?.callsByHour || []}
+              topButtons={data?.topButtons || []}
+            />
+
+            <MarketingSourcesCard
+              sources={data?.utmSources || []}
+              referrers={data?.referrers || []}
+              devices={data?.deviceBreakdown || []}
+              totalSessions={data?.totalSessions || 0}
+            />
+          </div>
+
+          {/* D. TOP PAGES & LIVE ACTIVITY DUAL COLUMNS */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            <MarketingPagesTable
+              topPages={filteredPages}
+              totalPageviews={data?.totalPageviews || 0}
+            />
+
+            <MarketingActivityFeed
+              activityFeed={filteredActivity}
+              loading={loading}
+              onRefresh={() => loadAnalytics(false)}
+              autoRefresh={autoRefresh}
+              onToggleAutoRefresh={() => setAutoRefresh(!autoRefresh)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 5. TAB CONTENT: BOT SHIELD & HONEYPOT HEALTH */}
+      {activeTab === 'shield' && (
+        <div className="space-y-2.5 animate-in fade-in duration-200">
+          {/* A. 5 BOT SHIELD KPI CARDS */}
+          <MarketingSpamShieldKpis data={spamData} loading={spamLoading} />
+
+          {/* B. INTERCEPTION TIMELINE */}
+          <MarketingSpamTimeline
+            timeline={spamData?.timeline || []}
+            loading={spamLoading}
+          />
+
+          {/* C. ATTACK VECTORS & OFFENDERS DUAL COLUMNS */}
+          <MarketingSpamBreakdown
+            reasons={spamData?.blockReasonBreakdown || []}
+            formTypes={spamData?.formTypeBreakdown || []}
+            topIps={spamData?.topIps || []}
+            totalBlocked={spamData?.totalBlocked || 0}
+          />
+
+          {/* D. LIVE QUARANTINED ATTEMPTS FEED */}
+          <MarketingSpamFeed
+            recentAttempts={spamData?.recentAttempts || []}
+            loading={spamLoading}
+            onRefresh={() => loadSpamShield(false)}
+          />
+        </div>
+      )}
     </div>
   );
 };

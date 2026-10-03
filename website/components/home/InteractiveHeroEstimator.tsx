@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { Icon, type IconName } from '@/components/shared/Icon';
 import { cn, PHONE_HREF, PHONE_NUMBER } from '@/lib/utils';
 import { calculateEstimate, type EstimatorService, type EstimatorPricingRule } from '@/lib/estimator';
+import { Turnstile } from '@/components/shared/Turnstile';
+import { useLeadModal } from '@/context/LeadModalContext';
 
 type ServiceId = 'residential' | 'repair' | 'commercial' | 'solar';
 
@@ -194,6 +196,7 @@ function useAnimatedNumber(target: number, duration = 280): number {
 }
 
 export function InteractiveHeroEstimator() {
+  const { openLeadModal } = useLeadModal();
   const [servicesData, setServicesData] = useState<EstimatorService[]>(INITIAL_SERVICES);
   const [step, setStep] = useState<1 | 2>(1);
   const [serviceSlug, setServiceSlug] = useState<string>('residential');
@@ -209,6 +212,10 @@ export function InteractiveHeroEstimator() {
   });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [formStartedAt, setFormStartedAt] = useState<number>(0);
+  const [honeypotFax, setHoneypotFax] = useState('');
+  const [honeypotWebsite, setHoneypotWebsite] = useState('');
   const isLight = true;
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -351,6 +358,11 @@ export function InteractiveHeroEstimator() {
           address: contactData.address.trim() || undefined,
           serviceType: activeService.name,
           notes: `Dynamic Ballpark: $${rawEstimate.low.toLocaleString()} – $${rawEstimate.high.toLocaleString()} (${sqft} sq ft, ${activePresetIndex === -1 ? 'custom sq ft' : 'preset'})`,
+          // Anti-Spam Defenses
+          business_fax: honeypotFax,
+          company_website: honeypotWebsite,
+          formStartedAt: formStartedAt || Date.now() - 5000,
+          turnstileToken,
         }),
       });
     } catch {
@@ -714,7 +726,18 @@ export function InteractiveHeroEstimator() {
 
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => {
+                  openLeadModal({
+                    source: 'estimator',
+                    title: 'Receive Your Itemized Proposal',
+                    prefill: {
+                      serviceType: activeService.name,
+                      sqft,
+                      estimatedLow: rawEstimate.low,
+                      estimatedHigh: rawEstimate.high,
+                    },
+                  });
+                }}
                 className="bg-brand-blue hover:bg-[#1C88DD] text-white font-bold text-xs sm:text-sm uppercase tracking-wider py-3.5 px-6 rounded-xl shadow-md shadow-brand-blue/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer flex-shrink-0 active:scale-95"
               >
                 <span>Get Itemized Quote</span>
@@ -825,6 +848,32 @@ export function InteractiveHeroEstimator() {
                 )}
               />
             </div>
+
+            {/* Invisible Multi-Decoy Honeypots */}
+            <div className="opacity-0 absolute -left-[9999px] h-0 w-0 pointer-events-none overflow-hidden" aria-hidden="true" tabIndex={-1}>
+              <input
+                type="text"
+                name="business_fax"
+                tabIndex={-1}
+                autoComplete="off"
+                value={honeypotFax}
+                onChange={(e) => setHoneypotFax(e.target.value)}
+              />
+              <input
+                type="text"
+                name="company_website"
+                tabIndex={-1}
+                autoComplete="off"
+                value={honeypotWebsite}
+                onChange={(e) => setHoneypotWebsite(e.target.value)}
+              />
+            </div>
+
+            {/* Cloudflare Turnstile (Managed / Zero-Friction) */}
+            <Turnstile
+              onVerify={(token) => setTurnstileToken(token)}
+              theme={isLight ? 'light' : 'dark'}
+            />
 
             <div className="flex items-center gap-3 pt-1">
               <button

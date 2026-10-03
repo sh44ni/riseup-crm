@@ -4,6 +4,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { buildLocalBusinessJsonLd } from '@/lib/seo/metadata';
 import { COMPANY_NAME } from '@/lib/utils';
+import { LeadModalProvider } from '@/context/LeadModalContext';
+import { UnifiedLeadModal } from '@/components/shared/UnifiedLeadModal';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -109,7 +111,10 @@ export default function RootLayout({
         />
         {/* Rich analytics tracking — pageviews, clicks, scroll, forms, CTAs, session duration, UTMs */}
         <Script src="/tracker.js" strategy="afterInteractive" />
-        {children}
+        <LeadModalProvider>
+          {children}
+          <UnifiedLeadModal />
+        </LeadModalProvider>
       </body>
     </html>
   );

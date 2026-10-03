@@ -24,6 +24,7 @@ import { ColumnData, EnrichedDeal, enrichDeals } from './pipelineTypes';
 import { useAuth } from '@/context/AuthContext';
 import { leadsApi } from '@/api/leadsApi';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 interface PipelineListViewProps {
   columns: ColumnData[];
@@ -286,8 +287,11 @@ export function PipelineListView({
                   >
                     {/* Customer / Homeowner */}
                     <td className="px-4 py-2.5">
-                      <div className="font-bold text-[11.5px] text-[#1F1F1F] dark:text-slate-100 group-hover:text-[#1878B8] dark:group-hover:text-[#55C4F5] transition-colors leading-snug">
-                        {deal.name}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-[11.5px] text-[#1F1F1F] dark:text-slate-100 group-hover:text-[#1878B8] dark:group-hover:text-[#55C4F5] transition-colors leading-snug">
+                          {deal.name}
+                        </span>
+                        <LeadSourceBadge dealOrLead={deal} size="xs" />
                       </div>
                       <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                         {deal.phone}

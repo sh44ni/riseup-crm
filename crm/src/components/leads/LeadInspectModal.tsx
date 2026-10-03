@@ -28,6 +28,7 @@ import { ClientEditContactModal, ClientContactData } from '@/components/clients/
 import { leadsApi } from '@/api/leadsApi';
 import { broadcastContactUpdated } from '@/utils/syncEventBus';
 import { DealValueText } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 
 export interface LeadInspectModalProps {
@@ -48,19 +49,6 @@ export interface LeadInspectModalProps {
     zip: string;
   }) => Promise<void>;
   getServiceBadgeClass: (color: string) => string;
-}
-
-function getSourceBadges(lead: Lead): {
-  type: 'website' | 'manual';
-  mainLabel: string;
-  detailLabel: string | null;
-} {
-  const isWeb = lead.source === 'website';
-  return {
-    type: isWeb ? 'website' : 'manual',
-    mainLabel: isWeb ? 'Website Lead' : 'Manual Intake',
-    detailLabel: lead.leadSourceDetail || null,
-  };
 }
 
 export function LeadInspectModal({
@@ -216,6 +204,7 @@ export function LeadInspectModal({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-black text-slate-900 dark:text-white leading-tight truncate">{currentLead.name}</h2>
+                <LeadSourceBadge dealOrLead={currentLead} size="sm" />
                 <span
                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${getServiceBadgeClass(
                     currentLead.serviceColor
@@ -452,26 +441,13 @@ export function LeadInspectModal({
               <span>Lead Source Attribution</span>
             </span>
             <div className="flex items-center gap-2">
-              {lead.source === 'website' ? (
-                (() => {
-                  const src = getSourceBadges(lead);
-                  return (
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold text-[10.5px] border border-sky-200/80 dark:border-sky-800/60 shadow-2xs">
-                        <Globe size={11} className="text-sky-600 dark:text-sky-400" />
-                        <span>Website Lead</span>
-                      </span>
-                      {src.detailLabel && (
-                        <span className="text-slate-600 dark:text-slate-300 font-semibold bg-slate-200/70 dark:bg-white/10 px-2 py-0.5 rounded-md text-[10px]">
-                          {src.detailLabel}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()
-              ) : (
-                <span className="text-slate-700 dark:text-slate-300 font-bold bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
-                  {lead.sourceLabel}
+              <LeadSourceBadge dealOrLead={currentLead} size="sm" />
+              {currentLead.leadSourceDetail && (
+                <span
+                  className="text-slate-600 dark:text-slate-300 font-semibold bg-slate-200/70 dark:bg-white/10 px-2 py-0.5 rounded-md text-[10px] max-w-[200px] truncate"
+                  title={currentLead.leadSourceDetail}
+                >
+                  {currentLead.leadSourceDetail}
                 </span>
               )}
             </div>

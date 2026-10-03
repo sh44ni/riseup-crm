@@ -32,14 +32,29 @@ async def lifespan(app: FastAPI):
     setup_logging()
     await init_redis()
 
-    # ── Database Health Check ──
+    # ── Database Health Check & Schema Init ──
     try:
         from sqlalchemy import text
-        async with engine.connect() as conn:
+        async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.warning("Async PostgreSQL connection healthy.")
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS spam_attempts (
+                    id BIGSERIAL PRIMARY KEY,
+                    block_reason VARCHAR(64) NOT NULL,
+                    block_detail TEXT,
+                    form_type VARCHAR(64),
+                    ip_address VARCHAR(128),
+                    user_agent TEXT,
+                    page_referer TEXT,
+                    payload_snapshot JSONB,
+                    submitted_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_spam_attempts_submitted_at ON spam_attempts (submitted_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_spam_attempts_block_reason ON spam_attempts (block_reason);
+            """))
+        logger.warning("Async PostgreSQL connection and spam_attempts schema healthy.")
     except Exception as e:
-        logger.warning(f"Startup connection notice: {e}")
+        logger.warning(f"Startup connection/schema notice: {e}")
 
     # Seed system RBAC permissions and default Owner role
     try:

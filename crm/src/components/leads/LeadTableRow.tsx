@@ -5,6 +5,7 @@ import { getServiceBadgeClass, getSourceBadges } from '@/utils/leadHelpers';
 import { getTelUrl, getSmsUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { LOSS_REASONS } from '@/components/leads/MarkLeadLostModal';
 import { DealValueText } from '@/components/shared/DealValueBadge';
+import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
 
 interface LeadTableRowProps {
@@ -139,27 +140,22 @@ export function LeadTableRow({
 
       {/* 5. Source Attribution */}
       <td className="px-3 py-3">
-        {(() => {
-          const src = getSourceBadges(lead);
-          return (
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold text-[10px] border border-sky-200/80 dark:border-sky-800/60 shadow-2xs">
-                {src.type === 'website' && <Globe size={10} className="text-sky-600 dark:text-sky-400" />}
-                <span>{src.mainLabel}</span>
-              </span>
-              {src.detailLabel && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-[9.5px] border border-transparent dark:border-white/10">
-                  {src.detailLabel}
-                </span>
-              )}
-              {(lead.isClaimed || (lead.assignedRep && lead.assignedRep !== 'Unassigned')) && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9.5px] border border-emerald-200/80 dark:border-emerald-800/60">
-                  Claimed: {lead.assignedRep}
-                </span>
-              )}
-            </div>
-          );
-        })()}
+        <div className="flex flex-wrap items-center gap-1">
+          <LeadSourceBadge dealOrLead={lead} size="sm" />
+          {lead.leadSourceDetail && !lead.leadSourceDetail.toLowerCase().includes('website') && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-[9.5px] border border-transparent dark:border-white/10 max-w-[120px] truncate"
+              title={lead.leadSourceDetail}
+            >
+              {lead.leadSourceDetail}
+            </span>
+          )}
+          {(lead.isClaimed || (lead.assignedRep && lead.assignedRep !== 'Unassigned')) && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9.5px] border border-emerald-200/80 dark:border-emerald-800/60">
+              Claimed: {lead.assignedRep}
+            </span>
+          )}
+        </div>
       </td>
 
       {/* 6. Estimator */}

@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { Icon } from '@/components/shared/Icon';
 import { PHONE_HREF, PHONE_NUMBER, LICENSE_NUMBER } from '@/lib/utils';
 import CustomSelect from '@/components/shared/CustomSelect';
+import { Turnstile } from '@/components/shared/Turnstile';
+import { useLeadModal } from '@/context/LeadModalContext';
 
 const STORAGE_KEY_DISMISSED = 'riseup_storm_promo_dismissed';
 const STORAGE_KEY_CLAIMED = 'riseup_storm_promo_claimed';
@@ -15,6 +17,7 @@ const PROMO_IMAGE = 'https://images.unsplash.com/photo-1613490493576-7fde63acd81
 
 export function StormPromoModal() {
   const pathname = usePathname();
+  const { openLeadModal } = useLeadModal();
   const [isOpen, setIsOpen] = useState(false);
   const [viewState, setViewState] = useState<'offer' | 'form' | 'success'>('offer');
 
@@ -25,6 +28,10 @@ export function StormPromoModal() {
   const [serviceType, setServiceType] = useState('Roof Replacement');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [formStartedAt, setFormStartedAt] = useState<number>(0);
+  const [honeypotFax, setHoneypotFax] = useState('');
+  const [honeypotWebsite, setHoneypotWebsite] = useState('');
 
   // Check if current route should suppress popup
   const isExcludedRoute = useCallback(() => {
@@ -144,6 +151,11 @@ export function StormPromoModal() {
           leadScore: 95,
           leadSource: 'storm_promo_popup',
           notes: `⚡ El Niño Storm Promo Claim: $1,000 Off voucher claimed for ${serviceType}${city.trim() ? ` in ${city.trim()}` : ''}. Free 21-point storm inspection requested.`,
+          // Anti-Spam Defenses
+          business_fax: honeypotFax,
+          company_website: honeypotWebsite,
+          formStartedAt: formStartedAt || Date.now() - 5000,
+          turnstileToken,
         }),
       });
 
@@ -274,7 +286,17 @@ export function StormPromoModal() {
               <div className="space-y-2.5 pt-1">
                 <button
                   type="button"
-                  onClick={() => setViewState('form')}
+                  onClick={() => {
+                    setIsOpen(false);
+                    openLeadModal({
+                      source: 'storm_promo',
+                      title: '⚡ El Niño $1,000 Off Voucher',
+                      prefill: {
+                        serviceType: 'Storm Repair & Inspection',
+                        discountAmount: 1000,
+                      },
+                    });
+                  }}
                   className="w-full inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl font-bold text-sm sm:text-base uppercase tracking-wider bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:via-amber-400 hover:to-amber-500 text-slate-950 shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer group"
                 >
                   <Icon name="sparkles" className="w-4 h-4 fill-current group-hover:rotate-12 transition-transform" />
@@ -379,6 +401,32 @@ export function StormPromoModal() {
                   />
                 </div>
               </div>
+
+              {/* Invisible Multi-Decoy Honeypots */}
+              <div className="opacity-0 absolute -left-[9999px] h-0 w-0 pointer-events-none overflow-hidden" aria-hidden="true" tabIndex={-1}>
+                <input
+                  type="text"
+                  name="business_fax"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={honeypotFax}
+                  onChange={(e) => setHoneypotFax(e.target.value)}
+                />
+                <input
+                  type="text"
+                  name="company_website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={honeypotWebsite}
+                  onChange={(e) => setHoneypotWebsite(e.target.value)}
+                />
+              </div>
+
+              {/* Cloudflare Turnstile (Managed / Invisible) */}
+              <Turnstile
+                onVerify={(token) => setTurnstileToken(token)}
+                theme="dark"
+              />
 
               <div className="pt-1.5 space-y-2">
                 <button
