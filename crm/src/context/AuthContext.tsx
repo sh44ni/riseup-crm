@@ -33,47 +33,32 @@ export interface AuthContextType {
   hasRole: (roleName: string) => boolean;
 }
 
+import { isOnPublicPage } from '@/shared/api/publicRoutes';
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('crm_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  });
+export interface AuthProviderProps {
+  children: React.ReactNode;
+  initialUser?: User | null;
+}
 
-  const [token, setTokenState] = useState<string | null>(() => {
-    return api.getToken() || null;
-  });
-
+export function AuthProvider({ children, initialUser }: AuthProviderProps) {
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
+  const [token, setTokenState] = useState<string | null>(() => api.getToken() || null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isHydrating, setIsHydrating] = useState<boolean>(() => Boolean(api.getToken()));
+  const [isHydrating, setIsHydrating] = useState<boolean>(() => initialUser === undefined);
 
   // Hydrate user & permissions on mount or when token is present
   const refreshUser = useCallback(async () => {
-    if (!api.getToken()) {
-      setIsHydrating(false);
-      return;
-    }
     try {
       const res = await api.getMe();
       if (res && res.user) {
         setUser(res.user);
-        localStorage.setItem('crm_user', JSON.stringify(res.user));
       } else {
         setUser(null);
-        localStorage.removeItem('crm_user');
       }
     } catch {
-      // If token is invalid, purge cached session and reset
       setUser(null);
-      localStorage.removeItem('crm_user');
       api.setToken(null);
     } finally {
       setIsHydrating(false);
@@ -81,38 +66,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Don't hydrate session on public pages — a stale token would cause a
-    // 401 from /admin/auth/me which redirects the user away from the page.
-    const PUBLIC_PAGES = ['/accept-invite', '/contract/sign/', '/changelogs'];
-    const isPublicPage = typeof window !== 'undefined' &&
-      PUBLIC_PAGES.some(p => window.location.pathname.startsWith(p));
+    // If an initialUser was explicitly provided (e.g. in test harness), skip mount refresh
+    if (initialUser !== undefined) {
+      return;
+    }
 
-    if (isPublicPage) {
+    // Don't hydrate session on public pages — avoiding 401 redirects on signing or invite pages
+    if (isOnPublicPage()) {
       setIsHydrating(false);
       return;
     }
 
-    if (token) {
-      refreshUser();
-    } else {
-      setIsHydrating(false);
-    }
-  }, [token, refreshUser]);
+    refreshUser();
+  }, [initialUser, refreshUser]);
+
 
   const setSessionUser = useCallback((newToken: string, newUser: User) => {
     setTokenState(newToken);
     api.setToken(newToken);
     setUser(newUser);
-    localStorage.setItem('crm_user', JSON.stringify(newUser));
     setIsHydrating(false);
   }, []);
 
   const updateUserProfile = useCallback((data: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
-      const updated = { ...prev, ...data };
-      localStorage.setItem('crm_user', JSON.stringify(updated));
-      return updated;
+      return { ...prev, ...data };
     });
   }, []);
 
@@ -120,17 +99,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       const res = await api.login(password, email);
-      if (!res.token) throw new Error('No token received');
-      setTokenState(res.token);
-      api.setToken(res.token);
-
       if (!res.user) {
         throw new Error('Authentication failed: Invalid user profile received.');
       }
 
       const activeUser: User = res.user;
       setUser(activeUser);
-      localStorage.setItem('crm_user', JSON.stringify(activeUser));
+      if (res.token) {
+        setTokenState(res.token);
+      }
       setIsHydrating(false);
     } finally {
       setIsLoading(false);
@@ -145,7 +122,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setTokenState(null);
-      localStorage.removeItem('crm_user');
       api.setToken(null);
       setIsHydrating(false);
     }
@@ -159,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user?.permissions?.['*'] === 'all'
     )
   );
+
 
   const hasPermission = useCallback(
     (permission: string, requiredScope?: 'all' | 'assigned' | 'own'): boolean => {

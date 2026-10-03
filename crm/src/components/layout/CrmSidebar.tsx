@@ -27,6 +27,8 @@ import { useCompany } from '@/context/CompanyContext';
 import { usePersonalTasks } from '@/lib/personalTasksStore';
 import { useDashboardStats } from '@/lib/dashboardStatsStore';
 import { ThemeToggleSwitch } from '@/components/common/ThemeToggleSwitch';
+import { useFeature } from '@/features/flags/useFeature';
+import { FeatureFlag } from '@/features/flags/types';
 
 interface NavItem {
   name: string;
@@ -34,6 +36,7 @@ interface NavItem {
   icon: any;
   permission?: string;
   disabled?: boolean;
+  featureFlag?: FeatureFlag;
   badge?: string;
   badgeColor?: string;
 }
@@ -64,9 +67,9 @@ const NAV_SECTIONS: NavSection[] = [
     iconAccentColor: 'bg-[#38BDF8]',
     items: [
       { name: 'Jobs', path: '/jobs', icon: Hammer, permission: 'jobs.view' },
-      { name: 'Inspections', path: '/inspections', icon: ClipboardCheck, disabled: true, badge: 'DIP', badgeColor: 'bg-amber-500/15 border-amber-400/30 text-amber-300', permission: 'inspections.view' },
-      { name: 'Warranties', path: '/warranties', icon: ShieldCheck, disabled: true, badge: 'DIP', badgeColor: 'bg-amber-500/15 border-amber-400/30 text-amber-300', permission: 'warranties.view' },
-      { name: 'Finances', path: '/finances', icon: DollarSign, disabled: true, badge: 'DIP', badgeColor: 'bg-amber-500/15 border-amber-400/30 text-amber-300', permission: 'finances.view' },
+      { name: 'Inspections', path: '/inspections', icon: ClipboardCheck, featureFlag: 'inspections', permission: 'inspections.view' },
+      { name: 'Warranties', path: '/warranties', icon: ShieldCheck, featureFlag: 'warranties', permission: 'warranties.view' },
+      { name: 'Finances', path: '/finances', icon: DollarSign, featureFlag: 'finances', permission: 'finances.view' },
       { name: 'Web & Marketing', path: '/marketing', icon: Globe, permission: 'reports.view' },
     ],
   },
@@ -92,6 +95,18 @@ export function CrmSidebar() {
     return localStorage.getItem('crm_sidebar_bg') || '/hero-bg.jpg';
   });
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+
+  const isInspectionsEnabled = useFeature('inspections');
+  const isWarrantiesEnabled = useFeature('warranties');
+  const isFinancesEnabled = useFeature('finances');
+
+  const checkFeatureEnabled = useCallback((flag?: FeatureFlag) => {
+    if (!flag) return true;
+    if (flag === 'inspections') return isInspectionsEnabled;
+    if (flag === 'warranties') return isWarrantiesEnabled;
+    if (flag === 'finances') return isFinancesEnabled;
+    return false;
+  }, [isInspectionsEnabled, isWarrantiesEnabled, isFinancesEnabled]);
 
   // Tracks the path the user just clicked — set on mouseDown (before the
   // URL changes), so the active style appears instantly with zero delay.
@@ -194,9 +209,11 @@ export function CrmSidebar() {
             ======================================================== */}
         <nav className="flex-1 px-3 py-3 overflow-y-auto relative z-10 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.1)_transparent] hover:[scrollbar-color:rgba(56,189,248,0.4)_transparent]">
           {NAV_SECTIONS.map((section, sIndex) => {
-            const visibleItems = section.items.filter(
-              (item) => !item.permission || isOwner || can(item.permission)
-            );
+            const visibleItems = section.items.filter((item) => {
+              if (item.permission && !isOwner && !can(item.permission)) return false;
+              if (item.featureFlag && !checkFeatureEnabled(item.featureFlag)) return false;
+              return true;
+            });
             if (visibleItems.length === 0) return null;
 
             return (

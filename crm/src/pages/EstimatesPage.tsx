@@ -22,7 +22,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { NewEstimateChooserModal } from '@/components/estimates/NewEstimateChooserModal';
 import { UploadAndSendModal } from '@/components/estimates/UploadAndSendModal';
 import { api } from '@/lib/api';
-import { formatEstimatePrice } from '@/data/estimateConstants';
+import { formatEstimatePrice } from '@/shared/config/estimateConstants';
 import { useToast } from '@/context/ToastContext';
 
 

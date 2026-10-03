@@ -16,17 +16,48 @@ from app.middlewares.auth import (
     get_optional_current_user, require_auth, invalidate_session
 )
 from app.middlewares.rate_limit import rate_limit
-from app.schemas.auth import LoginRequest, LoginResponse, UserProfileResponse
+from app.schemas.auth import (
+    LoginRequest, LoginResponse, UserProfileResponse,
+    SessionListResponse, SessionActionResponse
+)
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Auth"])
 
+from app.core.audit import record_audit_log, get_client_ip, get_user_agent
+from app.core.csrf import generate_csrf_token, extract_session_cookie
+from app.core.permissions import AuthUser
+
 @router.get("/auth")
 @router.get("/auth/me")
-async def check_auth_session(user = Depends(get_optional_current_user)):
+async def check_auth_session(request: Request, response: Response, user = Depends(get_optional_current_user)):
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    return {"authenticated": True, "ok": True, "user": user.to_dict()}
+
+    session_token = getattr(request.state, "session_token", None) or extract_session_cookie(request)
+    csrf_val = generate_csrf_token(session_token) if session_token else ""
+
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+
+    if csrf_val:
+        is_secure = request.url.scheme == "https" or settings.ENVIRONMENT == "production"
+        response.set_cookie(
+            key=settings.CSRF_COOKIE_NAME,
+            value=csrf_val,
+            max_age=settings.SESSION_HOURS * 3600,
+            httponly=False,
+            secure=is_secure,
+            samesite="lax",
+            path="/"
+        )
+
+    return {
+        "authenticated": True,
+        "ok": True,
+        "user": user.to_dict(),
+        "csrf_token": csrf_val
+    }
 
 @router.post("/auth", dependencies=[Depends(rate_limit("admin-login", 20, 300))])
 @router.post("/auth/login", dependencies=[Depends(rate_limit("admin-login", 20, 300))])
@@ -72,29 +103,63 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
 
         raise HTTPException(status_code=401, detail="You are not authorized to access this system.")
 
-
     # Create session token
     token = generate_session_token()
     expires_at = datetime.now() + timedelta(hours=settings.SESSION_HOURS)
+    ip_addr = get_client_ip(request)
+    ua = get_user_agent(request)
 
     await db.execute(text("""
-        INSERT INTO admin_sessions (token, user_id, expires_at, created_at)
-        VALUES (:token, :uid, :exp, NOW())
-        ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, expires_at = EXCLUDED.expires_at
-    """), {"token": token, "uid": authenticated_user["id"], "exp": expires_at})
+        INSERT INTO admin_sessions (token, user_id, expires_at, created_at, ip_address, user_agent, last_seen_at)
+        VALUES (:token, :uid, :exp, NOW(), :ip, :ua, NOW())
+        ON CONFLICT (token) DO UPDATE SET 
+            user_id = EXCLUDED.user_id, 
+            expires_at = EXCLUDED.expires_at,
+            ip_address = EXCLUDED.ip_address,
+            user_agent = EXCLUDED.user_agent,
+            last_seen_at = NOW()
+    """), {
+        "token": token,
+        "uid": authenticated_user["id"],
+        "exp": expires_at,
+        "ip": ip_addr,
+        "ua": ua
+    })
 
     # Update last login timestamp
     await db.execute(text("UPDATE users SET last_login_at = NOW() WHERE id = :id"), {"id": authenticated_user["id"]})
     await db.commit()
 
-    # Set httpOnly cookie
-    is_prod = settings.ENVIRONMENT == "production"
+    # Set httpOnly session cookie
+    is_secure = request.url.scheme == "https" or settings.ENVIRONMENT == "production"
     response.set_cookie(
         key=settings.COOKIE_NAME,
         value=token,
         max_age=settings.SESSION_HOURS * 3600,
         httponly=True,
-        secure=is_prod,
+        secure=is_secure,
+        samesite="lax",
+        path="/"
+    )
+    if is_secure and not settings.is_dev_like:
+        response.set_cookie(
+            key="__Host-session",
+            value=token,
+            max_age=settings.SESSION_HOURS * 3600,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/"
+        )
+
+    # Set readable double-submit CSRF cookie
+    csrf_val = generate_csrf_token(token)
+    response.set_cookie(
+        key=settings.CSRF_COOKIE_NAME,
+        value=csrf_val,
+        max_age=settings.SESSION_HOURS * 3600,
+        httponly=False,
+        secure=is_secure,
         samesite="lax",
         path="/"
     )
@@ -109,7 +174,9 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             user_id=authenticated_user["id"],
             user_email=authenticated_user["email"],
             user_role=authenticated_user["role"],
-            request=request
+            request=request,
+            actor_type="user",
+            actor_id=str(authenticated_user["id"])
         )
         await db.commit()
     except Exception as e:
@@ -124,6 +191,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
     return {
         "ok": True,
         "token": token,
+        "csrf_token": csrf_val,
         "user": {
             "id": authenticated_user["id"],
             "name": authenticated_user["name"],
@@ -133,18 +201,107 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             "avatar_url": authenticated_user.get("avatar_url"),
             "permissions": perms,
             "is_protected_owner": is_protected,
+            "kind": "user",
+            "user_id": authenticated_user["id"],
         }
     }
 
-@router.delete("/auth")
-@router.post("/auth/logout")
+@router.delete("/auth", response_model=SessionActionResponse)
+@router.post("/auth/logout", response_model=SessionActionResponse)
 async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    token = request.cookies.get(settings.COOKIE_NAME)
+    token = extract_session_cookie(request)
+    if not token:
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            bearer_val = auth_header.split(" ", 1)[1].strip()
+            if not bearer_val.startswith("rup_"):
+                token = bearer_val
+
     if token:
         await invalidate_session(token, db)
 
-    response.delete_cookie(settings.COOKIE_NAME, path="/")
+    for c_name in ("__Host-session", settings.COOKIE_NAME, "session", settings.CSRF_COOKIE_NAME):
+        response.delete_cookie(c_name, path="/")
     return {"ok": True}
+
+@router.get("/auth/sessions", response_model=SessionListResponse)
+async def list_user_sessions(
+    request: Request,
+    user: AuthUser = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    if user.is_api_key:
+        raise HTTPException(status_code=400, detail="API keys do not have interactive sessions.")
+
+    current_token = getattr(request.state, "session_token", None) or extract_session_cookie(request)
+    stmt = text("""
+        SELECT id, token, created_at, expires_at, last_seen_at, ip_address, user_agent
+        FROM admin_sessions
+        WHERE user_id = :uid AND expires_at > NOW()
+        ORDER BY last_seen_at DESC, created_at DESC
+    """)
+    res = await db.execute(stmt, {"uid": user.id})
+    sessions = []
+    for row in res.fetchall():
+        s_id = row[0]
+        s_token = row[1]
+        is_cur = bool(current_token and s_token == current_token)
+        sessions.append({
+            "id": s_id,
+            "ip_address": row[5] or "Unknown IP",
+            "user_agent": row[6] or "Unknown Device",
+            "last_seen_at": row[4].isoformat() if row[4] else None,
+            "created_at": row[2].isoformat() if row[2] else None,
+            "is_current": is_cur,
+        })
+    return {"ok": True, "sessions": sessions}
+
+@router.delete("/auth/sessions/{session_id}", response_model=SessionActionResponse)
+async def revoke_session(
+    session_id: int,
+    request: Request,
+    user: AuthUser = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    if user.is_api_key:
+        raise HTTPException(status_code=400, detail="API keys cannot manage sessions.")
+
+    res = await db.execute(
+        text("SELECT token, user_id FROM admin_sessions WHERE id = :id"),
+        {"id": session_id}
+    )
+    row = res.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    if row[1] != user.id and not (user.role == "owner" or user.is_protected_owner):
+        raise HTTPException(status_code=403, detail="Cannot revoke another user's session.")
+
+    session_token = row[0]
+    await invalidate_session(session_token, db)
+    return {"ok": True, "message": "Session revoked."}
+
+@router.delete("/auth/sessions", response_model=SessionActionResponse)
+async def revoke_other_sessions(
+    request: Request,
+    user: AuthUser = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    if user.is_api_key:
+        raise HTTPException(status_code=400, detail="API keys cannot manage sessions.")
+
+    current_token = getattr(request.state, "session_token", None) or extract_session_cookie(request)
+    query = text("""
+        SELECT token FROM admin_sessions 
+        WHERE user_id = :uid AND (:cur_token IS NULL OR token != :cur_token)
+    """)
+    res = await db.execute(query, {"uid": user.id, "cur_token": current_token})
+    tokens = [r[0] for r in res.fetchall()]
+    for t in tokens:
+        await invalidate_session(t, db)
+
+    return {"ok": True, "revoked_count": len(tokens), "message": f"Revoked {len(tokens)} other sessions."}
+
 
 @router.get("/profile")
 async def get_current_profile(db: AsyncSession = Depends(get_db), user = Depends(require_auth)):

@@ -1,0 +1,27 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Python / tooling
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+
+# Dev-only material that must never ship in an image
+scratch/
+tests/
+*.zip
+*.pdf
+
+# Runtime user uploads (mounted as a volume, never baked in)
+static/uploads/
+app/static/uploads/
+
+# VCS / docs
+.git
+.gitignore
+*.md

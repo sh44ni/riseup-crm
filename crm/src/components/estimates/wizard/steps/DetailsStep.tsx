@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
-import { ESTIMATE_FIELD_CAPS } from '@/data/estimateConstants';
+import { ESTIMATE_FIELD_CAPS } from '@/shared/config/estimateConstants';
 import { FieldWithCap } from '../FieldWithCap';
 import { PhotoFrameEditor } from '../PhotoFrameEditor';
 import { Calendar, Search, Upload, Lock, User, MapPin, Phone, Mail, Image, Check } from 'lucide-react';

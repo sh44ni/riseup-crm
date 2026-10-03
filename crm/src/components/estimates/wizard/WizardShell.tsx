@@ -8,7 +8,7 @@ import {
   DEFAULT_ADDON_2, 
   DEFAULT_PRICING, 
   WIZARD_STEPS 
-} from '@/data/estimateConstants';
+} from '@/shared/config/estimateConstants';
 import { api } from '@/lib/api';
 import { PreviewPanel } from './PreviewPanel';
 import { WizardProgress } from './WizardProgress';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TwoOptionsEstimate, EstimateAddon } from '@/types/estimateContractTypes';
-import { ESTIMATE_FIELD_CAPS } from '@/data/estimateConstants';
+import { ESTIMATE_FIELD_CAPS } from '@/shared/config/estimateConstants';
 import { FieldWithCap } from '../FieldWithCap';
 import { Upload, Image as ImageIcon, Grid } from 'lucide-react';
 import { api } from '@/lib/api';

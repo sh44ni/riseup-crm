@@ -36,7 +36,22 @@ export function ContractPreviewPanel({
 
   // Generate live HTML string for the current active page
   const previewHtml = useMemo(() => {
-    return generateContractHtml(data, activePage);
+    try {
+      return generateContractHtml(data, activePage);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Please complete required project details to preview this contract.';
+      return `<!DOCTYPE html>
+<html>
+<head><style>body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #475569; }</style></head>
+<body>
+  <div style="text-align: center; max-width: 400px; padding: 24px; background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="font-size: 28px; margin-bottom: 12px;">📋</div>
+    <h3 style="margin: 0 0 8px 0; color: #0f172a; font-size: 16px; font-weight: 700;">Contract Draft In Progress</h3>
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #64748b;">${msg}</p>
+  </div>
+</body>
+</html>`;
+    }
   }, [data, activePage]);
 
   // Scale calculation to fit container cleanly (identical to Estimate Studio PreviewPanel)

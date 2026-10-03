@@ -223,6 +223,22 @@ async def cache_delete(key: str) -> None:
             global _redis_available
             _redis_available = False
 
+async def cache_pop(key: str) -> Optional[str]:
+    """Atomically read and delete a key (single-use values such as OAuth state)."""
+    global _redis_available
+    now = time.time()
+    local = _in_memory_cache.pop(key, None)
+    local_val = local[0] if local and local[1] > now else None
+
+    if await is_redis_available():
+        try:
+            client = get_redis()
+            remote_val = await client.getdel(key)
+            return remote_val or local_val
+        except Exception:
+            _redis_available = False
+    return local_val
+
 async def invalidate_session_cache() -> None:
     for k in list(_in_memory_cache.keys()):
         if k.startswith("session_user:"):

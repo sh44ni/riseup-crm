@@ -62,3 +62,30 @@ class LoginResponse(BaseModel):
     user: Union[UserProfileResponse, Dict[str, Any]]
 
     model_config = ConfigDict(extra="allow")
+
+
+class SessionItem(BaseModel):
+    id: int
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    last_seen_at: Optional[str] = None
+    created_at: Optional[str] = None
+    is_current: bool = False
+
+    model_config = ConfigDict(extra="allow")
+
+
+class SessionListResponse(BaseModel):
+    ok: bool = True
+    sessions: List[SessionItem]
+
+    model_config = ConfigDict(extra="allow")
+
+
+class SessionActionResponse(BaseModel):
+    ok: bool = True
+    message: Optional[str] = None
+    revoked_count: Optional[int] = None
+
+    model_config = ConfigDict(extra="allow")
+

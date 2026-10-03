@@ -22,6 +22,9 @@ export const API_ORIGIN = getBackendBaseUrl();
 //   - Production: nginx on crm.riseuprac.com forwards /api → http://127.0.0.1:8010
 //   - Staging:    nginx on staging.riseuprac.com forwards /api → http://127.0.0.1:8011
 // Only fall back to the full absolute URL for non-proxied hosts (e.g. Vercel previews).
+import { isPublicEndpoint, isOnPublicPage } from '@/shared/api/publicRoutes';
+import { getCsrfToken, setCsrfToken } from '@/shared/api/client';
+
 const PROXIED_HOSTS = ['localhost', '127.0.0.1', 'crm.riseuprac.com', 'staging.riseuprac.com'];
 export const API_BASE = (() => {
   if (typeof window !== 'undefined' && PROXIED_HOSTS.includes(window.location.hostname)) {
@@ -35,19 +38,14 @@ class ApiClient {
   private isRedirecting401 = false;
 
   constructor() {
-    if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('crm_auth_token');
-    }
+    // Session credentials are maintained in HttpOnly cookies.
+    // Legacy tokens in localStorage are cleaned up by shared/api/client.
   }
 
   setToken(token: string | null) {
     this.token = token;
     if (token) {
       this.isRedirecting401 = false;
-      localStorage.setItem('crm_auth_token', token);
-    } else {
-      localStorage.removeItem('crm_auth_token');
-      localStorage.removeItem('crm_user');
     }
   }
 
@@ -55,12 +53,19 @@ class ApiClient {
     return this.token;
   }
 
-  getAuthHeaders(): Record<string, string> {
+  getAuthHeaders(method: string = 'GET'): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'X-Client-Platform': 'crm-web',
     };
+    const upperMethod = method.toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(upperMethod)) {
+      const csrf = getCsrfToken();
+      if (csrf) {
+        headers['X-CSRF-Token'] = csrf;
+      }
+    }
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
@@ -70,7 +75,8 @@ class ApiClient {
   async request<T = any>(endpoint: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
     const { timeoutMs = 12000, ...fetchOptions } = options;
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
-    const baseHeaders = this.getAuthHeaders();
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    const baseHeaders = this.getAuthHeaders(method);
     const headers: Record<string, string> = {
       ...baseHeaders,
       ...((fetchOptions.headers as Record<string, string>) || {}),
@@ -99,27 +105,10 @@ class ApiClient {
 
       clearTimeout(timeoutId);
 
-      // Public routes that should NEVER be redirected to /login on a 401,
-      // even if the browser has a stale token in localStorage.
-      const PUBLIC_ENDPOINTS = [
-        '/auth/login',
-        '/public/invitations',
-        '/public/contracts',
-        '/contract/sign',
-      ];
-      const isPublicEndpoint = PUBLIC_ENDPOINTS.some(p => endpoint.includes(p));
-
-      // Also skip the 401→/login redirect when visiting public CRM pages
-      // (accept-invite, contract sign) even if getMe() returns 401 for a stale token.
-      const PUBLIC_PAGES = ['/accept-invite', '/contract/sign/', '/changelogs'];
-      const isOnPublicPage = typeof window !== 'undefined' &&
-        PUBLIC_PAGES.some(p => window.location.pathname.startsWith(p));
-
-      if (res.status === 401 && !isPublicEndpoint && !isOnPublicPage) {
+      if (res.status === 401 && !isPublicEndpoint(endpoint) && !isOnPublicPage()) {
         this.setToken(null);
+        setCsrfToken(null);
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('crm_auth_token');
-          localStorage.removeItem('crm_user');
           if (!this.isRedirecting401) {
             this.isRedirecting401 = true;
             if (window.location.pathname !== '/login') {
@@ -139,6 +128,7 @@ class ApiClient {
         } else if (Array.isArray(data.detail)) {
           errorMsg = data.detail.map((d: any) => (typeof d === 'string' ? d : d.msg || JSON.stringify(d))).join(', ');
         } else if (data.detail && typeof data.detail === 'object') {
+
           errorMsg = data.detail.message || JSON.stringify(data.detail);
         } else if (data.error) {
           errorMsg = typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error));
@@ -174,6 +164,9 @@ class ApiClient {
     if (res.token) {
       this.setToken(res.token);
     }
+    if (res.csrf_token) {
+      setCsrfToken(res.csrf_token);
+    }
     return res;
   }
 
@@ -184,12 +177,31 @@ class ApiClient {
       // ignore network errors when offline
     } finally {
       this.setToken(null);
+      setCsrfToken(null);
     }
   }
 
   async getMe() {
-    return await this.request('/admin/auth/me');
+    const res = await this.request('/admin/auth/me');
+    if (res?.csrf_token) {
+      setCsrfToken(res.csrf_token);
+    }
+    return res;
   }
+
+  // ── Session Management (Security & Backups) ──
+  async getSessions(): Promise<{ ok: boolean; sessions: Array<{ id: number; ip_address: string; user_agent: string; last_seen_at: string; created_at: string; is_current: boolean }> }> {
+    return await this.request('/admin/auth/sessions');
+  }
+
+  async revokeSession(sessionId: number): Promise<{ ok: boolean; message?: string }> {
+    return await this.request(`/admin/auth/sessions/${sessionId}`, { method: 'DELETE' });
+  }
+
+  async revokeOtherSessions(): Promise<{ ok: boolean; revoked_count: number; message?: string }> {
+    return await this.request('/admin/auth/sessions', { method: 'DELETE' });
+  }
+
 
   // ── Profile & Account Management ──
   async getProfile(): Promise<{ ok: boolean; user: any }> {
@@ -791,32 +803,5 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit & { timeoutMs?: number } = {}
 ): Promise<T> {
-  const { timeoutMs = 12000, headers: extraHeaders, ...fetchOptions } = options;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...fetchOptions,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...api.getAuthHeaders(),
-        ...(extraHeaders as Record<string, string> ?? {}),
-      },
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) {
-      let errMsg = `HTTP ${res.status}`;
-      try {
-        const errBody = await res.json();
-        errMsg = errBody.detail ?? errBody.error ?? errMsg;
-      } catch (_) {}
-      throw new Error(errMsg);
-    }
-    return res.json() as Promise<T>;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
-  }
+  return api.request<T>(path, options);
 }

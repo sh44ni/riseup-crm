@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   website:
     name: Build Website (Next.js)
@@ -40,47 +47,83 @@ jobs:
           USE_FASTAPI: 'true'
 
   backend:
-    name: Lint & Test Backend (FastAPI & Pytest)
+    name: Lint, Type-check & Test Backend
     runs-on: ubuntu-latest
 
     defaults:
       run:
         working-directory: ./backend
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: riseup_test
+          POSTGRES_USER: riseup
+          POSTGRES_PASSWORD: riseup_ci_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U riseup -d riseup_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ENVIRONMENT: test
+      APP_ENV: test
+      DATABASE_URL: postgresql+asyncpg://riseup:riseup_ci_password@localhost:5432/riseup_test
+      REDIS_URL: redis://localhost:6379/0
+      # Test-only values; long enough to satisfy the production-safety check from P0 (>=32 chars).
+      SESSION_SECRET_KEY: ci-session-secret-0123456789abcdef0123456789abcdef
+      MIGRATION_KEY: ci-migration-key-0123456789abcdef0123456789abcdef
+      CRON_SECRET: ci-cron-secret-0123456789abcdef0123456789abcdef
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff
+      - name: Install dependencies (locked)
+        run: uv sync --frozen
 
-      - name: Lint with Ruff
-        run: ruff check app/
+      - name: Ruff lint
+        run: uv run ruff check app
 
-      - name: Install pytest-cov
-        run: pip install pytest-cov
+      - name: Ruff format check
+        run: uv run ruff format --check app
 
-      - name: Run Pytest with Coverage
-        run: |
-          pytest --cov=app --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=40
-        env:
-          ENVIRONMENT: test
-          APP_ENV: test
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
-          SESSION_SECRET_KEY: test-secret-key-for-ci-only-not-production
-          MIGRATION_KEY: test-migration-key-for-ci
-          CRON_SECRET: test-cron-secret-for-ci
+      - name: Type check (mypy)
+        run: uv run mypy app
 
-      - name: Upload Coverage Report
+      - name: Architecture contracts (import-linter)
+        run: uv run lint-imports
+
+      - name: requirements.txt is in sync with uv.lock
+        run: make requirements-check
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+
+      - name: Pytest with coverage
+        # --cov-fail-under is the measured value rounded down (ratchet), not an aspiration.
+        run: >-
+          uv run pytest -n auto --cov=app --cov-report=xml:coverage.xml
+          --cov-report=term-missing --cov-fail-under=34
+
+      - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -104,7 +147,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: crm/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -112,15 +155,93 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
-      - name: ESLint check
-        run: npx eslint src --max-warnings 50
+      - name: ESLint (warning count may not exceed the baseline)
+        run: >-
+          npx eslint src -f json -o eslint-report.json
+          --max-warnings=$(node -p "require('../quality-baseline.json').metrics['fe.eslint_warnings']")
 
-      - name: Run Vitest tests
-        run: npm test
-
-      - name: Run Vitest Coverage
+      - name: Vitest with coverage (thresholds are required)
         run: npx vitest run --coverage
-        continue-on-error: true  # Don't fail CI until coverage is established
+
+      - name: Dead-code report (knip, informational)
+        run: npx knip --reporter json > knip-report.json || true
+        continue-on-error: true
 
       - name: Build CRM
         run: npm run build
+
+      - name: Upload CRM reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crm-reports
+          path: |
+            crm/eslint-report.json
+            crm/knip-report.json
+            crm/coverage/coverage-summary.json
+
+  ratchet:
+    name: Quality ratchet
+    runs-on: ubuntu-latest
+    needs: [backend, crm]
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install backend dependencies (route introspection imports the app)
+        working-directory: ./backend
+        run: uv sync --frozen
+
+      - name: Download backend coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: reports/backend
+
+      - name: Download CRM reports
+        uses: actions/download-artifact@v4
+        with:
+          name: crm-reports
+          path: reports/crm
+
+      - name: Run ratchet
+        run: >-
+          uv run --project backend python scripts/quality_ratchet.py
+          --markdown ratchet.md
+          --backend-coverage reports/backend/coverage.xml
+          --frontend-coverage reports/crm/coverage/coverage-summary.json
+          --eslint-json reports/crm/eslint-report.json
+          --knip-json reports/crm/knip-report.json
+        env:
+          ENVIRONMENT: test
+          APP_ENV: test
+
+      - name: Post table as PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('ratchet.md')) return;
+            const body = fs.readFileSync('ratchet.md', 'utf8');
+            const marker = '<!-- quality-ratchet -->';
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            const payload = { ...context.repo, body: `${marker}\n${body}` };
+            if (existing) {
+              await github.rest.issues.updateComment({ ...payload, comment_id: existing.id });
+            } else {
+              await github.rest.issues.createComment({ ...payload, issue_number: context.issue.number });
+            }

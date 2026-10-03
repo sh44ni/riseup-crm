@@ -1,0 +1,37 @@
+export interface ContractRenderContext {
+  clientName: string;
+  clientInitials: string;
+  isSigned: boolean;
+  clientSignatureName: string;
+  clientSignatureData: string;
+  isClientSigned: boolean;
+  isCounterSigned: boolean;
+  executionStatusLabel: string;
+  executionStatusSlug: string;
+  contractorSignatureName: string;
+  contractorSignatureData: string;
+  projectAddress: string;
+  contractDate: string;
+  salespersonName: string;
+  contractorName: string;
+  contractorLicense: string;
+  scopeTitle: string;
+  scopeIntro: string;
+  scopeSections: Array<{ heading: string; text: string }>;
+  contractPrice: string;
+  downpayment: string;
+  financeCharge: string;
+  approxStartDate: string;
+  substantialCommencementDate: string;
+  approxCompletionDate: string;
+  cancellationEmail: string;
+  insuranceCarrier: string;
+  insurancePhone: string;
+  workersCompCarrier: string;
+  workersCompPhone: string;
+  paymentRows: Array<{ number: string; description: string; amount: number }>;
+  signedAt?: string | null;
+  counterSignedAt?: string | null;
+  fmt: (n: number) => string;
+  escapeHtml: (s: string) => string;
+}

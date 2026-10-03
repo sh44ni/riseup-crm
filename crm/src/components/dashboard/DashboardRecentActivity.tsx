@@ -37,7 +37,7 @@ function formatRelativeTime(isoString?: string | null): string {
 export function ActivityItemCard({ activity }: { activity: RecentActivityItem }) {
   const type = activity.activity_type;
   const userName = (activity.user_name || activity.performed_by || 'Staff').split(' ')[0];
-  const targetName = activity.target_name || activity.metadata?.lead_name || activity.metadata?.customer_name || 'Client';
+  const targetName = String(activity.target_name || activity.metadata?.lead_name || activity.metadata?.customer_name || 'Client');
   const amount = activity.amount ?? activity.metadata?.amount ?? activity.metadata?.contract_value;
   const formattedAmount = amount && Number(amount) > 0 ? `$${Number(amount).toLocaleString()}` : null;
   const timeStr = formatRelativeTime(activity.created_at);

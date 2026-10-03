@@ -3,7 +3,7 @@
 // Provides live pipeline data for Dashboard (8-column) and PipelinePage (11-step + 4-phase)
 
 import type { ColumnData, DealCard, PipelineDealItem, PipelineStageId } from '../components/pipeline/pipelineTypes';
-import { api, API_ORIGIN } from '@/lib/api';
+import { httpClient } from '@/shared/api/client';
 import type { BackendLead } from '@/types/backendTypes';
 
 export type { PipelineDealItem, PipelineStageId };
@@ -17,9 +17,6 @@ import {
   normalizeSlaStatus
 } from '../utils/pipelineUtils';
 
-const BASE = API_ORIGIN;
-const API_KEY = import.meta.env.VITE_CRM_API_KEY || '';
-
 export type { BackendLead as BackendLeadRaw };
 
 export interface PipelineSummary {
@@ -32,14 +29,28 @@ export interface PipelineSummary {
   lostCount?: number;
 }
 
+export interface PipelineApiSummary {
+  total_leads?: number;
+  total_pipeline_value?: number;
+  unassigned_count?: number;
+  sla_health_pct?: number;
+  active_installations?: number;
+  won_count?: number;
+  lost_count?: number;
+}
+
+export interface PipelineApiResponse {
+  ok?: boolean;
+  granular_stages?: Record<string, BackendLead[]>;
+  stages?: Record<string, BackendLead[]>;
+  summary?: PipelineApiSummary;
+  users?: unknown[];
+  detail?: string;
+}
+
 export async function fetchPipelineForDashboard(): Promise<{ columns: ColumnData[]; summary: PipelineSummary | null }> {
   try {
-    const res = await fetch(`${BASE}/api/admin/pipeline`, {
-      headers: api.getAuthHeaders(),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return { columns: [], summary: null };
-    const json = await res.json();
+    const json = await httpClient.get<PipelineApiResponse>('/admin/pipeline', { timeoutMs: 8000 });
     if (!json?.ok) return { columns: [], summary: null };
 
     // Prefer granular_stages or stages
@@ -125,10 +136,10 @@ export async function fetchPipelineForDashboard(): Promise<{ columns: ColumnData
     const rawSummary = json.summary;
     const summary: PipelineSummary | null = rawSummary
       ? {
-          totalLeads: rawSummary.total_leads,
-          totalPipelineValue: rawSummary.total_pipeline_value,
-          unassignedCount: rawSummary.unassigned_count,
-          slaHealthPct: rawSummary.sla_health_pct,
+          totalLeads: rawSummary.total_leads ?? 0,
+          totalPipelineValue: rawSummary.total_pipeline_value ?? 0,
+          unassignedCount: rawSummary.unassigned_count ?? 0,
+          slaHealthPct: rawSummary.sla_health_pct ?? 0,
           activeInstallations: rawSummary.active_installations,
           wonCount: rawSummary.won_count,
           lostCount: rawSummary.lost_count,
@@ -148,17 +159,9 @@ export async function fetchPipelineForDashboard(): Promise<{ columns: ColumnData
 export async function fetchPipelineDeals(): Promise<{
   deals: PipelineDealItem[];
   summary: PipelineSummary | null;
-  users: any[];
+  users: unknown[];
 }> {
-  const res = await fetch(`${BASE}/api/admin/pipeline`, {
-    headers: api.getAuthHeaders(),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to load pipeline: HTTP ${res.status}`);
-  }
-
-  const json = await res.json();
+  const json = await httpClient.get<PipelineApiResponse>('/admin/pipeline');
   if (!json?.ok) {
     throw new Error(json?.detail || 'Failed to load pipeline data');
   }
@@ -265,10 +268,10 @@ export async function fetchPipelineDeals(): Promise<{
   const rawSummary = json.summary;
   const summary: PipelineSummary | null = rawSummary
     ? {
-        totalLeads: rawSummary.total_leads,
-        totalPipelineValue: rawSummary.total_pipeline_value,
-        unassignedCount: rawSummary.unassigned_count,
-        slaHealthPct: rawSummary.sla_health_pct,
+        totalLeads: rawSummary.total_leads ?? 0,
+        totalPipelineValue: rawSummary.total_pipeline_value ?? 0,
+        unassignedCount: rawSummary.unassigned_count ?? 0,
+        slaHealthPct: rawSummary.sla_health_pct ?? 0,
         activeInstallations: rawSummary.active_installations,
         wonCount: rawSummary.won_count,
         lostCount: rawSummary.lost_count,
@@ -283,28 +286,14 @@ export async function updatePipelineDealStage(
   newStage: string,
   notes?: string,
   authorInfo?: { plainNote?: string; authorName?: string; authorRole?: string }
-): Promise<{ ok: boolean; lead: any }> {
-  const res = await fetch(`${BASE}/api/admin/pipeline/${leadId}/stage`, {
-    method: 'PUT',
-    headers: {
-      ...api.getAuthHeaders(),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      stage: newStage,
-      notes: notes || undefined,
-      plainNote: authorInfo?.plainNote || undefined,
-      authorName: authorInfo?.authorName || undefined,
-      authorRole: authorInfo?.authorRole || undefined,
-    }),
+): Promise<{ ok: boolean; lead: BackendLead }> {
+  return await httpClient.put<{ ok: boolean; lead: BackendLead }>(`/admin/pipeline/${leadId}/stage`, {
+    stage: newStage,
+    notes: notes || undefined,
+    plainNote: authorInfo?.plainNote || undefined,
+    authorName: authorInfo?.authorName || undefined,
+    authorRole: authorInfo?.authorRole || undefined,
   });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || errorData.error || `Stage update failed with HTTP ${res.status}`);
-  }
-
-  return await res.json();
 }
 
 export async function setDealOutcome(
@@ -316,28 +305,14 @@ export async function setDealOutcome(
     authorName?: string;
     authorRole?: string;
   }
-): Promise<{ ok: boolean; lead: any }> {
-  const res = await fetch(`${BASE}/api/admin/pipeline/${leadId}/stage`, {
-    method: 'PUT',
-    headers: {
-      ...api.getAuthHeaders(),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      stage: outcome,
-      notes: payload.notes,
-      lossReason: payload.lossReason,
-      authorName: payload.authorName,
-      authorRole: payload.authorRole,
-    }),
+): Promise<{ ok: boolean; lead: BackendLead }> {
+  return await httpClient.put<{ ok: boolean; lead: BackendLead }>(`/admin/pipeline/${leadId}/stage`, {
+    stage: outcome,
+    notes: payload.notes,
+    lossReason: payload.lossReason,
+    authorName: payload.authorName,
+    authorRole: payload.authorRole,
   });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.detail || errorData.error || `Outcome update failed with HTTP ${res.status}`);
-  }
-
-  return await res.json();
 }
 
 /**
@@ -348,22 +323,8 @@ export async function toggleChecklistItem(
   itemKey: string,
   completed: boolean,
   stage?: string
-): Promise<{ ok: boolean; checklist_item: any }> {
-  const res = await fetch(`${BASE}/api/admin/pipeline/${leadId}/checklist/${itemKey}`, {
-    method: 'PUT',
-    headers: {
-      ...api.getAuthHeaders(),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ completed, stage }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to update checklist item' }));
-    throw new Error(err?.detail || 'Failed to update checklist item');
-  }
-
-  return await res.json();
+): Promise<{ ok: boolean; checklist_item: unknown }> {
+  return await httpClient.put<{ ok: boolean; checklist_item: unknown }>(`/admin/pipeline/${leadId}/checklist/${itemKey}`, { completed, stage });
 }
 
 /**
@@ -374,44 +335,17 @@ export async function logDealFollowUp(
   leadId: string | number,
   payload: { method: string; notes: string; outcome?: string }
 ): Promise<{ ok: boolean; message: string; followUpAt: string }> {
-  const res = await fetch(`${BASE}/api/admin/pipeline/${leadId}/follow-up`, {
-    method: 'POST',
-    headers: {
-      ...api.getAuthHeaders(),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to log follow-up' }));
-    throw new Error(err?.detail || 'Failed to log follow-up');
-  }
-
-  return await res.json();
+  return await httpClient.post<{ ok: boolean; message: string; followUpAt: string }>(`/admin/pipeline/${leadId}/follow-up`, payload);
 }
 
-export async function fetchPipelineAnalytics() {
+export interface PipelineAnalyticsData {
+  probabilities?: Record<string, number>;
+  [key: string]: unknown;
+}
+
+export async function fetchPipelineAnalytics(): Promise<PipelineAnalyticsData> {
   try {
-    const res = await fetch(`${BASE}/api/admin/pipeline/analytics`, {
-      headers: api.getAuthHeaders(),
-    });
-    if (!res.ok) {
-      return {
-        probabilities: {
-          cold_lead: 0.10,
-          initial_call: 0.20,
-          estimate_scheduled: 0.40,
-          estimate_sent: 0.60,
-          follow_up: 0.65,
-          contract_sent: 0.80,
-          contract_signed: 0.95,
-          active_jobs: 0.98,
-          closed_lost: 0.0,
-        },
-      };
-    }
-    return await res.json();
+    return await httpClient.get<PipelineAnalyticsData>('/admin/pipeline/analytics');
   } catch (err) {
     console.warn('Pipeline analytics endpoint error, using defaults:', err);
     return {
@@ -433,8 +367,8 @@ export async function fetchPipelineAnalytics() {
 /**
  * Claim an unassigned website lead for the current logged in user.
  */
-export async function claimLead(leadId: string | number): Promise<{ ok: boolean; lead: any }> {
-  return await api.claimLead(leadId);
+export async function claimLead(leadId: string | number): Promise<{ ok: boolean; lead: BackendLead }> {
+  return await httpClient.post<{ ok: boolean; lead: BackendLead }>(`/admin/pipeline/${leadId}/claim`);
 }
 
 /**
@@ -444,6 +378,9 @@ export async function reassignLead(
   leadId: string | number,
   newUserId: number,
   notes?: string
-): Promise<{ ok: boolean; lead: any }> {
-  return await api.reassignLead(leadId, newUserId, notes);
+): Promise<{ ok: boolean; lead: BackendLead }> {
+  return await httpClient.post<{ ok: boolean; lead: BackendLead }>(`/admin/pipeline/${leadId}/reassign`, {
+    new_user_id: newUserId,
+    notes,
+  });
 }

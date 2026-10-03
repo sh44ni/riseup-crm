@@ -23,7 +23,7 @@ export interface KanbanBoardProps {
   onClaimDeal?: (deal: PipelineDealItem) => void;
   onReassignDeal?: (deal: PipelineDealItem) => void;
   onFollowUpDeal?: (deal: PipelineDealItem) => void;
-  getServiceBadgeClass: (color: string) => string;
+  getServiceBadgeClass: (color?: string) => string;
   scrollRef?: React.RefObject<HTMLDivElement | null> | React.RefObject<HTMLDivElement>;
   onScroll?: () => void;
 }

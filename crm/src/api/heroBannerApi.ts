@@ -1,12 +1,9 @@
 /**
- * ==============================================================================
  * RISE UP CRM — HERO BANNER BACKEND API CLIENT
- * ==============================================================================
- * Implements the client-side REST interface for the Hero Banner system,
- * supporting optimistic caching, seamless cloud photo uploads, and
- * resilient offline fallback when the FastAPI backend is not running.
- * ==============================================================================
+ * Connects to /api/admin/hero-banners via typed httpClient.
  */
+
+import { httpClient } from '@/shared/api/client';
 
 export interface HeroBannerBackendData {
   page_id: string;
@@ -40,6 +37,7 @@ export interface HeroBannerSavePayload {
 export interface HeroBannerMapResponse {
   global_banner?: HeroBannerBackendData;
   pages?: Record<string, HeroBannerBackendData>;
+  data?: HeroBannerMapResponse;
 }
 
 export interface HeroImageUploadResult {
@@ -49,16 +47,13 @@ export interface HeroImageUploadResult {
   size_bytes: number;
 }
 
-import { apiFetch, API_BASE } from '@/lib/api';
-import api from '@/lib/api';
-
 /**
  * 1. Fetch All Hero Banners (Global + Per-Page Overrides)
  */
 export async function fetchHeroBannersMap(): Promise<HeroBannerMapResponse | null> {
   try {
-    const res = await apiFetch<any>('/admin/hero-banners');
-    return res?.data ?? res;
+    const res = await httpClient.get<HeroBannerMapResponse>('/admin/hero-banners');
+    return res?.data ?? res ?? null;
   } catch {
     return null;
   }
@@ -71,8 +66,8 @@ export async function fetchHeroBannerForPage(
   pageId: string
 ): Promise<HeroBannerBackendData | null> {
   try {
-    const res = await apiFetch<any>(`/admin/hero-banners/${pageId}`);
-    return res?.data ?? res;
+    const res = await httpClient.get<{ data?: HeroBannerBackendData } | HeroBannerBackendData>(`/admin/hero-banners/${pageId}`);
+    return (res && 'data' in res ? res.data : res as HeroBannerBackendData) ?? null;
   } catch {
     return null;
   }
@@ -86,11 +81,11 @@ export async function saveHeroBannerToBackend(
   payload: HeroBannerSavePayload
 ): Promise<HeroBannerBackendData | null> {
   try {
-    const res = await apiFetch<any>(`/admin/hero-banners/${pageId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-    return res?.data ?? res;
+    const res = await httpClient.put<{ data?: HeroBannerBackendData } | HeroBannerBackendData>(
+      `/admin/hero-banners/${pageId}`,
+      payload
+    );
+    return (res && 'data' in res ? res.data : res as HeroBannerBackendData) ?? null;
   } catch {
     return null;
   }
@@ -101,9 +96,7 @@ export async function saveHeroBannerToBackend(
  */
 export async function resetHeroBannerOnBackend(pageId: string): Promise<boolean> {
   try {
-    await apiFetch<any>(`/admin/hero-banners/${pageId}`, {
-      method: 'DELETE',
-    });
+    await httpClient.delete<unknown>(`/admin/hero-banners/${pageId}`);
     return true;
   } catch {
     return false;
@@ -112,25 +105,14 @@ export async function resetHeroBannerOnBackend(pageId: string): Promise<boolean>
 
 /**
  * 5. Upload Custom Image File to Cloud Storage
- * Returns the permanent CDN / public asset URL.
  */
 export async function uploadHeroImageFile(file: File): Promise<HeroImageUploadResult | null> {
   try {
     const formData = new FormData();
     formData.append('file', file);
 
-    const headers = api.getAuthHeaders();
-    
-    // Note: No Content-Type for FormData
-    const response = await fetch(`${API_BASE}/admin/hero-banners/upload`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) return null;
-    const json = await response.json();
-    return json?.data ?? json;
+    const json = await httpClient.post<{ data?: HeroImageUploadResult } | HeroImageUploadResult>('/admin/hero-banners/upload', formData);
+    return (json && typeof json === 'object' && 'data' in json ? (json.data as HeroImageUploadResult) : (json as HeroImageUploadResult)) ?? null;
   } catch {
     return null;
   }
@@ -141,7 +123,7 @@ export async function uploadHeroImageFile(file: File): Promise<HeroImageUploadRe
  */
 export async function checkBackendConnection(): Promise<boolean> {
   try {
-    await apiFetch('/docs', { method: 'HEAD', timeoutMs: 1200 });
+    await httpClient.get<unknown>('/docs', { timeoutMs: 1500 });
     return true;
   } catch {
     return false;

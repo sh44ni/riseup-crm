@@ -14,9 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from app.core.database import get_db
+from app.core.logger import get_logger
 from app.services.contract_pdf_generator import generate_contract_pdf, save_contract_pdf
 from app.schemas.contracts import PublicSignContractRequest
 
+logger = get_logger(__name__)
 router = APIRouter(tags=["Public Contracts Portal"])
 
 
@@ -181,8 +183,9 @@ async def sign_public_contract(
     # Generate the Signed & Initialed PDF via Playwright
     try:
         signed_pdf_url = await save_contract_pdf(contract_data, contract_id)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Signed PDF generation failed: {exc}")
+    except Exception:
+        logger.exception("Signed contract PDF generation failed (contract_id=%s)", contract_id)
+        raise HTTPException(status_code=500, detail="Signed PDF generation failed")
 
     # Update contract in DB: Mark as 1-Party Signed ('client_signed')
     await db.execute(
@@ -233,8 +236,6 @@ async def sign_public_contract(
             text("""
                 UPDATE leads
                 SET pipeline_stage = 'contract_signed',
-                    granular_stage = 'contract_signed',
-                    contract_status = 'client_signed',
                     stage_entered_at = NOW(),
                     contract_signed_at = COALESCE(contract_signed_at, :signed_at),
                     status = 'won',

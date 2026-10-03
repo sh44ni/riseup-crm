@@ -1,6 +1,6 @@
 import React from 'react';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
-import { TEMPLATE_REGISTRY } from '@/data/estimateConstants';
+import { TEMPLATE_REGISTRY } from '@/shared/config/estimateConstants';
 
 interface StepProps {
   data: TwoOptionsEstimate;

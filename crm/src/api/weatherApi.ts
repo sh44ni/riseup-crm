@@ -1,12 +1,9 @@
 /**
- * ==============================================================================
  * RISE UP CRM — WEATHER API CLIENT
- * ==============================================================================
- * Connects the frontend coastal weather widget to the backend weather service
- * (/api/admin/weather or /api/v1/weather/current) with resilient offline fallback,
- * condition normalization, and 0ms instant caching.
- * ==============================================================================
+ * Connects to /api/admin/weather via typed httpClient.
  */
+
+import { httpClient } from '@/shared/api/client';
 
 export type WeatherConditionKey =
   | 'sunny'
@@ -105,7 +102,39 @@ export const FALLBACK_WEATHER_DATA: WeatherData = {
   is_fallback: true,
 };
 
-import { apiFetch } from '@/lib/api';
+interface WeatherApiResponse {
+  location?: string;
+  localtime?: string;
+  current?: {
+    is_day?: number;
+    condition?: { text?: string; condition_key?: WeatherConditionKey };
+    condition_text?: string;
+    condition_key?: WeatherConditionKey;
+    temp_f?: number;
+    temp?: number;
+    feelslike_f?: number;
+    feels_like?: number;
+    humidity?: number;
+    wind_mph?: number;
+  };
+  temp_f?: number;
+  temp?: number;
+  feelslike_f?: number;
+  feels_like?: number;
+  condition?: { text?: string; condition_key?: WeatherConditionKey };
+  condition_text?: string;
+  condition_key?: WeatherConditionKey;
+  is_day?: number;
+  humidity?: number;
+  wind_mph?: number;
+  forecast?: Array<{
+    maxtemp_f?: number;
+    high_f?: number;
+    mintemp_f?: number;
+    low_f?: number;
+  }>;
+  data?: WeatherApiResponse;
+}
 
 /**
  * Fetch current weather for a specific location from FastAPI backend
@@ -113,11 +142,10 @@ import { apiFetch } from '@/lib/api';
 export async function fetchCurrentWeather(location: string = 'Oceanside, CA'): Promise<WeatherData | null> {
   try {
     const url = `/admin/weather?location=${encodeURIComponent(location)}`;
-    const rawData = await apiFetch<any>(url, { timeoutMs: 3000 });
+    const rawData = await httpClient.get<WeatherApiResponse>(url, { timeoutMs: 3000 });
     const raw = rawData?.data ?? rawData;
     if (!raw) return null;
 
-    // Support both shaped WeatherAPI response and direct attributes
     const current = raw.current ?? raw;
     const isDay = Boolean(current.is_day !== undefined ? current.is_day : 1);
     const condText = current.condition?.text || current.condition_text || 'Sunny';
@@ -153,10 +181,7 @@ export async function fetchCurrentWeather(location: string = 'Oceanside, CA'): P
     };
 
     return shaped;
-  } catch (err: any) {
-    if (err.name !== 'AbortError') {
-      console.debug('[WeatherApi] Backend weather service offline, using resilient cached fallback.');
-    }
+  } catch {
     return null;
   }
 }
@@ -166,7 +191,7 @@ export async function fetchCurrentWeather(location: string = 'Oceanside, CA'): P
  */
 export async function checkWeatherBackendOnline(): Promise<boolean> {
   try {
-    await apiFetch('/admin/weather?location=Oceanside,%20CA', { timeoutMs: 1200 });
+    await httpClient.get<unknown>('/admin/weather?location=Oceanside,%20CA', { timeoutMs: 1200 });
     return true;
   } catch {
     return false;

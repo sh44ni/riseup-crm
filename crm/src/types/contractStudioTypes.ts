@@ -14,7 +14,7 @@ export interface ContractPaymentRow {
 export interface ContractStudioData {
   id?: string;
   contractNumber?: string;
-  status: 'draft' | 'sent' | 'signed';
+  status: 'draft' | 'sent' | 'signed' | 'client_signed' | string;
   createdAt?: string;
 
   // Client & Lead info
@@ -63,13 +63,20 @@ export interface ContractStudioData {
   // Execution & Signature info
   isSigned: boolean;
   signedAt?: string;
+  client_signed_at?: string;
   clientInitials: string;
   clientSignatureName: string;
   clientSignatureData?: string;
   clientSignatureType?: 'typed' | 'drawn';
   clientSignatureTime?: string;
   contractorSignatureName: string;
+  contractorSignatureData?: string;
+  contractor_signature_data?: string;
   contractorSignatureTime?: string;
+  isCounterSigned?: boolean;
+  is_counter_signed?: boolean;
+  counterSignedAt?: string;
+  counter_signed_at?: string;
   signingToken?: string;
   signingUrl?: string;
   signedPdfUrl?: string;

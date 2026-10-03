@@ -7,7 +7,7 @@ import {
   Check,
 } from 'lucide-react';
 import { TeamOperationEvent } from '@/types/calendarTypes';
-import { CATEGORY_CONFIG } from '@/data/calendarData';
+import { CATEGORY_CONFIG } from '@/shared/config/calendarConfig';
 
 interface CalendarMonthGridProps {
   currentMonthName: string;

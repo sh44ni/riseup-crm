@@ -11,13 +11,15 @@ from datetime import datetime, timezone, timedelta, date
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.permissions import require_permission, require_any_permission, has_permission, build_scope_filter
+from app.core.permissions import require_permission, require_any_permission, has_permission, build_scope_filter, check_resource_access
 from app.services.calculator import calculate_roof_estimate
 from app.services.sync import find_or_create_client, recalculate_client_stats
 from app.services.pdf_generator import generate_estimate_proposal_pdf, save_estimate_pdf_file
 from app.services.email_service import send_estimate_proposal_email
 from app.services.reminders import schedule_follow_up_reminder
 from app.schemas.estimates import EstimateCreate, EstimateUpdate, EstimateResponse
+from app.core.uow import UnitOfWork
+from app.shared.numbering import next_document_number
 import orjson
 import json
 
@@ -190,7 +192,7 @@ async def create_estimate(
         financing_months=financing_months,
     )
 
-    custom_total = payload.get("total")
+    custom_total = payload.total
     final_total = float(custom_total) if custom_total is not None else calc["total_price"]
 
     final_client_id = client_id
@@ -201,20 +203,16 @@ async def create_estimate(
             final_client_id = int(l_row[0])
 
     if not final_client_id and (customer_phone or customer_email):
-        try:
-            c = await find_or_create_client(
-                db=db,
-                full_name=customer_name,
-                phone=customer_phone,
-                email=customer_email,
-                address=customer_address,
-                city=customer_city,
-                zip_code=customer_zip,
-                lead_source="estimate_generator",
-            )
-            final_client_id = c.id
-        except Exception:
-            pass
+        final_client_id = await find_or_create_client(
+            db=db,
+            full_name=customer_name,
+            phone=customer_phone,
+            email=customer_email,
+            address=customer_address,
+            city=customer_city,
+            zip=customer_zip,
+            leadSource="estimate_generator",
+        )
 
     estimate_created_by = user["id"]
     estimate_role_snapshot = ", ".join([r["name"] for r in user.get("roles", [])]) if user.get("roles") else user.get("role", "Staff")
@@ -234,10 +232,7 @@ async def create_estimate(
         except Exception:
             pass
 
-    year = datetime.now(timezone.utc).year
-    count_res = await db.execute(text("SELECT COUNT(*) FROM estimates"))
-    seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
-    estimate_number = f"EST-{year}-{seq}"
+    estimate_number = await next_document_number(UnitOfWork(db), "estimate")
 
     valid_until = (datetime.now(timezone.utc) + timedelta(days=valid_days)).date()
     access_token = secrets.token_hex(16)
@@ -300,7 +295,7 @@ async def create_estimate(
     })
     new_estimate = dict(res.first()._mapping)
 
-    is_sent = payload.get("status") == "sent" or "Sent via" in (notes or "")
+    is_sent = payload.status == "sent" or "Sent via" in (notes or "")
     if is_sent:
         await db.execute(
             text("UPDATE estimates SET status = 'sent', sent_at = NOW() WHERE id = :id"),
@@ -407,7 +402,7 @@ async def create_estimate(
         await recalculate_client_stats(db, final_client_id)
 
     await db.commit()
-    return {"ok": True, "estimate": new_estimate}
+    return {"ok": True, "estimate": new_estimate, "estimate_number": estimate_number}
 
 @router.get("/estimates/{estimate_id}")
 async def get_estimate(
@@ -421,6 +416,15 @@ async def get_estimate(
         raise HTTPException(status_code=404, detail="Estimate not found")
 
     est = dict(row._mapping)
+    if not check_resource_access(user, "estimates:view", creator_id=est.get("created_by")):
+        lead_access = False
+        if est.get("lead_id"):
+            l_row = (await db.execute(text("SELECT created_by_user_id, assigned_to_user_id FROM leads WHERE id = :lid"), {"lid": est["lead_id"]})).first()
+            if l_row and check_resource_access(user, "leads:view", creator_id=l_row[0], assigned_id=l_row[1]):
+                lead_access = True
+        if not lead_access:
+            raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this estimate")
+
     if not has_permission(user, "estimates:view_margins"):
         est.pop("material_cost", None)
         est.pop("labor_cost", None)
@@ -473,7 +477,7 @@ async def update_estimate(
     est = dict(row._mapping)
 
     # If estimate was sent, advance lead to estimate_sent (48h review window)
-    if payload.get("status") == "sent":
+    if payload.status == "sent":
         target_lead_id = est.get("lead_id")
         if not target_lead_id and est.get("client_id"):
             find_l = await db.execute(text("SELECT id FROM leads WHERE client_id = :cid ORDER BY created_at DESC LIMIT 1"), {"cid": int(est["client_id"])})
@@ -553,21 +557,17 @@ async def convert_estimate_to_job(
             client_id = int(l_row[0])
 
     if not client_id and (est.get("customer_phone") or est.get("customer_email")):
-        try:
-            c = await find_or_create_client(
-                db=db,
-                full_name=est["customer_name"],
-                phone=est.get("customer_phone"),
-                email=est.get("customer_email"),
-                address=est.get("customer_address"),
-                city=est.get("customer_city"),
-                zip_code=est.get("customer_zip"),
-                lead_source="estimate_conversion",
-            )
-            client_id = c.id
-            await db.execute(text("UPDATE estimates SET client_id = :cid WHERE id = :eid"), {"cid": client_id, "eid": estimate_id})
-        except Exception:
-            pass
+        client_id = await find_or_create_client(
+            db=db,
+            full_name=est["customer_name"],
+            phone=est.get("customer_phone"),
+            email=est.get("customer_email"),
+            address=est.get("customer_address"),
+            city=est.get("customer_city"),
+            zip=est.get("customer_zip"),
+            leadSource="estimate_conversion",
+        )
+        await db.execute(text("UPDATE estimates SET client_id = :cid WHERE id = :eid"), {"cid": client_id, "eid": estimate_id})
 
     job_created_by = est.get("created_by")
     job_role_snapshot = est.get("created_by_role_snapshot")
@@ -689,11 +689,10 @@ async def generate_estimate_pdf_endpoint(
     try:
         # Generate PDF via Playwright
         pdf_bytes = await generate_estimate_proposal_pdf(proposal_data, template_key=template_key)
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        logger.error("GENERATE_PDF_ERROR:\n", tb)
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)} | {tb}")
+    except Exception:
+        error_id = uuid.uuid4().hex[:12]
+        logger.exception("GENERATE_PDF_ERROR (request_id=%s)", error_id)
+        raise HTTPException(status_code=500, detail=f"PDF generation failed (request id: {error_id})")
     
     # Save file
     est_num = proposal_data.get("estimateNumber") or (f"EST_{estimate_id}" if estimate_id else "DRAFT")
@@ -936,8 +935,10 @@ async def send_estimate_email(
         try:
             pdf_bytes = await generate_estimate_proposal_pdf(proposal_data, template_key=template_key)
             pdf_url = save_estimate_pdf_file(estimate_number, pdf_bytes)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"PDF generation error: {str(e)}")
+        except Exception:
+            error_id = uuid.uuid4().hex[:12]
+            logger.exception("PDF generation error while sending estimate (request_id=%s)", error_id)
+            raise HTTPException(status_code=500, detail=f"PDF generation failed (request id: {error_id})")
     elif pdf_url:
         from app.services.pdf_generator import STATIC_UPLOADS_DIR
         clean_name = os.path.basename(pdf_url.strip())
@@ -1510,10 +1511,7 @@ async def create_two_options_estimate(
             updated_res = await db.execute(text("SELECT * FROM estimates WHERE id = :id"), {"id": existing_est["id"]})
             return {"ok": True, "estimate": dict(updated_res.first()._mapping)}
 
-    year = datetime.now(timezone.utc).year
-    count_res = await db.execute(text("SELECT COUNT(*) FROM estimates"))
-    seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
-    estimate_number = f"EST-{year}-{seq}"
+    estimate_number = await next_document_number(UnitOfWork(db), "estimate")
 
     access_token = secrets.token_hex(16)
     valid_until = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)).date()

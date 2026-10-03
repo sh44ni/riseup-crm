@@ -23,6 +23,8 @@ import {
 import { ColumnData, EnrichedDeal, enrichDeals } from './pipelineTypes';
 import { useAuth } from '@/context/AuthContext';
 import { leadsApi } from '@/api/leadsApi';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
 import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
 
@@ -41,6 +43,7 @@ export function PipelineListView({
   onSelectDeal,
   getServiceBadgeClass,
 }: PipelineListViewProps) {
+  const queryClient = useQueryClient();
   const { can } = useAuth();
   const canViewFinances = can('finances.view');
   const [selectedStage, setSelectedStage] = useState<string>('all');
@@ -80,12 +83,9 @@ export function PipelineListView({
         city: cleanCity,
         zip: cleanZip,
       });
-      // Fire event to notify all listeners (including pipeline store & dashboard)
-      window.dispatchEvent(
-        new CustomEvent('crm:lead-updated', {
-          detail: { id: deal.id, address: cleanStreet, city: cleanCity, zip: cleanZip },
-        })
-      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipeline.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.all() });
       setEditingDealId(null);
     } catch (err) {
       console.error('Failed to update address:', err);

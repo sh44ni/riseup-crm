@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { TwoOptionsEstimate } from '@/types/estimateContractTypes';
-import { API_BASE, api } from '@/lib/api';
+import { openapiClient } from '@/shared/api/client';
 
 interface PreviewPanelProps {
   estimateId: string | null;
@@ -60,16 +60,21 @@ export function PreviewPanel({ estimateId, data, currentStep, previewPage, lastS
     setLoading(true);
     setRenderError(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/admin/estimates/${estimateId}/render-html?page=${previewPage}&t=${Date.now()}`,
-        { headers: api.getAuthHeaders() }
+      const { data: html, error, response } = await openapiClient.GET(
+        '/api/admin/estimates/{estimate_id}/render-html',
+        {
+          params: {
+            path: { estimate_id: Number(estimateId) },
+            query: { page: previewPage },
+          },
+          parseAs: 'text',
+        }
       );
-      if (res.ok) {
-        const html = await res.text();
+      if (response?.ok && html) {
         setPreviewHtml(html);
       } else {
-        const errText = await res.text().catch(() => '');
-        setRenderError(`Preview failed (${res.status})${errText ? `: ${errText.slice(0, 120)}` : ''}`);
+        const errText = error ? JSON.stringify(error) : '';
+        setRenderError(`Preview failed (${response?.status || 'Error'})${errText ? `: ${errText.slice(0, 120)}` : ''}`);
       }
     } catch (err: any) {
       console.error('Preview fetch failed', err);

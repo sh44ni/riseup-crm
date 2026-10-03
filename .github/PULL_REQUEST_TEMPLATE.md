@@ -2,10 +2,11 @@
 
 <!-- What does this PR do? One sentence. -->
 
-## Changes
+## What changed? / How was it verified? / Rollback
 
-<!-- List the key changes made -->
-- 
+- **What changed:**
+- **How was it verified** (tests added, staging check, screenshots):
+- **Rollback** (revert commit, flag off, migration downgrade):
 
 ## Type of change
 
@@ -15,6 +16,7 @@
 - [ ] ⚡ Performance improvement
 - [ ] 📝 Content update
 - [ ] 🔧 Config / tooling
+- [ ] 🔒 Security
 
 ## Screenshots
 
@@ -24,10 +26,14 @@
 |--------|-------|
 | | |
 
-## Checklist
+## Definition of Done (from plans/README.md)
 
-- [ ] Build passes (`npm run build`)
-- [ ] Tested in both dark and light mode
-- [ ] Tested on mobile (375px)
-- [ ] No TypeScript errors
-- [ ] SEO metadata updated if new page added
+- [ ] Code merged through a PR with **green CI** (never merge red)
+- [ ] Tests added or updated, and they fail without the change
+- [ ] Ratchet baseline lowered if any tracked metric improved (`python scripts/quality_ratchet.py --update`)
+- [ ] No new lint, type or a11y warnings
+- [ ] No new `any`, raw `fetch`, bare `except Exception`, SQL in routers, or hard-coded colours
+- [ ] Verified on staging
+- [ ] Rollback path known and written above
+- [ ] Docs or ADR updated if a pattern changed
+- [ ] No secrets in the diff, logs or screenshots

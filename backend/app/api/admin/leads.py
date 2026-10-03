@@ -9,6 +9,11 @@ from app.core.database import get_db
 from app.core.audit import record_audit_log
 from app.core.permissions import build_scope_filter, check_resource_access, AuthUser
 from app.middlewares.auth import require_auth, require_permission
+from app.core.authz import Principal
+from app.core.uow import UnitOfWork
+from app.core.errors import NotFound, Forbidden
+from app.domain.leads.service import LeadService
+from app.domain.leads.schemas import LeadActivityCreatePayload
 from app.services.sync import find_or_create_client, parse_address_components, normalize_phone
 from app.services.scoring import calculate_lead_score
 from app.schemas.leads import LeadCreate, LeadUpdate, LeadResponse
@@ -756,37 +761,24 @@ async def get_lead_activities(lead_id: int, db: AsyncSession = Depends(get_db), 
     return {"activities": [dict(r) for r in rows]}
 
 @router.post("/{lead_id}/activities", dependencies=[Depends(require_permission("leads:edit"))])
-async def create_lead_activity(lead_id: int, request: Request, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
-    lead = (await db.execute(text("SELECT id, client_id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :id"), {"id": lead_id})).mappings().first()
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead not found")
-    if not check_resource_access(user, "leads.edit", creator_id=lead.get("created_by_user_id"), assigned_id=lead.get("assigned_to_user_id")):
-        raise HTTPException(status_code=403, detail="Access denied: You do not have permission to log activities for this lead.")
+async def create_lead_activity(
+    lead_id: int,
+    payload: LeadActivityCreatePayload,
+    db: AsyncSession = Depends(get_db),
+    user: AuthUser = Depends(require_auth),
+):
+    principal = Principal(
+        id=user.id,
+        role=user.role,
+        kind="api_key" if user.is_api_key else "user",
+        name=user.name,
+        email=user.email,
+        permissions=user.permissions,
+        is_protected_owner=user.is_protected_owner,
+        api_key_id=user.api_key_id,
+    )
+    uow = UnitOfWork(db)
+    service = LeadService(uow)
+    new_act = await service.add_activity(principal, lead_id, payload)
+    return {"ok": True, "activity": new_act}
 
-    body = await request.json()
-    title = body.get("title", "Note Logged")
-    desc = body.get("description")
-    act_type = body.get("activityType", "note")
-    
-    author_name = body.get("authorName") or body.get("userName")
-    if not author_name:
-        author_name = body.get("authorName") or getattr(user, "name", None) or "Staff"
-
-    author_role = body.get("authorRole") or getattr(user, "role", "Owner")
-    if author_role:
-        author_role = str(author_role).replace("_", " ").title()
-    perf_by = f"{author_name} ({author_role})" if author_role else str(author_name)
-
-    lead_cid = lead["client_id"]
-
-    insert_sql = text("""
-        INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, user_id, user_name, created_at)
-        VALUES ('lead', :lid, :cid, :atype, :title, :desc, :pby, :uid, :uname, NOW())
-        RETURNING *
-    """)
-    new_act = (await db.execute(insert_sql, {
-        "lid": lead_id, "cid": lead_cid, "atype": act_type, "title": title, "desc": desc,
-        "pby": perf_by, "uid": getattr(user, "id", None), "uname": author_name
-    })).mappings().first()
-
-    return {"ok": True, "activity": dict(new_act)}

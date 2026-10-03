@@ -41,7 +41,9 @@ async def record_audit_log(
     user_email: Optional[str] = None,
     user_role: Optional[str] = None,
     changes: Optional[Dict[str, Any]] = None,
-    request: Optional[Request] = None
+    request: Optional[Request] = None,
+    actor_type: str = "user",
+    actor_id: Optional[str] = None
 ) -> None:
     """
     Persists an immutable audit log record for security, tracking, and compliance.
@@ -50,13 +52,16 @@ async def record_audit_log(
     ua = get_user_agent(request)
     changes_json = orjson.dumps(changes).decode("utf-8") if changes else None
 
+    # Auto-populate actor_id from user_id if not explicitly provided
+    resolved_actor_id = str(actor_id) if actor_id is not None else (str(user_id) if user_id is not None else None)
+
     stmt = text("""
         INSERT INTO audit_logs (
             user_id, user_email, user_role, action, resource_type,
-            resource_id, ip_address, user_agent, changes, created_at
+            resource_id, ip_address, user_agent, changes, actor_type, actor_id, created_at
         ) VALUES (
             :user_id, :user_email, :user_role, :action, :resource_type,
-            :resource_id, :ip_address, :user_agent, CAST(:changes AS jsonb), NOW()
+            :resource_id, :ip_address, :user_agent, CAST(:changes AS jsonb), :actor_type, :actor_id, NOW()
         )
     """)
 
@@ -74,6 +79,8 @@ async def record_audit_log(
                     "ip_address": ip_addr,
                     "user_agent": ua,
                     "changes": changes_json,
+                    "actor_type": actor_type,
+                    "actor_id": resolved_actor_id,
                 }
             )
     except Exception as e:

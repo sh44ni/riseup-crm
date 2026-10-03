@@ -1,0 +1,20 @@
+{
+  "_comment": "Ratchet baseline. Values may only improve. See scripts/quality_ratchet.py.",
+  "metrics": {
+    "be.authz_xfails": 0,
+    "be.except_exception": 226,
+    "be.files_over_400": 20,
+    "be.routes_without_response_model": 221,
+    "be.ruff_baseline_entries": 782,
+    "be.sql_in_api": 1235,
+    "cov.backend": 41.23,
+    "cov.frontend": 3.84,
+    "fe.any_count": 268,
+    "fe.axe_serious_critical": 54,
+    "fe.eslint_warnings": 6895,
+    "fe.files_over_300": 67,
+    "fe.hex_colors": 1220,
+    "fe.raw_fetch": 0,
+    "fe.unused_exports": 211
+  }
+}

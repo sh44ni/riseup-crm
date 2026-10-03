@@ -57,9 +57,10 @@ CLAUDE.md
 
 # Temporary scratch and scripts
 /scratch/
-/scripts/
+*-report.json
 backend/scratch/
 backend/static/uploads/
+backend/app/static/uploads/
 *.pdf
 *.zip
 
@@ -76,4 +77,15 @@ __pycache__/
 dist/
 build/
 .next/
+
+
+# Test / coverage artifacts
+coverage.xml
+.coverage
+.coverage.*
+htmlcov/
+crm/coverage/
+crm/playwright-report/
+crm/test-results/
+crm/playwright/.cache/
 

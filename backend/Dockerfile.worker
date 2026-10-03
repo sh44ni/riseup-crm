@@ -1,0 +1,53 @@
+# ── Dedicated ARQ & PDF Generation Worker ──
+# Separated from the API image to isolate Chromium browser sandbox and keep the API image slim.
+
+FROM python:3.12-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# ── Runtime Stage with Chromium Sandbox for PDF Rendering ──
+FROM python:3.12-slim-bookworm AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -g 1000 app && \
+    useradd -r -u 1000 -g app -s /bin/bash -m app
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install Playwright Chromium & dependencies
+RUN playwright install --with-deps chromium
+
+COPY --chown=app:app app ./app
+COPY --chown=app:app alembic ./alembic
+COPY --chown=app:app alembic.ini ./alembic.ini
+COPY --chown=app:app static ./static
+
+RUN mkdir -p /app/static/uploads && chown -R app:app /app/static
+
+USER app
+
+STOPSIGNAL SIGTERM
+
+CMD ["arq", "app.tasks.worker.WorkerSettings"]

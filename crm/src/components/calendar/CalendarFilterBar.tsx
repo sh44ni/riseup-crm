@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronDown, Users, LayoutGrid, CheckSquare, Layers } from 'lucide-react';
 import { OperationCategory, TeamMemberResource } from '@/types/calendarTypes';
-import { CATEGORY_CONFIG, CREW_RESOURCES } from '@/data/calendarData';
+import { CATEGORY_CONFIG, CREW_RESOURCES } from '@/shared/config/calendarConfig';
 
 interface CalendarFilterBarProps {
   viewMode?: 'month' | 'swimlanes';

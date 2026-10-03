@@ -1,9 +1,31 @@
+import hashlib
 from typing import List, Union
 from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 import os
+
+DEV_LIKE_ENVIRONMENTS = frozenset({"development", "dev", "local", "test", "testing"})
+MIN_SECRET_LENGTH = 32
+
+# SHA-256 digests of secrets that were previously committed or defaulted. The plaintext values
+# must never appear in source; a deployment using any of them is refused at startup.
+KNOWN_BAD_SECRET_HASHES = frozenset({
+    "ddf9cc1cdf0aa7250a88afa67ea2cb0e5315fed312d7ec62dd90785d43dfab7f",
+    "79404179e451a22c2456ba5a6a8a7a44a772527ee499b7f70fddb6d9428f5ddb",
+    "68e59684d862b174db3799518e3675777c7ad58467ab222883843f2c9287693d",
+    "a957d3cd2f0edca1b99bbd0c8da03fd5404dc02876e8b9e5926e7b33a9fd7ad3",
+    "d2a9f5799ed4a316c7dc633cdbced3b989f657a61b02c758fe1997cd3c280217",
+})
+
+
+def _normalize_env(value: str) -> str:
+    env = (value or "").strip().lower()
+    if env == "prod":
+        return "production"
+    return env or "production"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -18,9 +40,9 @@ class Settings(BaseSettings):
     )
 
     ENVIRONMENT: str = "development"
-    APP_ENV: str = "development"
+    APP_ENV: str = "development"  # alias of ENVIRONMENT; both resolve to one effective value
     APP_NAME: str = "Rise Up Roofing API & Developer Platform"
-    DEBUG: bool = True
+    DEBUG: bool = False
     PORT: int = 8000
     HOST: str = "0.0.0.0"
     CORS_ORIGINS: Union[List[str], str] = [
@@ -46,6 +68,9 @@ class Settings(BaseSettings):
     COOKIE_NAME: str = "admin_session"
     SESSION_HOURS: int = 24
     MIGRATION_KEY: str = ""
+    LEGACY_BEARER_AUTH: bool = True
+    CSRF_COOKIE_NAME: str = "csrf_token"
+    CSRF_HEADER_NAME: str = "x-csrf-token"
 
     # Developer Portal & Dynamic API Keys
     DEVELOPER_SEEDPHRASE: str = ""
@@ -67,6 +92,8 @@ class Settings(BaseSettings):
     # Integrations
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""  # full callback URL; defaults to PUBLIC_BACKEND_URL + /api/admin/google-callback
+    PUBLIC_BACKEND_URL: str = ""  # e.g. https://backend.riseuprac.com (no trailing slash)
     GOOGLE_BUSINESS_PROFILE_ID: str = "17709679383662028228"
     CRON_SECRET: str = ""
 
@@ -96,34 +123,43 @@ class Settings(BaseSettings):
         return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     @model_validator(mode="after")
+    def unify_environment(self) -> "Settings":
+        """Collapse ENVIRONMENT / APP_ENV into one effective value.
+
+        If either variable names a non-dev environment, that one wins, so setting only
+        APP_ENV=production (or only ENVIRONMENT=production) always enables the safeguards.
+        """
+        env = _normalize_env(self.ENVIRONMENT)
+        app_env = _normalize_env(self.APP_ENV)
+        effective = env if env not in DEV_LIKE_ENVIRONMENTS else app_env
+        self.ENVIRONMENT = effective
+        self.APP_ENV = effective
+        return self
+
+    @property
+    def is_dev_like(self) -> bool:
+        return self.ENVIRONMENT in DEV_LIKE_ENVIRONMENTS
+
+    @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
-        """Fail fast in production if critical secrets are missing or default."""
-        env = (self.ENVIRONMENT or self.APP_ENV or "").lower()
-        if env not in ("production", "prod"):
+        """Fail fast outside dev/test if critical secrets are missing, short or known-bad."""
+        if self.is_dev_like:
             return self
-        
-        KNOWN_BAD_SECRETS = {
-            "riseup-super-secret-key-change-in-production-64-chars-long!",
-            "riseup_migrate_secret_2025",
-            "sheWASg0n3forgood",
-            "riseup_cron_sec_88f92a10e",
-            "ec61cfb5c3ab44b6b3c184755261209",
-            "",
-        }
-        
+
         checks = {
             "SESSION_SECRET_KEY": self.SESSION_SECRET_KEY,
             "MIGRATION_KEY": self.MIGRATION_KEY,
             "CRON_SECRET": self.CRON_SECRET,
         }
-        
+
         for name, value in checks.items():
-            if value in KNOWN_BAD_SECRETS:
+            digest = hashlib.sha256((value or "").encode("utf-8")).hexdigest()
+            if digest in KNOWN_BAD_SECRET_HASHES or len(value or "") < MIN_SECRET_LENGTH:
                 raise ValueError(
-                    f"CRITICAL: {name} is not set or uses a default/known-bad value. "
-                    f"Set a strong secret in your production .env file."
+                    f"CRITICAL: {name} is not set, shorter than {MIN_SECRET_LENGTH} characters, "
+                    f"or uses a default/known-bad value. Set a strong secret in the environment."
                 )
-        
+
         return self
 
 

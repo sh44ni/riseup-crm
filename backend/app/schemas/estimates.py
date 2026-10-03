@@ -56,6 +56,7 @@ class EstimateCreate(BaseModel):
     validDays: Optional[int] = None
     notes: Optional[str] = None
     status: Optional[str] = "draft"
+    total: Optional[float] = Field(None, ge=0, description="Optional manual total override")
 
     template_key: Optional[str] = "multi_option_proposal"
     templateKey: Optional[str] = None

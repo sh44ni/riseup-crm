@@ -2,10 +2,8 @@ import type { BackendJob } from '@/types/backendTypes';
 // Rise Up CRM — Production Jobs API Client
 // Interfaces with FastAPI backend at /api/admin/jobs
 
-import { api, API_ORIGIN } from '@/lib/api';
+import { httpClient } from '@/shared/api/client';
 import { JobRecord, JobSummaryStats, JobMilestone, JobActivityItem } from '@/types/jobTypes';
-
-const BASE = API_ORIGIN;
 
 export interface JobsDirectoryResponse {
   jobs: JobRecord[];
@@ -41,16 +39,7 @@ export async function fetchJobs(params?: {
   if (params?.search && params.search.trim()) query.search = params.search.trim();
 
   const qs = Object.keys(query).length > 0 ? '?' + new URLSearchParams(query).toString() : '';
-  const res = await fetch(`${BASE}/api/admin/jobs${qs}`, {
-    headers: api.getAuthHeaders(),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to fetch jobs' }));
-    throw new Error(err?.detail || `Failed to fetch jobs: HTTP ${res.status}`);
-  }
-
-  const data = await res.json();
+  const data = await httpClient.get<{ jobs?: BackendJob[]; summary?: JobSummaryStats }>(`/admin/jobs${qs}`);
   return {
     jobs: (data.jobs || []).map(normalizeJob),
     summary: data.summary || {
@@ -65,17 +54,8 @@ export async function fetchJobs(params?: {
   };
 }
 
-export async function fetchJob(id: number | string): Promise<{ job: JobRecord; estimate?: any }> {
-  const res = await fetch(`${BASE}/api/admin/jobs/${id}`, {
-    headers: api.getAuthHeaders(),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Job not found' }));
-    throw new Error(err?.detail || `Failed to fetch job ${id}`);
-  }
-
-  const data = await res.json();
+export async function fetchJob(id: number | string): Promise<{ job: JobRecord; estimate?: unknown }> {
+  const data = await httpClient.get<{ job: BackendJob; estimate?: unknown }>(`/admin/jobs/${id}`);
   return {
     job: normalizeJob(data.job),
     estimate: data.estimate,
@@ -83,21 +63,7 @@ export async function fetchJob(id: number | string): Promise<{ job: JobRecord; e
 }
 
 export async function createJob(payload: CreateJobPayload): Promise<JobRecord> {
-  const res = await fetch(`${BASE}/api/admin/jobs`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...api.getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to create job' }));
-    throw new Error(err?.detail || `Failed to create job: HTTP ${res.status}`);
-  }
-
-  const data = await res.json();
+  const data = await httpClient.post<{ job: BackendJob }>('/admin/jobs', payload);
   return normalizeJob(data.job);
 }
 
@@ -105,21 +71,7 @@ export async function updateJob(
   id: number | string,
   payload: Partial<JobRecord> & { milestones?: JobMilestone[] }
 ): Promise<JobRecord> {
-  const res = await fetch(`${BASE}/api/admin/jobs/${id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...api.getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to update job' }));
-    throw new Error(err?.detail || `Failed to update job ${id}`);
-  }
-
-  const data = await res.json();
+  const data = await httpClient.patch<{ job: BackendJob }>(`/admin/jobs/${id}`, payload);
   return normalizeJob(data.job);
 }
 
@@ -127,75 +79,34 @@ export async function completeJob(
   id: number | string,
   payload: { notes?: string; authorName?: string; authorRole?: string } = {}
 ): Promise<JobRecord> {
-  const res = await fetch(`${BASE}/api/admin/jobs/${id}/complete`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...api.getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to complete job' }));
-    throw new Error(err?.detail || `Failed to complete job ${id}`);
-  }
-
-  const data = await res.json();
+  const data = await httpClient.post<{ job: BackendJob }>(`/admin/jobs/${id}/complete`, payload);
   return normalizeJob(data.job);
 }
 
 export async function deleteJob(id: number | string): Promise<boolean> {
-  const res = await fetch(`${BASE}/api/admin/jobs/${id}`, {
-    method: 'DELETE',
-    headers: api.getAuthHeaders(),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to delete job' }));
-    throw new Error(err?.detail || `Failed to delete job ${id}`);
-  }
-
+  await httpClient.delete(`/admin/jobs/${id}`);
   return true;
 }
 
 export async function fetchJobActivities(id: number | string): Promise<JobActivityItem[]> {
-  const res = await fetch(`${BASE}/api/admin/jobs/${id}/activities`, {
-    headers: api.getAuthHeaders(),
-  });
-
-  if (!res.ok) {
+  try {
+    const data = await httpClient.get<{ activities?: JobActivityItem[] }>(`/admin/jobs/${id}/activities`);
+    return data.activities || [];
+  } catch {
     return [];
   }
-
-  const data = await res.json();
-  return data.activities || [];
 }
 
 export async function logJobActivity(
   id: number | string,
   payload: { note: string; authorName?: string; authorRole?: string }
 ): Promise<{ ok: boolean; note: string }> {
-  const res = await fetch(`${BASE}/api/admin/jobs/${id}/activities`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...api.getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to log field note' }));
-    throw new Error(err?.detail || `Failed to log field note: HTTP ${res.status}`);
-  }
-
-  return await res.json();
+  return await httpClient.post<{ ok: boolean; note: string }>(`/admin/jobs/${id}/activities`, payload);
 }
 
 function normalizeJob(raw: BackendJob): JobRecord {
-  const ms = Array.isArray(raw.milestones) ? raw.milestones : [];
-  const completedCount = ms.filter((m: any) => m.status === 'completed').length;
+  const ms = Array.isArray(raw.milestones) ? (raw.milestones as JobMilestone[]) : [];
+  const completedCount = ms.filter((m) => m.status === 'completed').length;
   const totalCount = ms.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : (raw.status === 'complete' ? 100 : 0);
 

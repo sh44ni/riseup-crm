@@ -1,0 +1,44 @@
+default_install_hook_types: [pre-commit]
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10  # keep in sync with backend/pyproject.toml
+    hooks:
+      - id: ruff
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude: \.(pdf|png|jpe?g|svg|ico|woff2?)$
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+        exclude: \.(pdf|png|jpe?g|svg|ico|woff2?)$
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=500]
+
+  - repo: local
+    hooks:
+      - id: forbid-binary-and-env-files
+        name: block *.pdf, *.zip and .env* files
+        language: fail
+        entry: "These files must never be committed (PDFs, archives, environment files). Remove them from the commit."
+        files: (\.pdf$|\.zip$|(^|/)\.env($|\.))
+        exclude: (^|/)\.env\.example$
+
+      - id: crm-lint-staged
+        name: CRM eslint (errors only) + prettier on staged files
+        language: system
+        entry: npm exec --prefix crm -- lint-staged --cwd crm
+        files: ^crm/src/.*\.(ts|tsx)$
+        pass_filenames: false

@@ -1,18 +1,11 @@
 // Rise Up CRM — Pipeline Kanban Store
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchPipelineForDashboard, type PipelineSummary } from '../api/pipelineApi';
-import type { ColumnData } from '../components/pipeline/pipelineTypes';
-import { subscribeContactUpdated, type ContactUpdatedDetail } from '../utils/syncEventBus';
+import { usePipelineDashboardQuery } from '@/entities/pipeline/queries';
+import type { PipelineSummary } from '@/api/pipelineApi';
+import type { ColumnData, DealCard } from '@/components/pipeline/pipelineTypes';
 
 export function usePipelineKanban() {
-  const queryClient = useQueryClient();
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['pipeline-kanban'],
-    queryFn: () => fetchPipelineForDashboard(),
-    staleTime: 15_000,
-    refetchInterval: 15_000,
-  });
+  const { data, isLoading, refetch } = usePipelineDashboardQuery();
 
   const [columns, setColumns] = useState<ColumnData[]>([]);
   const [summary, setSummary] = useState<PipelineSummary | null>(null);
@@ -29,8 +22,7 @@ export function usePipelineKanban() {
   const moveCardOptimistically = useCallback((cardId: string, fromColId: string, toColId: string) => {
     if (fromColId === toColId) return;
     setColumns((prevCols) => {
-      let movedCard: any = null;
-      // Extract the card from fromCol
+      let movedCard: DealCard | null = null;
       const nextCols = prevCols.map((col) => {
         if (col.id === fromColId) {
           const card = col.cards.find((c) => c.id === cardId);
@@ -47,10 +39,9 @@ export function usePipelineKanban() {
 
       if (!movedCard) return prevCols;
 
-      // Place card into toCol
       return nextCols.map((col) => {
         if (col.id === toColId) {
-          const newCards = [movedCard, ...col.cards];
+          const newCards = [movedCard!, ...col.cards];
           return {
             ...col,
             cards: newCards,
@@ -88,20 +79,18 @@ export function usePipelineKanban() {
     );
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = subscribeContactUpdated((detail: ContactUpdatedDetail) => {
-      const id = detail.leadId;
-      if (!id) return;
-      updateCardAddress(String(id), detail.address, detail.city, detail.zip);
-      queryClient.invalidateQueries({ queryKey: ['pipeline-kanban'] });
-    });
-    return unsubscribe;
-  }, [updateCardAddress, queryClient]);
-
-  const refresh = useCallback(async (_silent = true) => {
+  const refresh = useCallback(async (_isSilent?: boolean) => {
     await refetch();
-    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-  }, [refetch, queryClient]);
+  }, [refetch]);
 
-  return { columns, setColumns, summary, isLoading, refresh, moveCardOptimistically, updateCardAddress };
+  return {
+    columns,
+    setColumns,
+    summary,
+    isLoading,
+    refetch,
+    refresh,
+    moveCardOptimistically,
+    updateCardAddress,
+  };
 }

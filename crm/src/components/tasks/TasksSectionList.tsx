@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CrmTask, TaskPriority } from '@/types/taskTypes';
-import { PRIORITY_CONFIG, CATEGORY_BADGES } from '@/data/taskData';
+import { PRIORITY_CONFIG, CATEGORY_BADGES } from '@/shared/config/taskConfig';
 
 interface TasksSectionListProps {
   tasks: CrmTask[];

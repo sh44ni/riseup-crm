@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { PipelineDealItem, PipelineSummary, fetchPipelineDeals } from '@/api/pipelineApi';
+import { useCallback } from 'react';
+import { PipelineDealItem, PipelineSummary, PipelineAnalyticsData } from '@/api/pipelineApi';
 import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+import { usePipelineDealsQuery, usePipelineAnalyticsQuery } from '@/entities/pipeline/queries';
 
 export interface UsePipelineDataReturn {
   deals: PipelineDealItem[];
@@ -8,62 +10,55 @@ export interface UsePipelineDataReturn {
   isLoading: boolean;
   isRefreshing: boolean;
   loadError: string | null;
-  analytics: any;
+  analytics: PipelineAnalyticsData | null;
   setDeals: React.Dispatch<React.SetStateAction<PipelineDealItem[]>>;
   refresh: (isSilent?: boolean) => Promise<void>;
 }
 
 export function usePipelineData(): UsePipelineDataReturn {
   const queryClient = useQueryClient();
-  const [deals, setDeals] = useState<PipelineDealItem[]>([]);
-  const [summary, setSummary] = useState<PipelineSummary | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [analytics, setAnalytics] = useState<any>(null);
+  const { data, isLoading, isFetching, error, refetch } = usePipelineDealsQuery();
+  const { data: analyticsData } = usePipelineAnalyticsQuery();
 
-  const loadPipelineData = useCallback(async (isSilent = false) => {
-    if (isSilent) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-    setLoadError(null);
+  const deals = data?.deals || [];
+  const summary = data?.summary || null;
+  const isRefreshing = isFetching && !isLoading;
+  const loadError = error ? (error instanceof Error ? error.message : 'Failed to connect to backend pipeline service') : null;
 
-    try {
-      const [res, analyticsData] = await Promise.all([
-        fetchPipelineDeals(),
-        import('@/api/pipelineApi').then(m => m.fetchPipelineAnalytics()).catch(() => null)
-      ]);
-      setDeals(res.deals);
-      if (res.summary) {
-        setSummary(res.summary);
-      }
-      if (analyticsData) {
-        setAnalytics(analyticsData);
-      }
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-    } catch (err: any) {
-      console.error('Failed to load real pipeline deals:', err);
-      setLoadError(err.message || 'Failed to connect to backend pipeline service');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [queryClient]);
+  const setDeals = useCallback(
+    (action: React.SetStateAction<PipelineDealItem[]>) => {
+      queryClient.setQueryData<{ deals: PipelineDealItem[]; summary?: PipelineSummary }>(
+        queryKeys.pipeline.deals(),
+        (prev) => {
+          const currentDeals = prev?.deals || [];
+          const nextDeals = typeof action === 'function' ? action(currentDeals) : action;
+          return {
+            deals: nextDeals,
+            summary: prev?.summary,
+          };
+        }
+      );
+    },
+    [queryClient]
+  );
 
-  useEffect(() => {
-    loadPipelineData();
-    const interval = setInterval(() => {
-      loadPipelineData(true);
-    }, 15_000);
-    return () => clearInterval(interval);
-  }, [loadPipelineData]);
+  const refresh = useCallback(
+    async (_isSilent = false) => {
+      await refetch();
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() });
+    },
+    [refetch, queryClient]
+  );
 
-  const refresh = useCallback(async (isSilent = false) => {
-    await loadPipelineData(isSilent);
-  }, [loadPipelineData]);
-
-  return { deals, summary, isLoading, isRefreshing, loadError, analytics, setDeals, refresh };
+  return {
+    deals,
+    summary,
+    isLoading,
+    isRefreshing,
+    loadError,
+    analytics: analyticsData ?? null,
+    setDeals,
+    refresh,
+  };
 }

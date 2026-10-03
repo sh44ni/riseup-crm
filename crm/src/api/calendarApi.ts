@@ -1,13 +1,13 @@
-import { apiFetch } from '@/lib/api';
 /**
  * Rise Up CRM — Unified Team Operations & Task Calendar API Client
  * 
  * Handles fetching, scheduling, updating, completing, and deleting team operations
  * and tasks. Connects to PostgreSQL `tasks`, scheduled `leads`, `jobs`, and `warranties`
- * via FastAPI endpoints with local-first resilient fallback.
+ * via FastAPI endpoints.
  */
 
-import { TeamOperationEvent, DispatchEvent, CalendarStats, CalendarWeather } from '@/types/calendarTypes';
+import { httpClient } from '@/shared/api/client';
+import { TeamOperationEvent, CalendarStats, CalendarWeather } from '@/types/calendarTypes';
 
 export interface CalendarEventsApiResponse {
   success: boolean;
@@ -19,11 +19,9 @@ export interface CalendarEventsApiResponse {
 export interface SingleCalendarEventApiResponse {
   success: boolean;
   data: TeamOperationEvent;
-  task?: any;
+  task?: { id: number };
   message?: string;
 }
-
-
 
 /**
  * Fetch unified team operations and calendar schedule from backend
@@ -50,10 +48,10 @@ export async function fetchCalendarEventsFromBackend(params?: {
     }
     const qs = query.toString() ? `?${query.toString()}` : '';
     try {
-      const json = await apiFetch<CalendarEventsApiResponse>(`/admin/calendar${qs}`);
+      const json = await httpClient.get<CalendarEventsApiResponse>(`/admin/calendar${qs}`);
       return Array.isArray(json.data) ? json.data : (Array.isArray(json.events) ? json.events : null);
     } catch {
-      return await fetchLegacyCalendarEvents(params);
+      return await fetchLegacyCalendarEvents();
     }
   } catch {
     return null;
@@ -65,8 +63,9 @@ export const fetchCalendarOperations = fetchCalendarEventsFromBackend;
 /**
  * Fallback to legacy events endpoint
  */
-async function fetchLegacyCalendarEvents(params?: any): Promise<TeamOperationEvent[] | null> {
-  try {    const json = await apiFetch<CalendarEventsApiResponse>('/admin/calendar/events');
+async function fetchLegacyCalendarEvents(): Promise<TeamOperationEvent[] | null> {
+  try {
+    const json = await httpClient.get<CalendarEventsApiResponse>('/admin/calendar/events');
     return json.success && Array.isArray(json.data) ? json.data : null;
   } catch {
     return null;
@@ -76,8 +75,9 @@ async function fetchLegacyCalendarEvents(params?: any): Promise<TeamOperationEve
 /**
  * Fetch registered CRM user accounts from backend
  */
-export async function fetchRegisteredUsers(): Promise<any[]> {
-  try {    const json = await apiFetch<any>('/admin/users');
+export async function fetchRegisteredUsers(): Promise<Array<{ id: number; full_name?: string; email?: string }>> {
+  try {
+    const json = await httpClient.get<{ users?: Array<{ id: number; full_name?: string; email?: string }> }>('/admin/users');
     return json.users || [];
   } catch {
     return [];
@@ -87,8 +87,9 @@ export async function fetchRegisteredUsers(): Promise<any[]> {
 /**
  * Fetch active pipeline leads from backend for entity linking
  */
-export async function fetchPipelineJobs(): Promise<any[]> {
-  try {    const json = await apiFetch<any>('/admin/leads');
+export async function fetchPipelineJobs(): Promise<Array<{ id: number; full_name?: string }>> {
+  try {
+    const json = await httpClient.get<{ leads?: Array<{ id: number; full_name?: string }> }>('/admin/leads');
     return json.leads || [];
   } catch {
     return [];
@@ -98,8 +99,9 @@ export async function fetchPipelineJobs(): Promise<any[]> {
 /**
  * Fetch active signed jobs from backend for entity linking
  */
-export async function fetchRealJobs(): Promise<any[]> {
-  try {    const json = await apiFetch<any>('/admin/jobs');
+export async function fetchRealJobs(): Promise<Array<{ id: number; job_number?: string }>> {
+  try {
+    const json = await httpClient.get<{ jobs?: Array<{ id: number; job_number?: string }>; data?: Array<{ id: number; job_number?: string }> }>('/admin/jobs');
     return json.jobs || json.data || [];
   } catch {
     return [];
@@ -110,7 +112,8 @@ export async function fetchRealJobs(): Promise<any[]> {
  * Fetch dynamic operations and workload stats
  */
 export async function fetchCalendarStats(): Promise<CalendarStats | null> {
-  try {    const json = await apiFetch<any>('/admin/calendar/stats');
+  try {
+    const json = await httpClient.get<{ success?: boolean; data?: CalendarStats }>('/admin/calendar/stats');
     return json.success && json.data ? json.data : null;
   } catch {
     return null;
@@ -121,7 +124,8 @@ export async function fetchCalendarStats(): Promise<CalendarStats | null> {
  * Fetch live North County weather & OSHA wind safety
  */
 export async function fetchCalendarWeather(): Promise<CalendarWeather | null> {
-  try {    const json = await apiFetch<any>('/admin/calendar/weather');
+  try {
+    const json = await httpClient.get<{ success?: boolean; data?: CalendarWeather }>('/admin/calendar/weather');
     return json.success && json.data ? json.data : null;
   } catch {
     return null;
@@ -150,10 +154,8 @@ export async function createCalendarEventOnBackend(
       priority: event.priority,
       entityType: event.entityType,
       entityId: event.entityId,
-    };    const json = await apiFetch<any>('/admin/tasks', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    };
+    const json = await httpClient.post<{ task?: { id: number }; data?: { id: number } }>('/admin/tasks', payload);
     const createdTask = json.task || json.data;
     if (createdTask) {
       return {
@@ -178,7 +180,7 @@ export async function updateCalendarEventOnBackend(
   updates: Partial<TeamOperationEvent>
 ): Promise<boolean> {
   try {
-    const payload: Record<string, any> = { id };
+    const payload: Record<string, unknown> = { id };
     if (updates.title !== undefined) payload.title = updates.title;
     if (updates.description !== undefined || updates.notes !== undefined) {
       payload.description = updates.description || updates.notes;
@@ -198,10 +200,8 @@ export async function updateCalendarEventOnBackend(
     if (updates.completed !== undefined) payload.completed = updates.completed;
     if (updates.status !== undefined) {
       payload.completed = updates.status === 'completed';
-    }    await apiFetch<any>('/admin/tasks', {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
+    }
+    await httpClient.patch<unknown>('/admin/tasks', payload);
     return true;
   } catch {
     return false;
@@ -221,9 +221,8 @@ export async function toggleTaskComplete(id: string, completed: boolean): Promis
  * Delete an operation or task on the backend
  */
 export async function deleteCalendarEventOnBackend(id: string): Promise<boolean> {
-  try {    await apiFetch<any>(`/admin/tasks?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
+  try {
+    await httpClient.delete<unknown>(`/admin/tasks?id=${encodeURIComponent(id)}`);
     return true;
   } catch {
     return false;

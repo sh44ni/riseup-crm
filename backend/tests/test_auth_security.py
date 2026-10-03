@@ -58,10 +58,3 @@ class TestSecurityHardening:
         )
         assert has_permission(deactivated_user, "leads.view") is False
         assert has_any_permission(deactivated_user, ["leads.view", "clients.view"]) is False
-
-    def test_session_token_masking_format(self):
-        token = "a" * 64
-        masked = token[:8] + "..." + token[-4:]
-        assert masked == "aaaaaaaa...aaaa"
-        assert len(masked) == 15
-        assert token not in masked

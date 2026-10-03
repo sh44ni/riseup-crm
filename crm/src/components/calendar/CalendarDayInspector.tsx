@@ -15,7 +15,7 @@ import {
   Flag,
 } from 'lucide-react';
 import { TeamOperationEvent } from '@/types/calendarTypes';
-import { CATEGORY_CONFIG } from '@/data/calendarData';
+import { CATEGORY_CONFIG } from '@/shared/config/calendarConfig';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 interface CalendarDayInspectorProps {

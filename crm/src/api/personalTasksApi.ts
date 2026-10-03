@@ -2,9 +2,10 @@
  * Rise Up CRM — User Personal Tasks & Sticky Notes API Client
  * 
  * Manages user-specific to-dos and sticky notes with personal scope.
- * Designed with a local-first resilient fallback pattern: if the backend
- * is offline or not yet connected, operations execute seamlessly via localStorage.
+ * Uses centralized typed httpClient.
  */
+
+import { httpClient } from '@/shared/api/client';
 
 export type TaskPriority = 'urgent' | 'high' | 'normal' | 'low';
 export type WorkCategory = 'Rise Up' | 'Content Creation' | 'Marketing';
@@ -36,14 +37,12 @@ export interface SinglePersonalTaskResponse {
   message?: string;
 }
 
-import { apiFetch } from '@/lib/api';
-
 /**
  * Fetch current user's personal tasks
  */
 export async function fetchPersonalTasksFromBackend(): Promise<PersonalTaskPayload[] | null> {
   try {
-    const json = await apiFetch<PersonalTasksListResponse>('/admin/users/me/tasks', { timeoutMs: 3000 });
+    const json = await httpClient.get<PersonalTasksListResponse>('/admin/users/me/tasks', { timeoutMs: 3000 });
     return json.success && Array.isArray(json.data) ? json.data : null;
   } catch {
     return null;
@@ -57,9 +56,7 @@ export async function createPersonalTaskOnBackend(
   task: PersonalTaskPayload
 ): Promise<PersonalTaskPayload | null> {
   try {
-    const json = await apiFetch<SinglePersonalTaskResponse>('/admin/users/me/tasks', {
-      method: 'POST',
-      body: JSON.stringify(task),
+    const json = await httpClient.post<SinglePersonalTaskResponse>('/admin/users/me/tasks', task, {
       timeoutMs: 4000,
     });
     return json.success ? json.data : null;
@@ -76,9 +73,7 @@ export async function updatePersonalTaskOnBackend(
   updates: Partial<PersonalTaskPayload>
 ): Promise<boolean> {
   try {
-    await apiFetch<any>(`/admin/users/me/tasks/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
+    await httpClient.put<unknown>(`/admin/users/me/tasks/${encodeURIComponent(id)}`, updates, {
       timeoutMs: 4000,
     });
     return true;
@@ -92,8 +87,7 @@ export async function updatePersonalTaskOnBackend(
  */
 export async function deletePersonalTaskOnBackend(id: string): Promise<boolean> {
   try {
-    await apiFetch<any>(`/admin/users/me/tasks/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
+    await httpClient.delete<unknown>(`/admin/users/me/tasks/${encodeURIComponent(id)}`, {
       timeoutMs: 4000,
     });
     return true;

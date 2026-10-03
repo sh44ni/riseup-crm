@@ -1,4 +1,5 @@
 import { api, API_BASE } from '@/lib/api';
+import { httpClient } from '@/shared/api/client';
 import { PublicContractData, PublicSignContractPayload } from '@/types/contractStudioTypes';
 
 export interface ContractData {
@@ -209,28 +210,17 @@ export async function counterSignContract(
 
 /** Public homeowner contract endpoints (no auth required) */
 export async function getPublicContract(token: string): Promise<{ contract: PublicContractData }> {
-  const res = await fetch(`${API_BASE}/contract/${encodeURIComponent(token)}`);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Contract not found or expired');
-  }
-  return res.json();
+  return await httpClient.get<{ contract: PublicContractData }>(`/contract/${encodeURIComponent(token)}`);
 }
 
 export async function signPublicContract(
   token: string,
   payload: PublicSignContractPayload
 ): Promise<{ success: boolean; message: string; signed_pdf_url: string; signed_at: string }> {
-  const res = await fetch(`${API_BASE}/contract/${encodeURIComponent(token)}/sign`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Failed to submit electronic signature');
-  }
-  return res.json();
+  return await httpClient.post<{ success: boolean; message: string; signed_pdf_url: string; signed_at: string }>(
+    `/contract/${encodeURIComponent(token)}/sign`,
+    payload
+  );
 }
 
 /** Returns the URL to preview/download the contract PDF in a new tab. */

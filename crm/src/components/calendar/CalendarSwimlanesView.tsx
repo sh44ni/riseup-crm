@@ -4,7 +4,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { TeamOperationEvent, TeamMemberResource } from '@/types/calendarTypes';
-import { CATEGORY_CONFIG } from '@/data/calendarData';
+import { CATEGORY_CONFIG } from '@/shared/config/calendarConfig';
 
 interface CalendarSwimlanesViewProps {
   events: TeamOperationEvent[];

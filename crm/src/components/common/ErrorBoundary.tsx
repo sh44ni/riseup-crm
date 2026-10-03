@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { isChunkLoadError, reloadOnceForNewDeploy } from '@/lib/chunkReload';
 
 interface Props {
   children: ReactNode;
@@ -22,25 +23,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   private isChunkError(error: Error | null): boolean {
-    if (!error?.message) return false;
-    return (
-      /Failed to fetch dynamically imported module/i.test(error.message) ||
-      /Loading chunk .* failed/i.test(error.message) ||
-      /Importing a module script failed/i.test(error.message) ||
-      /error loading dynamically imported module/i.test(error.message)
-    );
+    return isChunkLoadError(error);
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught CRM runtime error caught by boundary:', error, errorInfo);
 
     if (this.isChunkError(error)) {
-      const now = Date.now();
-      const lastReload = parseInt(sessionStorage.getItem('last_chunk_reload') || '0', 10);
-      if (now - lastReload > 8000) {
-        sessionStorage.setItem('last_chunk_reload', String(now));
-        window.location.reload();
-      }
+      reloadOnceForNewDeploy();
     }
   }
 

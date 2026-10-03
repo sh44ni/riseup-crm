@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatMoney, sumPayments, autoSplitPayments } from '../../components/pipeline/contract/contractTypes';
+import { formatMoney, sumPayments, autoSplitPayments } from '@/shared/lib/money';
 
 describe('formatMoney', () => {
   it('formats whole dollar amounts with commas and no cents', () => {

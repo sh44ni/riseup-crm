@@ -1,0 +1,201 @@
+import {
+  CompanyProfile,
+  PricingConfig,
+  PipelineAutomation,
+  NotificationSettings,
+  IntegrationItem,
+  UserRole,
+  TeamMember,
+  SecuritySession,
+  AuditLogEntry,
+} from '@/types/settingsTypes';
+
+export const INITIAL_COMPANY_PROFILE: CompanyProfile = {
+  legalName: 'Rise Up Roofing & Solar LLC',
+  dba: 'Rise Up Roofing',
+  licenseNumber: 'CSLB #1115874',
+  licenseType: 'Class C-39 Roofing Contractor',
+  licenseExpiration: '11/30/2027',
+  bondNumber: 'SND-994821-CA',
+  bondAmount: '$25,000 California Contractor Surety Bond',
+  workersCompStatus: 'Active & In Good Standing (State Fund)',
+  workersCompPolicy: 'WCP-8849201-92',
+  epaLeadCert: 'EPA Lead-Safe Certified Firm #NAT-F19283-1',
+  hqAddress: '1942 Oceanside Blvd, Suite 204, Oceanside, CA 92054',
+  yardAddress: '3104 Production Ave, Carlsbad Industrial Yard, CA 92008',
+  publicPhone: '(760) 842-7890',
+  dispatchHotline: '(760) 842-7899',
+  primaryEmail: 'info@riseuproofing.com',
+  dispatchEmail: 'dispatch@riseuproofing.com',
+  websiteUrl: 'https://riseuproofing.com',
+  taxRateDefault: 7.75,
+  taxRateOceanside: 8.25,
+  primaryColor: '#1878B8',
+  accentColor: '#2F9FE3',
+};
+
+export const INITIAL_PRICING_CONFIG: PricingConfig = {
+  pitchMultipliers: {
+    flatTo3_12: 1.0,
+    fourTo6_12: 1.15,
+    sevenTo9_12: 1.3,
+    tenPlus_12: 1.55,
+  },
+  storyMultipliers: {
+    oneStory: 1.0,
+    twoStory: 1.18,
+    threeStoryCoastal: 1.35,
+  },
+  tearOffRates: {
+    shingle1Layer: 45.0,
+    shingle2Layer: 85.0,
+    tileConcrete: 120.0,
+    woodShake: 145.0,
+  },
+  marginGuardrails: {
+    targetGrossMargin: 38.0,
+    hardFloorMargin: 32.0,
+    salesCommissionRate: 10.0,
+  },
+  wasteFactors: {
+    gableSimple: 10,
+    hipValleyComplex: 15,
+    mansardTurret: 20,
+  },
+  permitFees: {
+    oceanside: 450,
+    carlsbad: 485,
+    encinitas: 525,
+    vista: 420,
+  },
+  pricingRules: [
+    {
+      service_id: 1,
+      slug: 'residential',
+      name: 'Tile / Shingle Roof',
+      price_per_sqft_low: 4.0,
+      price_per_sqft_high: 6.2,
+      base_fee_low: 500,
+      base_fee_high: 950,
+      min_sqft: 800,
+      max_sqft: 8000,
+      apr_available: true,
+      financing_apr: 0.0,
+      financing_term_months: 60,
+    },
+    {
+      service_id: 2,
+      slug: 'repair',
+      name: 'Leak & Tile Repair',
+      price_per_sqft_low: 0.4,
+      price_per_sqft_high: 0.8,
+      base_fee_low: 100,
+      base_fee_high: 600,
+      min_sqft: 500,
+      max_sqft: 8000,
+      apr_available: true,
+      financing_apr: 0.0,
+      financing_term_months: 18,
+    },
+    {
+      service_id: 3,
+      slug: 'commercial',
+      name: 'Commercial Flat Roof',
+      price_per_sqft_low: 5.0,
+      price_per_sqft_high: 8.0,
+      base_fee_low: 2250,
+      base_fee_high: 4000,
+      min_sqft: 1000,
+      max_sqft: 15000,
+      apr_available: true,
+      financing_apr: 0.0,
+      financing_term_months: 60,
+    },
+    {
+      service_id: 4,
+      slug: 'solar',
+      name: 'Solar + Roofing',
+      price_per_sqft_low: 7.5,
+      price_per_sqft_high: 11.5,
+      base_fee_low: 1500,
+      base_fee_high: 3000,
+      min_sqft: 1000,
+      max_sqft: 10000,
+      apr_available: true,
+      financing_apr: 0.0,
+      financing_term_months: 120,
+    },
+  ],
+};
+
+export const INITIAL_PIPELINE_AUTOMATION: PipelineAutomation = {
+  speedToLeadEnabled: true,
+  responseSlaMinutes: 5,
+  smsTemplate:
+    'Hi {{first_name}}! This is {{estimator_name}} with Rise Up Roofing. We received your roofing inquiry in {{city}} and would love to schedule your complimentary 21-point roof inspection. Are you available for a 15-minute visit tomorrow?',
+  afterHoursRouting: 'emergency_dispatcher',
+  autoAssignMode: 'territory_zip',
+  lossReasons: [
+    'Price Too High / Out of Budget',
+    'Competitor Selected (Unlicensed / Lower Tier)',
+    'Project Postponed to Next Year',
+    'Insurance Claim Denied / Withdrawn',
+    'Unresponsive / Unable to Contact',
+    'Home Sold / Relocating',
+  ],
+  inboundWebhookLsa: 'https://api.riseuproofing.com/v1/webhooks/google-lsa',
+  zapierWebhookSecret: 'sec_live_99a820c74b91f42e',
+};
+
+export const INITIAL_NOTIFICATION_SETTINGS: NotificationSettings = {
+  crewRolloutTime: '06:30 AM',
+  crewMorningSmsActive: true,
+  weatherWindAlertActive: true,
+  windThresholdMph: 20,
+  weatherRainAlertActive: true,
+  rainThresholdPct: 35,
+  clientMilestones: {
+    inspectionScheduled: true,
+    tearOffStarted: true,
+    dryInCompleted: true,
+    finalWalkthroughReady: true,
+  },
+};
+
+export const INITIAL_INTEGRATIONS: IntegrationItem[] = [
+  {
+    id: 'int-fastapi',
+    name: 'FastAPI Backend Engine',
+    category: 'backend',
+    status: 'connected',
+    latencyMs: 14,
+    description: 'High-performance Python 3.12 / PostgreSQL asyncpg pool running business logic and database queries.',
+    endpointUrl: 'http://localhost:8000/api',
+    lastSync: 'Live Connected (14ms)',
+  },
+  {
+    id: 'int-eagleview',
+    name: 'EagleView Aerial Measurements',
+    category: 'aerial',
+    status: 'connected',
+    latencyMs: 180,
+    description: 'High-precision satellite & drone roof CAD measurements with automatic facet, pitch, and valley breakdown.',
+    endpointUrl: 'https://api.eagleview.com/v2/orders',
+    lastSync: 'Synced 18m ago',
+  },
+  {
+    id: 'int-twilio',
+    name: 'Twilio SMS & Voice Gateway',
+    category: 'communication',
+    status: 'connected',
+    latencyMs: 42,
+    description: 'Automated 2-way speed-to-lead customer messaging, dispatch rollout texts, and call recording proxy.',
+    endpointUrl: 'https://api.twilio.com/2010-04-01/Accounts',
+    lastSync: 'Synced 5m ago',
+  },
+];
+
+export const INITIAL_USER_ROLES: UserRole[] = [];
+export const INITIAL_TEAM_MEMBERS: TeamMember[] = [];
+export const INITIAL_SECURITY_SESSIONS: SecuritySession[] = [];
+export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [];

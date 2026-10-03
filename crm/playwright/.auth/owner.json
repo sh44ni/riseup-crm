@@ -1,0 +1,33 @@
+{
+  "cookies": [
+    {
+      "name": "admin_session",
+      "value": "73bb1075a9aa31e598ee47258d5dfa8ced25568fa44e4e3532189c2396621400",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1791137189.488349,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "crm_user",
+          "value": "{\"id\":305,\"name\":\"E2E Owner\",\"email\":\"e2e_owner@riseuprac.local\",\"role\":\"owner\",\"status\":\"active\",\"phone\":null,\"avatar_url\":null,\"permissions\":{},\"is_protected_owner\":false,\"is_api_key\":false,\"api_key_id\":null}"
+        },
+        {
+          "name": "crm_auth_token",
+          "value": "73bb1075a9aa31e598ee47258d5dfa8ced25568fa44e4e3532189c2396621400"
+        },
+        {
+          "name": "crm_theme",
+          "value": "light"
+        }
+      ]
+    }
+  ]
+}

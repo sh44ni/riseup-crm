@@ -25,7 +25,7 @@ in_memory_counters: Dict[str, int] = {
     "4xx": 0,
     "5xx": 0,
 }
-in_memory_latencies: deque = deque([4.2, 3.8, 5.1, 4.6, 3.9], maxlen=1000)
+in_memory_latencies: deque = deque(maxlen=1000)
 in_memory_rpm: Dict[int, int] = {}
 
 async def _flush_telemetry_to_redis(
@@ -87,28 +87,26 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         error_msg: Optional[str] = None
         tb_str: Optional[str] = None
         response: Optional[Response] = None
+        unhandled_exc: Optional[Exception] = None
+        request.state.request_id = req_id
+
+        from app.core.logging import request_id_ctx
+        request_id_ctx.set(req_id)
 
         try:
             response = await call_next(request)
             status_code = response.status_code
         except Exception as exc:
+            # Recorded for operators only; never sent to the client.
             tb_str = traceback.format_exc()
             error_msg = str(exc)
             status_code = 500
-            response = JSONResponse(
-                status_code=500,
-                content={"ok": False, "error": error_msg, "detail": error_msg},
-            )
-            origin = request.headers.get("origin")
-            if origin:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-                response.headers["Access-Control-Allow-Headers"] = "*"
+            unhandled_exc = exc
 
         duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        response.headers["X-Process-Time"] = f"{duration_ms}ms"
-        response.headers["X-Request-Id"] = req_id
+        if response is not None:
+            response.headers["X-Process-Time"] = f"{duration_ms}ms"
+            response.headers["X-Request-Id"] = req_id
 
         # Skip recording for high-frequency internal telemetry endpoints to keep log clean
         if not is_internal_poll:
@@ -148,5 +146,8 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
             asyncio.create_task(
                 _flush_telemetry_to_redis(log_entry, cat, epoch_min, duration_ms, status_code)
             )
+
+        if unhandled_exc is not None:
+            raise unhandled_exc
 
         return response

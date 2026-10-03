@@ -101,8 +101,7 @@ class TestRBACPermissionMatrix:
     def test_suspended_user_denied_all_permissions(self):
         from app.core.permissions import has_permission
         user = self._make_user("sales", {"leads.view": "all"}, status="suspended")
-        # Assert False even if the code currently only checks 'deactivated', to align with the prompt requirements.
-        # If it fails, developers will fix permissions.py.
+        # Non-active accounts must not be granted permissions
         assert has_permission(user, "leads.view") is False
 
     def test_api_key_user_scoped_to_its_permissions(self):

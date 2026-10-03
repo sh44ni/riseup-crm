@@ -18,6 +18,8 @@ class AuditLog(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     changes: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    actor_type: Mapped[str] = mapped_column(Text, server_default="user", nullable=False)
+    actor_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

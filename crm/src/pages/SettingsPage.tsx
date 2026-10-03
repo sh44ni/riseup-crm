@@ -39,7 +39,7 @@ import {
   INITIAL_INTEGRATIONS,
   INITIAL_SECURITY_SESSIONS,
   INITIAL_AUDIT_LOGS,
-} from '@/data/settingsData';
+} from '@/shared/config/company';
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -179,7 +179,7 @@ export function SettingsPage() {
           notifications: loadedNotifications,
         };
 
-        const logsRes = await api.request<{ logs: AuditLogEntry[] }>('/admin/audit-logs').catch(() => null);
+        const logsRes = (await api.getAuditLogs().catch(() => null)) as { logs?: AuditLogEntry[] } | null;
         if (logsRes?.logs) setAuditLogs(logsRes.logs);
       } catch (err) {
         console.warn('Failed to load backend settings', err);

@@ -1,208 +1,95 @@
-import type { BackendClient } from '@/types/backendTypes';
 // Rise Up CRM — useClients React Hook
-// Manages real-time client state, directory list, 360 profile caching, and backend mutations
+// Modernized TanStack Query implementation backed by entities/client
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import type { BackendClient } from '@/types/backendTypes';
 import {
-  fetchClients,
-  fetchClient360,
-  updateClientSpecs,
-  updateClient,
-  addClientActivity,
-  markClientLostApi,
-  createClient,
-  createExistingClient,
-  
   ClientSummary,
   CreateClientPayload,
   CreateExistingClientPayload,
+  updateClientSpecs,
 } from '@/api/clientsApi';
 import {
   backendClientToClient360,
   roofSpecsToBackendPayload,
 } from '@/lib/clientAdapter';
 import { Client360Record, RoofSpecs, TimelineEvent } from '@/types/client360Types';
-import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api';
-import { broadcastContactUpdated, subscribeContactUpdated, ContactUpdatedDetail } from '@/utils/syncEventBus';
+import { httpClient } from '@/shared/api/client';
+import { useClientsListQuery, useClient360Query } from '@/entities/client/queries';
+import {
+  useCreateClientMutation,
+  useCreateExistingClientMutation,
+  useUpdateClientMutation,
+  useAddClientActivityMutation,
+  useMarkClientLostMutation,
+} from '@/entities/client/mutations';
+
+export interface UseClientsOptions {
+  search?: string;
+  category?: string;
+  status?: string;
+  tag?: string;
+  sort?: string;
+  page?: number;
+}
 
 export function useClients() {
-  const { user } = useAuth();
-  const [clients, setClients] = useState<Client360Record[]>([]);
-  const [rawClients, setRawClients] = useState<BackendClient[]>([]);
-  const [summary, setSummary] = useState<ClientSummary | null>(null);
+  const [params, setParams] = useState<UseClientsOptions>({});
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [activeClientDetail, setActiveClientDetail] = useState<Client360Record | null>(null);
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [detailLoading, setDetailLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading: loading, error: queryError, refetch } = useClientsListQuery(params);
 
-  const [total, setTotal] = useState<number>(0);
-  const [page, setPage] = useState<number>(1);
-  const [totalPages, setTotalPages] = useState<number>(1);
+  const numericSelectedId = useMemo(() => {
+    if (!selectedClientId) return undefined;
+    const n = parseInt(selectedClientId.replace(/\D/g, ''), 10);
+    return isNaN(n) ? undefined : n;
+  }, [selectedClientId]);
 
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Fetch directory list
-  const loadClients = useCallback(
-    async (params?: {
-      search?: string;
-      category?: string;
-      status?: string;
-      tag?: string;
-      sort?: string;
-      page?: number;
-    }) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetchClients(params);
-        if (isMountedRef.current) {
-          setRawClients(res.clients);
-          const adapted = res.clients.map((c) => backendClientToClient360(c));
-          setClients(adapted);
-          setSummary(res.summary);
-          setTotal(res.total);
-          setPage(res.page);
-          setTotalPages(res.totalPages);
-
-          // Auto-select first client if none selected
-          if (adapted.length > 0) {
-            setSelectedClientId((prev) => (prev ? prev : adapted[0].id));
-          }
-        }
-      } catch (err: any) {
-        if (isMountedRef.current) {
-          console.error('Failed to load clients from backend:', err);
-          setError(err?.message || 'Failed to load clients');
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setLoading(false);
-        }
-      }
-    },
-    []
+  const { data: detailData, isLoading: detailLoading } = useClient360Query(
+    numericSelectedId || '',
+    { enabled: Boolean(numericSelectedId) }
   );
 
-  // Initial load
-  useEffect(() => {
-    loadClients();
-  }, [loadClients]);
+  const createClientMutation = useCreateClientMutation();
+  const createExistingMutation = useCreateExistingClientMutation();
+  const updateClientMutation = useUpdateClientMutation();
+  const addActivityMutation = useAddClientActivityMutation();
+  const markLostMutation = useMarkClientLostMutation();
 
-  // Load 360 Detail when a client is selected
-  const loadClient360Detail = useCallback(
-    async (clientId: string | number) => {
-      const numericId = typeof clientId === 'string' ? parseInt(clientId.replace(/\D/g, '')) || Number(clientId) : clientId;
-      if (!numericId || isNaN(numericId)) return;
+  const rawClients: BackendClient[] = useMemo(() => data?.clients || [], [data?.clients]);
 
-      setDetailLoading(true);
-      try {
-        const detailRes = await fetchClient360(numericId);
-        if (isMountedRef.current && detailRes?.client) {
-          const fullyEnriched = backendClientToClient360(detailRes.client, detailRes);
-          setActiveClientDetail(fullyEnriched);
-          // Also update the item in the list
-          setClients((prev) =>
-            prev.map((c) => (String(c.id) === String(numericId) ? fullyEnriched : c))
-          );
-        }
-      } catch (err: any) {
-        if (isMountedRef.current) {
-          console.error(`Failed to load client 360 detail for ID ${numericId}:`, err);
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setDetailLoading(false);
-        }
-      }
-    },
-    []
-  );
+  const clients: Client360Record[] = useMemo(() => {
+    return rawClients.map((c) => backendClientToClient360(c));
+  }, [rawClients]);
 
-  // When selectedClientId changes, trigger detail fetch
-  useEffect(() => {
-    if (selectedClientId) {
-      loadClient360Detail(selectedClientId);
+  const summary: ClientSummary | null = data?.summary || null;
+  const total = data?.total ?? 0;
+  const page = data?.page ?? 1;
+  const totalPages = data?.totalPages ?? 1;
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load clients') : null;
+
+  const activeClientDetail: Client360Record | null = useMemo(() => {
+    if (!detailData?.client) return null;
+    return backendClientToClient360(detailData.client, detailData);
+  }, [detailData]);
+
+  // Selected client fallback
+  const currentClient = useMemo(() => {
+    if (activeClientDetail && String(activeClientDetail.id) === String(selectedClientId)) {
+      return activeClientDetail;
     }
-  }, [selectedClientId, loadClient360Detail]);
+    return clients.find((c) => String(c.id) === String(selectedClientId)) || clients[0];
+  }, [activeClientDetail, selectedClientId, clients]);
 
-  // Listen for cross-view contact updates (e.g. from Lead views or Pipeline)
-  useEffect(() => {
-    const unsubscribe = subscribeContactUpdated((detail) => {
-      if (detail.source === 'client_360') return; // Avoid self-loop
+  const loadClients = useCallback(async (newParams?: UseClientsOptions) => {
+    if (newParams) setParams(newParams);
+    await refetch();
+  }, [refetch]);
 
-      const targetId = detail.clientId ? String(detail.clientId) : null;
-      if (!targetId) {
-        loadClients();
-        return;
-      }
-
-      setClients((prev) =>
-        prev.map((c) => {
-          if (String(c.id) === targetId) {
-            return {
-              ...c,
-              ...(detail.full_name ? { name: detail.full_name } : {}),
-              ...(detail.email !== undefined ? { email: detail.email } : {}),
-              ...(detail.phone !== undefined ? { phone: detail.phone } : {}),
-              ...(detail.address !== undefined ? { address: detail.address } : {}),
-              ...(detail.city !== undefined ? { city: detail.city } : {}),
-              ...(detail.zip !== undefined ? { zip: detail.zip } : {}),
-              roofSpecs: {
-                ...c.roofSpecs,
-                ...(detail.address !== undefined ? { address: detail.address } : {}),
-                ...(detail.city !== undefined || detail.zip !== undefined
-                  ? { cityZip: `${detail.city || c.city} ${detail.zip || c.zip}`.trim() }
-                  : {}),
-              },
-            };
-          }
-          return c;
-        })
-      );
-
-      if (activeClientDetail && String(activeClientDetail.id) === targetId) {
-        setActiveClientDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                ...(detail.full_name ? { name: detail.full_name } : {}),
-                ...(detail.email !== undefined ? { email: detail.email } : {}),
-                ...(detail.phone !== undefined ? { phone: detail.phone } : {}),
-                ...(detail.address !== undefined ? { address: detail.address } : {}),
-                ...(detail.city !== undefined ? { city: detail.city } : {}),
-                ...(detail.zip !== undefined ? { zip: detail.zip } : {}),
-                roofSpecs: {
-                  ...prev.roofSpecs,
-                  ...(detail.address !== undefined ? { address: detail.address } : {}),
-                  ...(detail.city !== undefined || detail.zip !== undefined
-                    ? { cityZip: `${detail.city || prev.city} ${detail.zip || prev.zip}`.trim() }
-                    : {}),
-                },
-              }
-            : null
-        );
-      }
-    });
-
-    return () => unsubscribe();
-  }, [activeClientDetail, loadClients]);
-
-  // Handler: Select client
   const selectClient = useCallback((id: string) => {
     setSelectedClientId(id);
   }, []);
 
-  // Handler: Update Client Contact Info (Client 360 as Source of Truth)
   const updateContact = useCallback(
     async (
       clientId: string | number,
@@ -215,57 +102,7 @@ export function useClients() {
         zip?: string;
       }
     ) => {
-      const numericId = typeof clientId === 'string' ? parseInt(clientId.replace(/\D/g, '')) || Number(clientId) : clientId;
-
-      // Optimistic update
-      setClients((prev) =>
-        prev.map((c) => {
-          if (String(c.id) === String(clientId)) {
-            return {
-              ...c,
-              ...(contact.name ? { name: contact.name } : {}),
-              ...(contact.email !== undefined ? { email: contact.email } : {}),
-              ...(contact.phone !== undefined ? { phone: contact.phone } : {}),
-              ...(contact.address !== undefined ? { address: contact.address } : {}),
-              ...(contact.city !== undefined ? { city: contact.city } : {}),
-              ...(contact.zip !== undefined ? { zip: contact.zip } : {}),
-              roofSpecs: {
-                ...c.roofSpecs,
-                ...(contact.address !== undefined ? { address: contact.address } : {}),
-                ...(contact.city !== undefined || contact.zip !== undefined
-                  ? { cityZip: `${contact.city || c.city} ${contact.zip || c.zip}`.trim() }
-                  : {}),
-              },
-            };
-          }
-          return c;
-        })
-      );
-
-      if (activeClientDetail && String(activeClientDetail.id) === String(clientId)) {
-        setActiveClientDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                ...(contact.name ? { name: contact.name } : {}),
-                ...(contact.email !== undefined ? { email: contact.email } : {}),
-                ...(contact.phone !== undefined ? { phone: contact.phone } : {}),
-                ...(contact.address !== undefined ? { address: contact.address } : {}),
-                ...(contact.city !== undefined ? { city: contact.city } : {}),
-                ...(contact.zip !== undefined ? { zip: contact.zip } : {}),
-                roofSpecs: {
-                  ...prev.roofSpecs,
-                  ...(contact.address !== undefined ? { address: contact.address } : {}),
-                  ...(contact.city !== undefined || contact.zip !== undefined
-                    ? { cityZip: `${contact.city || prev.city} ${contact.zip || prev.zip}`.trim() }
-                    : {}),
-                },
-              }
-            : null
-        );
-      }
-
-      const payload: Record<string, any> = {};
+      const payload: Record<string, unknown> = {};
       if (contact.name !== undefined) payload.full_name = contact.name;
       if (contact.email !== undefined) payload.email = contact.email;
       if (contact.phone !== undefined) payload.phone = contact.phone;
@@ -273,259 +110,114 @@ export function useClients() {
       if (contact.city !== undefined) payload.city = contact.city;
       if (contact.zip !== undefined) payload.zip = contact.zip;
 
-      try {
-        const res = await updateClient(numericId, payload);
-        broadcastContactUpdated({
-          clientId: numericId,
-          full_name: contact.name,
-          email: contact.email,
-          phone: contact.phone,
-          address: contact.address,
-          city: contact.city,
-          zip: contact.zip,
-          source: 'client_360',
-        });
-        loadClient360Detail(numericId);
-        return res;
-      } catch (err: any) {
-        console.error('Failed to update client contact info on backend:', err);
-        throw err;
-      }
+      return await updateClientMutation.mutateAsync({ clientId, payload });
     },
-    [activeClientDetail, loadClient360Detail]
+    [updateClientMutation]
   );
 
-  // Handler: Save roof specs
   const saveSpecs = useCallback(
     async (clientId: string | number, updatedSpecs: RoofSpecs) => {
-      const numericId = typeof clientId === 'string' ? parseInt(clientId.replace(/\D/g, '')) || Number(clientId) : clientId;
       const payload = roofSpecsToBackendPayload(updatedSpecs);
-
-      // Optimistic update
-      setClients((prev) =>
-        prev.map((c) => {
-          if (String(c.id) === String(clientId)) {
-            return {
-              ...c,
-              roofSpecs: updatedSpecs,
-              address: updatedSpecs.address,
-              city: updatedSpecs.cityZip.split(' ')[0] || c.city,
-            };
-          }
-          return c;
-        })
-      );
-
-      if (activeClientDetail && String(activeClientDetail.id) === String(clientId)) {
-        setActiveClientDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                roofSpecs: updatedSpecs,
-                address: updatedSpecs.address,
-                city: updatedSpecs.cityZip.split(' ')[0] || prev.city,
-              }
-            : null
-        );
-      }
-
-      try {
-        await updateClientSpecs(numericId, payload);
-        // Refresh detail in background
-        loadClient360Detail(numericId);
-      } catch (err: any) {
-        console.error('Failed to update client specs on backend:', err);
-        throw err;
-      }
+      await updateClientSpecs(clientId, payload);
+      await updateClientMutation.mutateAsync({ clientId, payload });
     },
-    [activeClientDetail, loadClient360Detail]
+    [updateClientMutation]
   );
 
-  // Handler: Log activity
   const logActivity = useCallback(
     async (clientId: string | number, newEvent: Omit<TimelineEvent, 'id'>) => {
-      const numericId = typeof clientId === 'string' ? parseInt(clientId.replace(/\D/g, '')) || Number(clientId) : clientId;
-
-      const fullEvent: TimelineEvent = {
-        ...newEvent,
-        id: `ev-temp-${Date.now()}`,
-      };
-
-      // Optimistic update
-      setClients((prev) =>
-        prev.map((c) => {
-          if (String(c.id) === String(clientId)) {
-            return {
-              ...c,
-              timeline: [fullEvent, ...c.timeline],
-            };
-          }
-          return c;
-        })
-      );
-
-      if (activeClientDetail && String(activeClientDetail.id) === String(clientId)) {
-        setActiveClientDetail((prev) =>
-          prev
-            ? {
-                ...prev,
-                timeline: [fullEvent, ...prev.timeline],
-              }
-            : null
-        );
-      }
-
-      try {
-        await addClientActivity(numericId, {
+      await addActivityMutation.mutateAsync({
+        clientId,
+        payload: {
           title: newEvent.title,
           description: newEvent.details,
           activityType: newEvent.type,
-        });
-        loadClient360Detail(numericId);
-      } catch (err: any) {
-        console.error('Failed to save client activity on backend:', err);
-        throw err;
-      }
+        },
+      });
     },
-    [activeClientDetail, loadClient360Detail]
+    [addActivityMutation]
   );
 
-  // Handler: Reactivate deal
   const reactivateClient = useCallback(
     async (clientId: string | number) => {
-      const numericId = typeof clientId === 'string' ? parseInt(clientId.replace(/\D/g, '')) || Number(clientId) : clientId;
-
-      try {
-        await updateClient(numericId, {
+      await updateClientMutation.mutateAsync({
+        clientId,
+        payload: {
           status: 'active_job',
           client_category: 'existing_client',
-        });
-        await addClientActivity(numericId, {
+        },
+      });
+      await addActivityMutation.mutateAsync({
+        clientId,
+        payload: {
           title: 'Deal Reactivated from Closed Lost Archive',
           description: 'Client reactivated to active pipeline by staff.',
           activityType: 'system',
-        });
-        await loadClients();
-        loadClient360Detail(numericId);
-      } catch (err: any) {
-        console.error('Failed to reactivate client on backend:', err);
-        throw err;
-      }
+        },
+      });
     },
-    [loadClients, loadClient360Detail]
+    [updateClientMutation, addActivityMutation]
   );
 
-  // Handler: Create client
   const createNewClient = useCallback(
     async (payload: CreateClientPayload) => {
-      try {
-        const res = await createClient(payload);
-        await loadClients();
-        if (res?.client?.id) {
-          setSelectedClientId(String(res.client.id));
-        }
-        return res;
-      } catch (err: any) {
-        console.error('Failed to create new client on backend:', err);
-        throw err;
+      const res = await createClientMutation.mutateAsync(payload);
+      if (res?.client?.id) {
+        setSelectedClientId(String(res.client.id));
       }
+      return res;
     },
-    [loadClients]
+    [createClientMutation]
   );
 
-  // Handler: Onboard existing client at any pipeline stage
   const createExistingHomeowner = useCallback(
     async (payload: CreateExistingClientPayload) => {
-      try {
-        const res = await createExistingClient(payload);
-        await loadClients();
-        if (res?.client?.id) {
-          setSelectedClientId(String(res.client.id));
-          loadClient360Detail(res.client.id);
-        }
-        broadcastContactUpdated({
-          clientId: res?.client?.id,
-          leadId: res?.lead?.id,
-          name: res?.client?.full_name || payload.fullName,
-          phone: res?.client?.phone || payload.phone || undefined,
-          email: res?.client?.email || payload.email || undefined,
-          address: res?.client?.address || payload.address || undefined,
-          city: res?.client?.city || payload.city || undefined,
-          zip: res?.client?.zip || payload.zip || undefined,
-        });
-        return res;
-      } catch (err: any) {
-        console.error('Failed to onboard existing homeowner:', err);
-        throw err;
+      const res = await createExistingMutation.mutateAsync(payload);
+      if (res?.client?.id) {
+        setSelectedClientId(String(res.client.id));
       }
+      return res;
     },
-    [loadClients, loadClient360Detail]
+    [createExistingMutation]
   );
 
-  // Handler: Tasks
-  const fetchClientTasks = useCallback(async (clientId: string | number) => {
-    return api.request(`/admin/clients/${clientId}/tasks`);
+  const markClientAsLost = useCallback(
+    async (clientId: string | number, reason: string, lossNotes?: string) => {
+      await markLostMutation.mutateAsync({ clientId, lostReason: reason, lostNotes: lossNotes });
+    },
+    [markLostMutation]
+  );
+
+  const setClients = useCallback((_action: React.SetStateAction<Client360Record[]>) => {
+    // TanStack Query handles caching; no-op for backward compatibility
   }, []);
 
-  const createClientTask = useCallback(async (clientId: string | number, task: any) => {
-    return api.request(`/admin/clients/${clientId}/tasks`, {
-      method: 'POST',
-      body: JSON.stringify(task),
-    });
+  // Document & Task helpers using httpClient
+  const fetchClientTasks = useCallback(async (clientId: string | number) => {
+    return httpClient.get(`/admin/clients/${clientId}/tasks`);
+  }, []);
+
+  const createClientTask = useCallback(async (clientId: string | number, task: unknown) => {
+    return httpClient.post(`/admin/clients/${clientId}/tasks`, task);
   }, []);
 
   const toggleClientTask = useCallback(async (clientId: string | number, taskId: string | number) => {
-    return api.request(`/admin/clients/${clientId}/tasks/${taskId}`, {
-      method: 'PUT',
-    });
+    return httpClient.put(`/admin/clients/${clientId}/tasks/${taskId}`, {});
   }, []);
 
-  // Handler: Documents
   const fetchDocuments = useCallback(async (clientId: string | number) => {
-    return api.request(`/admin/clients/${clientId}/documents`);
+    return httpClient.get(`/admin/clients/${clientId}/documents`);
   }, []);
 
   const uploadDocument = useCallback(async (clientId: string | number, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.request(`/admin/clients/${clientId}/documents`, {
-      method: 'POST',
-      body: formData,
-    });
+    return httpClient.post(`/admin/clients/${clientId}/documents`, formData);
   }, []);
 
   const deleteDocument = useCallback(async (clientId: string | number, documentId: string | number) => {
-    return api.request(`/admin/clients/${clientId}/documents/${documentId}`, {
-      method: 'DELETE',
-    });
+    return httpClient.delete(`/admin/clients/${clientId}/documents/${documentId}`);
   }, []);
-
-  // Selected client object fallback
-  const currentClient =
-    (activeClientDetail && String(activeClientDetail.id) === String(selectedClientId)
-      ? activeClientDetail
-      : clients.find((c) => String(c.id) === String(selectedClientId))) || clients[0];
-
-  // Handler: Mark client as lost
-  const markClientAsLost = useCallback(
-    async (clientId: string | number, reason: string, lossNotes?: string) => {
-      const numericId =
-        typeof clientId === 'string'
-          ? parseInt(clientId.replace(/\D/g, '')) || Number(clientId)
-          : clientId;
-
-      try {
-        // Single atomic call — backend handles client_category + linked leads + activity log
-        await markClientLostApi(numericId, reason, lossNotes);
-        await loadClients();
-        await loadClient360Detail(numericId);
-      } catch (err: any) {
-        console.error('Failed to mark client as lost:', err);
-        throw err;
-      }
-    },
-    [loadClients, loadClient360Detail]
-  );
 
   return {
     clients,
@@ -559,5 +251,3 @@ export function useClients() {
     deleteDocument,
   };
 }
-
-

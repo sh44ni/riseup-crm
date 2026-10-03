@@ -1,0 +1,84 @@
+name: Security scans
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Weekly full-history secret scan and dependency audit (Mondays 03:00 UTC)
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history: the weekly run and PR diffs both need it
+
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=8.21.2
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Scan pull request commits
+        if: github.event_name == 'pull_request'
+        run: >-
+          gitleaks git --redact -v
+          --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      - name: Scan full history
+        if: github.event_name != 'pull_request'
+        # Until the P0 history purge is done this will report the already-known leaked values.
+        # After the purge it must be clean; then remove continue-on-error.
+        continue-on-error: true
+        run: gitleaks git --redact -v
+
+  pip-audit:
+    name: pip-audit (backend, fails on any known vulnerability)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --frozen
+      - run: uv run pip-audit --strict -r requirements.txt --no-deps --disable-pip
+
+  npm-audit:
+    name: npm audit (production deps, fails on high)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+
+  trivy:
+    name: trivy (backend image, informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t riseup-backend:scan backend
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: riseup-backend:scan
+          severity: HIGH,CRITICAL
+          exit-code: '0'

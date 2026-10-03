@@ -1,0 +1,255 @@
+{
+  "timestamp": "2026-10-03T18:08:07.586Z",
+  "total_scans": 30,
+  "total_serious_critical_violations": 54,
+  "scans": [
+    {
+      "route": "/login",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/login",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/pipeline",
+      "theme": "light",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "select-name": 3
+      },
+      "seriousAndCriticalCount": 3
+    },
+    {
+      "route": "/pipeline",
+      "theme": "dark",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "select-name": 3
+      },
+      "seriousAndCriticalCount": 3
+    },
+    {
+      "route": "/leads",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/leads",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/clients",
+      "theme": "light",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 3
+      },
+      "seriousAndCriticalCount": 3
+    },
+    {
+      "route": "/clients",
+      "theme": "dark",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 3
+      },
+      "seriousAndCriticalCount": 3
+    },
+    {
+      "route": "/estimates",
+      "theme": "light",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 4
+      },
+      "seriousAndCriticalCount": 4
+    },
+    {
+      "route": "/estimates",
+      "theme": "dark",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 4
+      },
+      "seriousAndCriticalCount": 4
+    },
+    {
+      "route": "/contracts",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/contracts",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/jobs",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/jobs",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/calendar",
+      "theme": "light",
+      "violationsCount": 2,
+      "violationsByRule": {
+        "color-contrast": 1,
+        "select-name": 1
+      },
+      "seriousAndCriticalCount": 2
+    },
+    {
+      "route": "/calendar",
+      "theme": "dark",
+      "violationsCount": 2,
+      "violationsByRule": {
+        "color-contrast": 1,
+        "select-name": 1
+      },
+      "seriousAndCriticalCount": 2
+    },
+    {
+      "route": "/finances",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/finances",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/marketing",
+      "theme": "light",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/marketing",
+      "theme": "dark",
+      "violationsCount": 0,
+      "violationsByRule": {},
+      "seriousAndCriticalCount": 0
+    },
+    {
+      "route": "/tasks",
+      "theme": "light",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 1
+      },
+      "seriousAndCriticalCount": 1
+    },
+    {
+      "route": "/tasks",
+      "theme": "dark",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 1
+      },
+      "seriousAndCriticalCount": 1
+    },
+    {
+      "route": "/reports",
+      "theme": "light",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "select-name": 1
+      },
+      "seriousAndCriticalCount": 1
+    },
+    {
+      "route": "/reports",
+      "theme": "dark",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "select-name": 1
+      },
+      "seriousAndCriticalCount": 1
+    },
+    {
+      "route": "/warranties",
+      "theme": "light",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 6
+      },
+      "seriousAndCriticalCount": 6
+    },
+    {
+      "route": "/warranties",
+      "theme": "dark",
+      "violationsCount": 1,
+      "violationsByRule": {
+        "color-contrast": 6
+      },
+      "seriousAndCriticalCount": 6
+    },
+    {
+      "route": "/settings",
+      "theme": "light",
+      "violationsCount": 3,
+      "violationsByRule": {
+        "button-name": 2,
+        "color-contrast": 3,
+        "label": 2
+      },
+      "seriousAndCriticalCount": 7
+    },
+    {
+      "route": "/settings",
+      "theme": "dark",
+      "violationsCount": 3,
+      "violationsByRule": {
+        "button-name": 2,
+        "color-contrast": 3,
+        "label": 2
+      },
+      "seriousAndCriticalCount": 7
+    }
+  ]
+}

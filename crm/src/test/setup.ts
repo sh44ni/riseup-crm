@@ -1,10 +1,23 @@
 import '@testing-library/jest-dom';
-import { vi, afterEach } from 'vitest';
+import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { server } from './server';
+
+// Start MSW mock server before all tests
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' });
+});
 
 // Cleanup after each test
 afterEach(() => {
   cleanup();
+  server.resetHandlers();
+  localStorage.clear();
+});
+
+// Close server after all tests
+afterAll(() => {
+  server.close();
 });
 
 // Mock localStorage globally
@@ -42,9 +55,6 @@ window.ResizeObserver = vi.fn().mockImplementation(() => ({
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 }));
-
-// Mock fetch globally
-global.fetch = vi.fn();
 
 // Mock console.error to avoid noise in tests (re-enable if debugging)
 const originalConsoleError = console.error;

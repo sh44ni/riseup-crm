@@ -116,10 +116,8 @@ function getBackendUrl(): string {
 }
 
 function getApiKey(): string {
-  return (
-    process.env.RISEUP_API_KEY ||
-    'rup_live_vhu3GEw1RtOSVEKNG881wT_whHOOiadXbnBzqiichUw'
-  );
+  // No hard-coded fallback: the key must be supplied via the environment.
+  return process.env.RISEUP_API_KEY || '';
 }
 
 export async function GET() {

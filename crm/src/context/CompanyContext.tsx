@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CompanyProfile } from '@/types/settingsTypes';
-import { INITIAL_COMPANY_PROFILE } from '@/data/settingsData';
+import { INITIAL_COMPANY_PROFILE } from '@/shared/config/company';
 import { api } from '@/lib/api';
 
 export interface CompanyContextType {

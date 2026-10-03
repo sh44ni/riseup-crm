@@ -115,12 +115,7 @@ async def get_clients(
     user: Dict[str, Any] = Depends(require_permission("clients:view")),
     db: AsyncSession = Depends(get_db)
 ):
-    if sync:
-        try:
-            await auto_heal_dataflow_sync(db)
-        except Exception as sync_err:
-            pass
-
+    # NOTE: Safe HTTP GET (RFC 9110) - no side-effects/mutations in GET requests.
     page_val = page if isinstance(page, int) else 1
     limit_val = limit if isinstance(limit, int) else 100
     offset = (page_val - 1) * limit_val
@@ -837,10 +832,14 @@ async def get_client_360(
     clean_norm = client.get("phone_normalized") or "__NONE__"
     clean_email = client.get("email").lower() if client.get("email") else "__NONE__"
 
-    # Fetch related entities in parallel
+    # Fetch related entities. A single AsyncSession cannot run statements concurrently, so the
+    # queries are serialised through a lock (gather is kept only to preserve the call structure).
+    db_lock = asyncio.Lock()
+
     async def _q(stmt, params=None):
-        res = await db.execute(stmt, params or {})
-        return [dict(r._mapping) for r in res.fetchall()]
+        async with db_lock:
+            res = await db.execute(stmt, params or {})
+            return [dict(r._mapping) for r in res.fetchall()]
 
     (
         leads,

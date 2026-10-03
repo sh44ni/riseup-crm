@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.redis import get_redis, is_redis_available
-from app.core.permissions import require_permission, require_auth_user, has_permission
+from app.core.permissions import require_permission, require_auth_user, has_permission, get_permission_scope
 from app.services.weather import get_weather
 from app.middlewares.telemetry import in_memory_latencies, in_memory_counters
 
@@ -263,9 +263,17 @@ async def export_data(
     writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
 
     if type == "leads":
-        headers = ['Lead ID', 'Full Name', 'Phone', 'Email', 'Address', 'City', 'Zip', 'Service Type', 'Roof Type', 'Roof SQF', 'Stories', 'HOA', 'Lead Score', 'Priority', 'Status', 'Lead Source', 'Created At']
-        keys = ['id', 'full_name', 'phone', 'email', 'address', 'city', 'zip', 'service_type', 'roof_type', 'roof_sqf', 'stories', 'hoa', 'lead_score', 'priority', 'status', 'lead_source', 'created_at']
-        res = await db.execute(text("SELECT id, full_name, phone, email, address, city, zip, service_type, roof_type, roof_sqf, stories, hoa, lead_score, priority, status, lead_source, created_at FROM leads ORDER BY created_at DESC"))
+        headers = ['Lead ID', 'Full Name', 'Phone', 'Email', 'Address', 'City', 'Zip', 'Service Type', 'Roof Type', 'Roof SQF', 'Stories', 'Lead Score', 'Priority', 'Status', 'Lead Source', 'Created At']
+        keys = ['id', 'full_name', 'phone', 'email', 'address', 'city', 'zip', 'service_type', 'roof_type', 'roof_sqf', 'stories', 'lead_score', 'priority', 'status', 'lead_source', 'created_at']
+        where_clause = ""
+        params: Dict[str, Any] = {}
+        scope = get_permission_scope(user, "leads.view") or get_permission_scope(user, "leads:view")
+        if scope in ("own", "assigned"):
+            where_clause = "WHERE (assigned_to_user_id = :uid OR created_by_user_id = :uid)"
+            params = {"uid": user.get("id")}
+        elif scope == "none":
+            where_clause = "WHERE 1=0"
+        res = await db.execute(text(f"SELECT id, full_name, phone, email, address, city, zip, service_type, roof_type, roof_sqf, stories, lead_score, priority, status, lead_source, created_at FROM leads {where_clause} ORDER BY created_at DESC"), params)
     elif type == "jobs":
         headers = ['Job Number', 'Customer Name', 'Phone', 'Address', 'City', 'Service Type', 'Stage', 'Contract Value ($)', 'Scheduled Start', 'Created At']
         keys = ['job_number', 'customer_name', 'customer_phone', 'address', 'city', 'service_type', 'status', 'contract_value', 'scheduled_start', 'created_at']
@@ -423,7 +431,7 @@ async def delete_template(
 @router.get("/dashboard")
 async def get_crm_dashboard(
     db: AsyncSession = Depends(get_db),
-    user: Dict[str, Any] = Depends(require_auth_user)
+    user: Dict[str, Any] = Depends(require_auth_user())
 ):
     # Try Redis cache first (60s TTL)
     from app.core.redis import cache_get, cache_set
@@ -655,11 +663,11 @@ async def get_crm_dashboard(
             logger.warning(f"Error querying recent activities: {e}")
             stats["recentActivities"] = []
 
-    except Exception as exc:
-        # Surface the actual error in dev, return zeros in prod
-        import os
-        if os.getenv("ENV", "development") == "development":
-            return {"ok": False, "error": str(exc), "stats": None}
+    except Exception:
+        logger.exception("Dashboard stats query failed")
+        from app.core.config import settings as _settings
+        if _settings.DEBUG and _settings.is_dev_like:
+            return {"ok": False, "error": "Dashboard stats query failed (see server logs)", "stats": None}
         stats = {
             "newLeads": 0, "newLeadsDelta": None,
             "contacted": 0, "contactedDelta": None,

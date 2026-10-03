@@ -3,18 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 PERMISSION_ALIASES: Dict[str, str] = {
-    "finances.view_invoices": "finances.view",
-    "finances.view_profit_ledger": "finances.view",
-    "finances.create_invoices": "finances.edit",
-    "finances.record_payment": "finances.edit",
-    "jobs.view_jobs": "jobs.view",
-    "jobs.change_stage": "jobs.edit",
-    "jobs.manage_permits": "jobs.edit",
-    "jobs.delete": "jobs.edit",
-    "clients.view_clients": "clients.view",
-    "users.manage": "users.assign_roles",
-    "users.edit": "users.assign_roles",
-    "roles.manage": "roles.edit",
+    "finances.view_invoices": "finances.view", "finances.view_profit_ledger": "finances.view",
+    "finances.create_invoices": "finances.edit", "finances.record_payment": "finances.edit",
+    "jobs.view_jobs": "jobs.view", "jobs.change_stage": "jobs.edit",
+    "jobs.manage_permits": "jobs.edit", "jobs.delete": "jobs.edit",
+    "clients.view_clients": "clients.view", "users.manage": "users.assign_roles",
+    "users.edit": "users.assign_roles", "roles.manage": "roles.edit",
 }
 
 def normalize_permission_key(key: str) -> str:
@@ -34,19 +28,16 @@ class AuthUser:
         permissions: Optional[Dict[str, str]] = None,
         is_protected_owner: bool = False,
         is_api_key: bool = False,
-        api_key_id: Optional[int] = None
+        api_key_id: Optional[int] = None,
+        kind: Optional[str] = None,
     ):
-        self.id = id
-        self.name = name
-        self.email = email
-        self.role = role
-        self.status = status
-        self.phone = phone
-        self.avatar_url = avatar_url
-        self.permissions = permissions or {}
-        self.is_protected_owner = is_protected_owner
-        self.is_api_key = is_api_key
+        self.id, self.name, self.email = id, name, email
+        self.role, self.status, self.phone = role, status, phone
+        self.avatar_url, self.permissions = avatar_url, permissions or {}
+        self.is_protected_owner, self.is_api_key = is_protected_owner, is_api_key
         self.api_key_id = api_key_id
+        self.kind = "api_key" if is_api_key else (kind or "user")
+        self.user_id = None if self.kind == "api_key" else id
 
     def __getitem__(self, item: str) -> Any:
         return getattr(self, item)
@@ -59,18 +50,13 @@ class AuthUser:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "id": self.id,
-            "name": self.name,
-            "email": self.email,
-            "role": self.role,
-            "status": self.status,
-            "phone": self.phone,
-            "avatar_url": self.avatar_url,
-            "permissions": self.permissions,
-            "is_protected_owner": self.is_protected_owner,
-            "is_api_key": self.is_api_key,
-            "api_key_id": self.api_key_id,
+            "id": self.id, "name": self.name, "email": self.email, "role": self.role,
+            "status": self.status, "phone": self.phone, "avatar_url": self.avatar_url,
+            "permissions": self.permissions, "is_protected_owner": self.is_protected_owner,
+            "is_api_key": self.is_api_key, "api_key_id": self.api_key_id,
+            "kind": self.kind, "user_id": self.user_id,
         }
+
 
 def has_permission(
     user: Optional[AuthUser],
@@ -219,9 +205,14 @@ def check_resource_access(
     if scope == "all":
         return True
 
+    # API keys are evaluated strictly by scope ('all') and never possess human ownership
+    if getattr(u_obj, "is_api_key", False) or getattr(u_obj, "kind", "user") == "api_key":
+        return False
+
     uid = getattr(u_obj, "id", None)
     if uid is None or uid == 0 or uid == "0":
         return False
+
 
     str_uid = str(uid)
     str_creator = str(creator_id) if creator_id is not None else None
@@ -298,77 +289,59 @@ SYSTEM_PERMISSIONS = [
     ("leads.delete", "leads", "delete", "Delete leads"),
     ("leads.claim", "leads", "claim", "Claim unassigned leads"),
     ("leads.reassign", "leads", "reassign", "Reassign leads to other team members"),
-
     # Clients
     ("clients.view", "clients", "view", "View CRM clients"),
     ("clients.create", "clients", "create", "Create new clients"),
     ("clients.edit", "clients", "edit", "Edit client details"),
     ("clients.delete", "clients", "delete", "Delete clients"),
-
     # Pipeline
     ("pipeline.view", "pipeline", "view", "View sales pipeline Kanban and analytics"),
     ("pipeline.advance_stage", "pipeline", "advance_stage", "Move deals between pipeline stages"),
     ("pipeline.override_gate", "pipeline", "override_gate", "Override automated stage transition gates"),
-
     # Estimates
     ("estimates.view", "estimates", "view", "View roofing estimates"),
     ("estimates.create", "estimates", "create", "Create estimates"),
     ("estimates.send", "estimates", "send", "Send estimates to clients"),
     ("estimates.edit_pricing_templates", "estimates", "edit_pricing_templates", "Modify pricing calculators and cost catalogs"),
-
     # Contracts
     ("contracts.view", "contracts", "view", "View contracts"),
+    ("contracts.edit", "contracts", "edit", "Edit contract drafts and see signing links"),
     ("contracts.void", "contracts", "void", "Void or cancel contracts"),
-
     # Jobs
     ("jobs.view", "jobs", "view", "View jobs and dispatching"),
     ("jobs.edit", "jobs", "edit", "Edit job schedules and assignments"),
     ("jobs.mark_complete", "jobs", "mark_complete", "Mark jobs completed"),
-
     # Calendar
     ("calendar.view", "calendar", "view", "View schedule and calendar"),
     ("calendar.create_event", "calendar", "create_event", "Schedule site visits and meetings"),
     ("calendar.view_others", "calendar", "view_others", "View other team members' calendars"),
-
     # Inspections
     ("inspections.view", "inspections", "view", "View roof inspections"),
     ("inspections.create", "inspections", "create", "Create and log roof inspections"),
     ("inspections.edit_checklist_templates", "inspections", "edit_checklist_templates", "Edit inspection checklists"),
-
     # Finances
     ("finances.view", "finances", "view", "View company finances, job margins, and revenue"),
     ("finances.edit", "finances", "edit", "Record payments and edit invoices"),
-
-    # Reports
+    # Reports & Warranties
     ("reports.view", "reports", "view", "View executive reporting and KPI trends"),
-
-    # Warranties
     ("warranties.view", "warranties", "view", "View warranty certificates"),
     ("warranties.create", "warranties", "create", "Issue warranties"),
     ("warranties.edit", "warranties", "edit", "Edit warranty terms"),
-
     # Estimator Settings
     ("estimator_settings.view", "estimator_settings", "view", "View estimator configuration"),
     ("estimator_settings.edit", "estimator_settings", "edit", "Update cost baselines and square footage formulas"),
-
     # Roles & Users
     ("roles.view", "roles", "view", "View system roles and matrix"),
     ("roles.create", "roles", "create", "Create new custom roles"),
     ("roles.edit", "roles", "edit", "Modify role permissions and scopes"),
     ("roles.delete", "roles", "delete", "Delete custom roles"),
     ("roles.assign_permissions", "roles", "assign_permissions", "Assign granular permissions to roles"),
-
     ("users.view", "users", "view", "View team members"),
     ("users.invite", "users", "invite", "Invite new team members"),
     ("users.deactivate", "users", "deactivate", "Deactivate users"),
     ("users.assign_roles", "users", "assign_roles", "Assign roles to users"),
-
     # Content & Settings Management
     ("settings.edit", "settings", "edit", "Edit CRM appearance settings (banners, quotes, templates)"),
-    ("estimator_settings.view", "estimator_settings", "view", "View estimator pricing configuration"),
-    ("estimator_settings.edit", "estimator_settings", "edit", "Edit estimator pricing rules and formulas"),
-    ("calendar.view", "calendar", "view", "View team calendar and scheduled events"),
-    ("calendar.create_event", "calendar", "create_event", "Create and manage calendar events"),
 ]
 
 async def seed_system_rbac(conn):
@@ -376,14 +349,30 @@ async def seed_system_rbac(conn):
     Idempotently seeds all system permissions and ensures the default Owner role exists.
     """
     for key, resource, action, description in SYSTEM_PERMISSIONS:
-        await conn.execute(
+        inserted_id = (await conn.execute(
             text("""
                 INSERT INTO permissions (key, resource, action, description)
                 VALUES (:k, :r, :a, :d)
                 ON CONFLICT (key) DO NOTHING
+                RETURNING id
             """),
             {"k": key, "r": resource, "a": action, "d": description}
-        )
+        )).scalar_one_or_none()
+
+        if key == "contracts.edit" and inserted_id is not None:
+            # First creation only: preserve existing behaviour for roles that could already
+            # work with contracts. Admins can revoke it afterwards in the Role Studio.
+            await conn.execute(
+                text("""
+                    INSERT INTO role_permissions (role_id, permission_id, scope)
+                    SELECT rp.role_id, :new_id, 'all'
+                    FROM role_permissions rp
+                    JOIN permissions p ON p.id = rp.permission_id
+                    WHERE p.key = 'contracts.view'
+                    ON CONFLICT (role_id, permission_id) DO NOTHING
+                """),
+                {"new_id": inserted_id},
+            )
 
     # Ensure Owner role exists
     await conn.execute(text("""

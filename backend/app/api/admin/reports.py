@@ -5,8 +5,10 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 
 from app.core.database import get_db
+from app.core.logger import get_logger
 from app.core.permissions import require_any_permission
 
+logger = get_logger(__name__)
 router = APIRouter(prefix="/reports", tags=["Admin Reports"])
 
 MATERIAL_CATEGORY_META: Dict[str, Dict[str, str]] = {
@@ -57,7 +59,7 @@ def _get_date_filters(from_date: Optional[str], to_date: Optional[str], table_al
         where_clause += f" AND {alias}created_at >= :filter_from"
         params["filter_from"] = str(from_date).strip()
     if to_date and DATE_PATTERN.match(str(to_date).strip()):
-        where_clause += f" AND {alias}created_at < (:filter_to::DATE + INTERVAL '1 day')::TIMESTAMPTZ"
+        where_clause += f" AND {alias}created_at < (CAST(:filter_to AS DATE) + INTERVAL '1 day')::TIMESTAMPTZ"
         params["filter_to"] = str(to_date).strip()
     return where_clause, params
 
@@ -536,10 +538,9 @@ async def get_report_kpis(
                 "connectedPct": connected_pct,
             }
         }
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
-        return {"ok": False, "error": str(exc), "kpis": None}
+    except Exception:
+        logger.exception("speed-to-lead KPI report failed")
+        return {"ok": False, "error": "Could not load report data", "kpis": None}
 
 @router.get("/speed-to-lead-distribution")
 async def get_speed_to_lead_distribution(
@@ -661,12 +662,11 @@ async def get_speed_to_lead_distribution(
             "slaCompliancePct": sla_pct,
             "distribution": distribution
         }
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logger.exception("speed-to-lead-distribution report failed")
         return {
             "ok": False,
-            "error": str(exc),
+            "error": "Could not load report data",
             "avgSpeedMinutes": 0.0,
             "totalContacted": 0,
             "slaCompliancePct": 0.0,

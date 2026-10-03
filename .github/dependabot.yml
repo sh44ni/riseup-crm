@@ -1,8 +1,10 @@
-# Dependabot configuration — automatically opens PRs for dependency updates
+# Dependabot configuration — automatically opens PRs for dependency updates.
+# Updates are grouped so there is one PR per ecosystem per week instead of one per package.
 version: 2
 updates:
-  # Python backend dependencies
-  - package-ecosystem: "pip"
+  # Python backend dependencies (pyproject.toml + uv.lock; requirements.txt is generated from the
+  # lock, so the plain "pip" ecosystem must not be used here).
+  - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
       interval: "weekly"
@@ -10,29 +12,24 @@ updates:
     labels:
       - "dependencies"
       - "backend"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      backend-minor-and-patch:
+        update-types: ["minor", "patch"]
 
-  # CRM frontend dependencies
+  # JavaScript workspaces (website + crm). The npm workspace root owns the lockfile.
   - package-ecosystem: "npm"
-    directory: "/crm"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
     labels:
       - "dependencies"
-      - "crm"
-    open-pull-requests-limit: 5
-
-  # Website dependencies
-  - package-ecosystem: "npm"
-    directory: "/website"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "website"
-    open-pull-requests-limit: 5
+      - "frontend"
+    open-pull-requests-limit: 3
+    groups:
+      js-minor-and-patch:
+        update-types: ["minor", "patch"]
 
   # GitHub Actions version updates
   - package-ecosystem: "github-actions"
@@ -44,3 +41,6 @@ updates:
       - "dependencies"
       - "github-actions"
     open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]

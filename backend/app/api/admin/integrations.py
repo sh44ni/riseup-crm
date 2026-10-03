@@ -3,30 +3,54 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode, quote
+import secrets
 import httpx
 from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.permissions import require_permission
+from app.core.logger import get_logger
+from app.core.permissions import AuthUser, has_permission, require_permission
+from app.core.redis import cache_pop, cache_set
+from app.middlewares.auth import get_optional_current_user
 from app.services.reviews import (
     get_google_auth_settings, save_google_auth_settings, sync_google_reviews,
     get_yelp_auth_settings, save_yelp_auth_settings, sync_yelp_reviews
 )
 
+logger = get_logger(__name__)
 router = APIRouter()
+
+OAUTH_STATE_TTL_SECONDS = 600
+OAUTH_STATE_PREFIX = "oauth_state:"
 
 # ── GOOGLE OAUTH & SYNC ──────────────────────────────────────────────────────
 
-@router.get("/google-auth")
-async def google_auth_redirect(request: Request):
-    client_id = settings.GOOGLE_CLIENT_ID
-    if not client_id:
-        raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID is not set in environment variables.")
+def _google_redirect_uri() -> str:
+    """Callback URL comes from configuration only, never from request headers."""
+    if settings.GOOGLE_REDIRECT_URI:
+        return settings.GOOGLE_REDIRECT_URI
+    if settings.PUBLIC_BACKEND_URL:
+        return f"{settings.PUBLIC_BACKEND_URL.rstrip('/')}/api/admin/google-callback"
+    return ""
 
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost:8000"
-    protocol = request.headers.get("x-forwarded-proto") or ("http" if "localhost" in host else "https")
-    redirect_uri = f"{protocol}://{host}/api/admin/google-callback"
+
+def _reviews_url(**query: str) -> str:
+    base = settings.CRM_FRONTEND_URL.rstrip("/")
+    return f"{base}/admin/reviews?{urlencode(query, quote_via=quote)}"
+
+
+@router.get("/google-auth")
+async def google_auth_redirect(
+    user: AuthUser = Depends(require_permission("reviews:manage")),
+):
+    client_id = settings.GOOGLE_CLIENT_ID
+    redirect_uri = _google_redirect_uri()
+    if not client_id or not redirect_uri:
+        raise HTTPException(status_code=500, detail="Google OAuth is not configured.")
+
+    state = secrets.token_urlsafe(32)
+    await cache_set(f"{OAUTH_STATE_PREFIX}{state}", str(user.id), ttl_seconds=OAUTH_STATE_TTL_SECONDS)
 
     scope = "https://www.googleapis.com/auth/business.manage"
     auth_params = {
@@ -36,7 +60,7 @@ async def google_auth_redirect(request: Request):
         "scope": scope,
         "access_type": "offline",
         "prompt": "consent",
-        "state": "riseup_oauth_sync",
+        "state": state,
     }
     url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(auth_params)}"
     return RedirectResponse(url)
@@ -45,25 +69,30 @@ async def google_auth_redirect(request: Request):
 async def google_auth_callback(
     request: Request,
     code: Optional[str] = None,
+    state: Optional[str] = None,
     error: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: Optional[AuthUser] = Depends(get_optional_current_user),
 ):
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost:3000"
-    protocol = request.headers.get("x-forwarded-proto") or ("http" if "localhost" in host else "https")
-    base_url = f"{protocol}://{host}"
+    # The state is single-use: consume it first so a replayed or forged callback cannot succeed.
+    stored_user_id = await cache_pop(f"{OAUTH_STATE_PREFIX}{state}") if state else None
+    if stored_user_id is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state.")
+    if user is None or str(user.id) != stored_user_id or not has_permission(user, "reviews:manage"):
+        raise HTTPException(status_code=400, detail="OAuth state does not match the signed-in user.")
 
     if error:
-        return RedirectResponse(f"{base_url}/admin/reviews?google_error={quote(error)}")
+        return RedirectResponse(_reviews_url(google_error=error))
 
     if not code:
-        return RedirectResponse(f"{base_url}/admin/reviews?google_error={quote('No authorization code returned from Google')}")
+        return RedirectResponse(_reviews_url(google_error="No authorization code returned from Google"))
 
     client_id = settings.GOOGLE_CLIENT_ID
     client_secret = settings.GOOGLE_CLIENT_SECRET
-    redirect_uri = f"{protocol}://{host}/api/admin/google-callback"
+    redirect_uri = _google_redirect_uri()
 
-    if not client_id or not client_secret:
-        return RedirectResponse(f"{base_url}/admin/reviews?google_error={quote('OAuth credentials missing in environment')}")
+    if not client_id or not client_secret or not redirect_uri:
+        return RedirectResponse(_reviews_url(google_error="OAuth credentials missing in environment"))
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -81,7 +110,7 @@ async def google_auth_callback(
 
         if not token_res.is_success or (not token_data.get("refresh_token") and not token_data.get("access_token")):
             msg = token_data.get("error_description") or token_data.get("error") or "Failed to exchange authorization code"
-            return RedirectResponse(f"{base_url}/admin/reviews?google_error={quote(msg)}")
+            return RedirectResponse(_reviews_url(google_error=msg))
 
         expires_at = int(datetime.now(timezone.utc).timestamp() * 1000) + (token_data.get("expires_in", 3600) * 1000)
 
@@ -90,6 +119,7 @@ async def google_auth_callback(
             "expires_at": expires_at,
             "last_sync_status": "pending",
             "last_error": None,
+            "connected_by_user_id": user.id,
         }
         if token_data.get("refresh_token"):
             update_payload["refresh_token"] = token_data["refresh_token"]
@@ -98,9 +128,10 @@ async def google_auth_callback(
 
         # Immediate sync
         sync_result = await sync_google_reviews(db)
-        return RedirectResponse(f"{base_url}/admin/reviews?google_connected=success&synced={sync_result.get('syncedCount', 0)}")
-    except Exception as err:
-        return RedirectResponse(f"{base_url}/admin/reviews?google_error={quote(str(err))}")
+        return RedirectResponse(_reviews_url(google_connected="success", synced=str(sync_result.get("syncedCount", 0))))
+    except Exception:
+        logger.exception("Google OAuth callback failed")
+        return RedirectResponse(_reviews_url(google_error="Google connection failed. Please try again."))
 
 @router.get("/google-sync")
 async def get_google_sync_status(

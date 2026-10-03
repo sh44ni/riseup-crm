@@ -1,6 +1,7 @@
 from app.core.logger import get_logger
 import os
 import base64
+import secrets
 from typing import Dict, Any
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
@@ -513,7 +514,7 @@ def save_estimate_pdf_file(estimate_identifier: str, pdf_bytes: bytes) -> str:
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     clean_id = str(estimate_identifier).replace("/", "_").replace("\\", "_").replace(" ", "_")
-    filename = f"Proposal_{clean_id}_{timestamp}.pdf"
+    filename = f"Proposal_{clean_id}_{timestamp}_{secrets.token_urlsafe(16)}.pdf"
     file_path = os.path.join(STATIC_UPLOADS_DIR, filename)
     
     with open(file_path, "wb") as f:

@@ -150,21 +150,19 @@ async def verify_client_key(api_key: str, db: AsyncSession, request: Request) ->
     return key_data
 
 
+from app.core.csrf import check_csrf
+
 async def get_optional_current_user(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ) -> Optional[AuthUser]:
     """
-    Resolves the authenticated user.
-    1. First priority: Authenticated user session (Authorization: Bearer <session_token> or cookie).
-       Identifies the real team member (Marc Sarellano, estimator, PM, sales rep).
-    2. Client App Verification: X-API-Key or X-Client-Key validates that the incoming request
-       originates from an authorized app/frontend.
-    3. If no explicit user session is provided (e.g. initial dev state or client-authenticated integration),
-       resolves to the active human owner/admin account (Marc Sarellano) so UI and audit logs
-       always reflect real human team members, never a robotic "APIKey:..." account.
+    Resolves the authenticated user according to the Phase 5 hierarchy:
+    1. First priority: Session Cookie (__Host-session, settings.COOKIE_NAME, session)
+    2. Zero-lockout fallback: Authorization: Bearer <session_token> (when LEGACY_BEARER_AUTH=True)
+    3. Client API Key: X-API-Key or X-Client-Key or Bearer rup_... (service account)
     """
-    # 1. Check for client API Key (X-API-Key or X-Client-Key) for app verification
+    # 1. Check for client API Key (X-API-Key or X-Client-Key) for app verification / service account
     api_key = request.headers.get("x-api-key") or request.headers.get("x-client-key")
     client_key_data = None
     if api_key:
@@ -172,26 +170,38 @@ async def get_optional_current_user(
         if client_key_data:
             request.state.client_app = client_key_data["name"]
 
-    # 2. Check for User Session Token (Authorization: Bearer <session_token> or Cookie)
-    token = None
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        bearer_val = auth_header.split(" ", 1)[1].strip()
-        # Only treat as a session token if it is not an API key prefix
-        if not (bearer_val.startswith("rup_") or (api_key and bearer_val == api_key)):
-            token = bearer_val
+    # 2. Check for Session Cookie
+    token = (
+        request.cookies.get("__Host-session")
+        or request.cookies.get(settings.COOKIE_NAME)
+        or request.cookies.get("session")
+    )
+    auth_method = "cookie" if token else None
 
-    if not token:
-        token = request.cookies.get(settings.COOKIE_NAME)
+    # 3. Check for Legacy Bearer Token (if enabled and no cookie provided)
+    if not token and settings.LEGACY_BEARER_AUTH:
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            bearer_val = auth_header.split(" ", 1)[1].strip()
+            # If not an API key prefix, treat as session token
+            if not (bearer_val.startswith("rup_") or (api_key and bearer_val == api_key)):
+                token = bearer_val
+                auth_method = "bearer"
+            elif not client_key_data:
+                # Bearer token is an API key (e.g. Bearer rup_live_...)
+                client_key_data = await verify_client_key(bearer_val, db, request)
 
-    # 3. If user session token is present, resolve the authenticated staff member
+    # 4. If user session token is present, resolve the authenticated staff member
     if token:
+        request.state.session_token = token
+        request.state.auth_method = auth_method
         user = await resolve_auth_user(token, db)
         if user:
             return user
 
-    # 4. If an API key was provided and verified, return an AuthUser scoped to its permissions
+    # 5. If an API key was provided and verified, return an AuthUser scoped strictly to its permissions
     if client_key_data:
+        request.state.auth_method = "api_key"
         key_scopes = client_key_data.get("scopes") or []
         perms_dict = {scope: "all" for scope in key_scopes}
         return AuthUser(
@@ -204,6 +214,7 @@ async def get_optional_current_user(
             is_protected_owner=False,
             is_api_key=True,
             api_key_id=client_key_data["id"],
+            kind="api_key",
         )
 
     return None
@@ -229,9 +240,11 @@ async def resolve_api_key(api_key: str, db: AsyncSession, request: Request) -> O
         is_protected_owner=False,
         is_api_key=True,
         api_key_id=key_data["id"],
+        kind="api_key",
     )
 
 async def require_auth(
+    request: Request,
     user: Optional[AuthUser] = Depends(get_optional_current_user)
 ) -> AuthUser:
     if not user:
@@ -239,6 +252,11 @@ async def require_auth(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized. Valid session or API key required."
         )
+
+    # Validate CSRF for cookie-authenticated mutating requests
+    if getattr(request.state, "auth_method", None) == "cookie":
+        check_csrf(request)
+
     return user
 
 # Alias for compatibility with routers expecting get_current_user
@@ -267,3 +285,5 @@ def require_any_permission(permissions: List[str]) -> Callable:
 async def invalidate_session(token: str, db: AsyncSession) -> None:
     await cache_delete(f"session_user:{token}")
     await db.execute(text("DELETE FROM admin_sessions WHERE token = :token"), {"token": token})
+    await db.commit()
+

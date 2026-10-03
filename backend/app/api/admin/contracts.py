@@ -22,6 +22,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.audit import record_audit_log
+from app.core.permissions import has_permission, check_resource_access
 from app.middlewares.auth import require_auth, require_permission
 from app.services.contract_pdf_generator import generate_contract_pdf, save_contract_pdf
 from app.services.email_service import send_contract_email
@@ -316,8 +317,9 @@ async def build_contract(
     # 7. Generate and save empty PDF
     try:
         pdf_url = await save_contract_pdf(contract_data, contract_id)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+    except Exception:
+        logger.exception("Contract PDF generation failed (contract_id=%s)", contract_id)
+        raise HTTPException(status_code=500, detail="PDF generation failed")
 
     base_url = _get_base_url(request)
     signing_url = f"{base_url}/contract/sign/{signing_token}"
@@ -454,8 +456,9 @@ async def send_contract(
 
     try:
         pdf_bytes = await generate_contract_pdf(contract_data)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+    except Exception:
+        logger.exception("Contract PDF generation failed (send for signature)")
+        raise HTTPException(status_code=500, detail="PDF generation failed")
 
     # 5. Send email with signing link and empty PDF attached
     email_result = await send_contract_email(
@@ -736,6 +739,20 @@ async def get_draft_by_lead(
     """
     Return the single active unarchived draft contract for a lead, if one exists.
     """
+    lead_res = await db.execute(
+        text("SELECT id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :lead_id"),
+        {"lead_id": lead_id},
+    )
+    lead_row = lead_res.mappings().first()
+    if lead_row:
+        if not check_resource_access(
+            current_user,
+            "leads:view",
+            creator_id=lead_row.get("created_by_user_id"),
+            assigned_id=lead_row.get("assigned_to_user_id"),
+        ):
+            raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this lead's contracts")
+
     res = await db.execute(
         text("""
             SELECT id, lead_id, estimate_id, client_id, contract_number,
@@ -753,6 +770,8 @@ async def get_draft_by_lead(
         return {"exists": False, "contract": None}
 
     c_dict = dict(row)
+    if not has_permission(current_user, "contracts.edit"):
+        c_dict.pop("signing_token", None)
     for k, v in c_dict.items():
         if isinstance(v, datetime):
             c_dict[k] = v.isoformat()
@@ -763,7 +782,7 @@ async def get_draft_by_lead(
 # PUT /api/admin/contracts/{contract_id}/draft
 # ---------------------------------------------------------------------------
 
-@router.put("/{contract_id}/draft", dependencies=[Depends(require_permission("contracts.view"))])
+@router.put("/{contract_id}/draft", dependencies=[Depends(require_permission("contracts.edit"))])
 async def autosave_contract_draft(
     contract_id: int,
     payload: AutoSaveDraftRequest,
@@ -772,10 +791,10 @@ async def autosave_contract_draft(
 ) -> Dict[str, Any]:
     """
     Lightweight debounced auto-save for contracts. Updates contract_data JSONB
-    without triggering slow PDF rendering.
+    without triggering slow PDF rendering. Only editable while the contract is a draft.
     """
     res = await db.execute(
-        text("SELECT id, status, client_initials, signature_name, signature_type, signature_data, client_signed_at, contract_data FROM contracts WHERE id = :id"),
+        text("SELECT id, status, version, client_initials, signature_name, signature_type, signature_data, client_signed_at, contract_data FROM contracts WHERE id = :id"),
         {"id": contract_id},
     )
     contract = res.mappings().first()
@@ -788,6 +807,12 @@ async def autosave_contract_draft(
             detail="Contract has already been signed and draft changes can no longer be autosaved."
         )
 
+    if contract.get("status") not in ("draft", "action_required"):
+        raise HTTPException(
+            status_code=409,
+            detail="Contract has already been sent and can no longer be edited."
+        )
+
     saved_data = dict(payload.contract_data)
     if contract.get("client_initials") and not saved_data.get("client_initials"):
         saved_data["client_initials"] = contract.get("client_initials")
@@ -798,21 +823,24 @@ async def autosave_contract_draft(
     if contract.get("signature_type") and not saved_data.get("client_signature_type"):
         saved_data["client_signature_type"] = contract.get("signature_type")
 
-    await db.execute(
+    updated = (await db.execute(
         text("""
             UPDATE contracts
             SET contract_data = :contract_data,
                 version = COALESCE(version, 1) + 1,
                 updated_at = NOW()
-            WHERE id = :id AND (status IN ('draft', 'action_required', 'sent'))
+            WHERE id = :id AND status IN ('draft', 'action_required')
+            RETURNING version
         """),
         {
             "contract_data": json.dumps(saved_data),
             "id": contract_id,
         },
-    )
+    )).mappings().first()
+    if not updated:
+        raise HTTPException(status_code=409, detail="Contract can no longer be edited.")
     await db.commit()
-    return {"ok": True, "contract_id": contract_id, "version": (contract.get("version") or 1) + 1}
+    return {"ok": True, "contract_id": contract_id, "version": updated["version"]}
 
 
 # ---------------------------------------------------------------------------
@@ -1006,8 +1034,6 @@ async def sign_contract(
             text("""
                 UPDATE leads
                 SET pipeline_stage = 'contract_signed',
-                    granular_stage = 'contract_signed',
-                    contract_status = 'client_signed',
                     stage_entered_at = NOW(),
                     contract_signed_at = :signed_at,
                     status = 'won',
@@ -1177,8 +1203,9 @@ async def counter_sign_contract(
     try:
         pdf_bytes = await generate_contract_pdf(contract_data)
         final_pdf_url = await save_contract_pdf(contract_data, contract_id, pdf_bytes=pdf_bytes)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Executed PDF generation failed: {exc}")
+    except Exception:
+        logger.exception("Executed contract PDF generation failed (contract_id=%s)", contract_id)
+        raise HTTPException(status_code=500, detail="Executed PDF generation failed")
 
     # 4. Update contract record in DB
     await db.execute(
@@ -1221,8 +1248,6 @@ async def counter_sign_contract(
             text("""
                 UPDATE leads
                 SET pipeline_stage = 'contract_signed',
-                    granular_stage = 'contract_signed',
-                    contract_status = 'signed',
                     stage_entered_at = NOW(),
                     contract_signed_at = COALESCE(contract_signed_at, :now_ts),
                     status = 'won',

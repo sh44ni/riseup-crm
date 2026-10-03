@@ -22,6 +22,8 @@ class CreateJobActivityPayload(BaseModel):
 from app.core.permissions import require_permission, require_any_permission, build_scope_filter
 from app.services.sync import find_or_create_client, recalculate_client_stats
 from app.schemas.jobs import JobCreate, JobUpdate, JobResponse
+from app.shared.numbering import next_document_number
+from app.core.uow import UnitOfWork
 
 logger = get_logger(__name__)
 
@@ -225,7 +227,7 @@ async def create_job(
             zip_code=zip_code,
             lead_source=lead.get("lead_source") if lead else "job_dispatch"
         )
-        client_id = c.id
+        client_id = getattr(c, "id", c)
         if lead_id:
             await db.execute(text("UPDATE leads SET client_id = :cid WHERE id = :id"), {"cid": client_id, "id": int(lead_id)})
 
@@ -234,10 +236,7 @@ async def create_job(
         ", ".join([r["name"] for r in user.get("roles", [])]) if user.get("roles") else user.get("role", "Staff")
     )
 
-    year = datetime.now(timezone.utc).year
-    count_res = await db.execute(text("SELECT COUNT(*) FROM jobs"))
-    seq = str(int(count_res.scalar() or 0) + 1).zfill(4)
-    job_number = f"JOB-{year}-{seq}"
+    job_number = await next_document_number(UnitOfWork(db), "job")
 
     insert_stmt = text("""
         INSERT INTO jobs (

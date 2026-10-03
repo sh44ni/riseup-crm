@@ -33,6 +33,9 @@ from app.middlewares.telemetry import (
     in_memory_rpm,
 )
 
+from app.core.logger import get_logger
+
+logger = get_logger(__name__)
 router = APIRouter(prefix="/api/developer", tags=["Developer Dashboard & Telemetry"])
 
 # ── Pydantic Request Schemas ──
@@ -150,8 +153,9 @@ async def get_system_status(
         t0 = time.perf_counter()
         await db.execute(text("SELECT 1"))
         db_ping_ms = round((time.perf_counter() - t0) * 1000, 2)
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    except Exception:
+        logger.exception("Developer vitals: database ping failed")
+        db_status = "error"
 
     # 3. Redis 7 Vitals
     redis_status = "connected"
@@ -1097,8 +1101,9 @@ async def browse_redis_keys(
             keys_list.append({"key": key_str, "type": k_type_str, "ttl": k_ttl, "preview": preview})
             
         return {"ok": True, "keys": keys_list, "total_scanned": len(scanned_keys)}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    except Exception:
+        logger.exception("Redis key scan failed")
+        return {"ok": False, "error": "Redis key scan failed"}
 
 @router.post("/tools/health-check-all")
 async def health_check_all(
@@ -1110,8 +1115,9 @@ async def health_check_all(
             t0 = time.perf_counter()
             await db.execute(text("SELECT 1"))
             return {"status": "ok", "ping_ms": round((time.perf_counter() - t0) * 1000, 2)}
-        except Exception as e:
-            return {"status": f"error: {str(e)}"}
+        except Exception:
+            logger.exception("Health check failed: postgres")
+            return {"status": "error"}
             
     async def check_redis():
         try:
@@ -1119,20 +1125,23 @@ async def health_check_all(
             t0 = time.perf_counter()
             await asyncio.wait_for(redis.ping(), timeout=0.25)
             return {"status": "ok", "ping_ms": round((time.perf_counter() - t0) * 1000, 2)}
-        except Exception as e:
-            return {"status": f"error: {str(e)}"}
+        except Exception:
+            logger.exception("Health check failed: redis")
+            return {"status": "error"}
             
     async def check_s3():
         try:
             return {"status": "ok" if settings.S3_ENDPOINT_URL else "unconfigured"}
-        except Exception as e:
-            return {"status": f"error: {str(e)}"}
+        except Exception:
+            logger.exception("Health check failed: s3")
+            return {"status": "error"}
             
     async def check_memory():
         try:
             return {"status": "ok", "rss_mb": round(psutil.Process().memory_info().rss / (1024 * 1024), 2)}
-        except Exception as e:
-            return {"status": f"error: {str(e)}"}
+        except Exception:
+            logger.exception("Health check failed: memory")
+            return {"status": "error"}
 
     pg_res, redis_res, s3_res, mem_res = await asyncio.gather(
         check_postgres(), check_redis(), check_s3(), check_memory(), return_exceptions=True
@@ -1141,10 +1150,10 @@ async def health_check_all(
     return {
         "ok": True,
         "services": {
-            "postgres": pg_res if not isinstance(pg_res, Exception) else {"status": str(pg_res)},
-            "redis": redis_res if not isinstance(redis_res, Exception) else {"status": str(redis_res)},
-            "s3": s3_res if not isinstance(s3_res, Exception) else {"status": str(s3_res)},
-            "memory": mem_res if not isinstance(mem_res, Exception) else {"status": str(mem_res)},
+            "postgres": pg_res if not isinstance(pg_res, Exception) else {"status": "error"},
+            "redis": redis_res if not isinstance(redis_res, Exception) else {"status": "error"},
+            "s3": s3_res if not isinstance(s3_res, Exception) else {"status": "error"},
+            "memory": mem_res if not isinstance(mem_res, Exception) else {"status": "error"},
         }
     }
 
@@ -1173,8 +1182,9 @@ async def reset_telemetry(token: str = Depends(require_developer_session)):
             pass
 
         return {"ok": True, "message": "Telemetry reset successfully"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    except Exception:
+        logger.exception("Telemetry reset failed")
+        return {"ok": False, "error": "Telemetry reset failed"}
 
 # ── 6. Diagnostic & Health Tools ──
 

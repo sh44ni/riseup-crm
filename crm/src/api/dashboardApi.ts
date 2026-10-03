@@ -1,6 +1,4 @@
-import { api, API_ORIGIN } from '@/lib/api';
-
-const BASE = API_ORIGIN;
+import { httpClient } from '@/shared/api/client';
 
 export interface RecentActivityItem {
   id: number;
@@ -14,7 +12,7 @@ export interface RecentActivityItem {
   target_name?: string | null;
   amount?: number | null;
   created_at: string;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface DashboardStats {
@@ -47,12 +45,7 @@ export interface DashboardStats {
 
 export async function fetchDashboardStats(): Promise<DashboardStats | null> {
   try {
-    const res = await fetch(`${BASE}/api/admin/dashboard`, {
-      headers: api.getAuthHeaders(),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
+    const json = await httpClient.get<{ ok?: boolean; stats?: DashboardStats }>('/admin/dashboard', { timeoutMs: 5000 });
     if (!json?.ok || !json?.stats) return null;
     return json.stats as DashboardStats;
   } catch {

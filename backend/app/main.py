@@ -16,6 +16,7 @@ from app.core.logger import setup_logging, get_logger
 from app.core.config import settings
 from app.core.database import engine
 from app.core.redis import init_redis, close_redis, get_redis
+from app.core.errors import DomainError
 from app.api.router import api_router
 from app.api.docs_notes import DOCS_DESCRIPTION
 from app.middlewares.telemetry import TelemetryMiddleware
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI):
     # ── Startup ──
     logger.info(f"Starting Rise Up Roofing FastAPI backend & Developer Engine...")
     setup_logging()
+    from app.core.sentry import init_sentry
+    init_sentry()
     await init_redis()
 
     # ── Database Health Check & Schema Init ──
@@ -188,6 +191,11 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # ── Telemetry & Live Request Ring Buffer Middleware ──
 app.add_middleware(TelemetryMiddleware)
 
+# ── Enterprise Security Headers & No-Store Middleware ──
+from app.middlewares.security_headers import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+
 # ── Custom Error Handlers with CORS Header Preservation ──
 def _is_allowed_origin(origin: Optional[str]) -> bool:
     if not origin:
@@ -216,22 +224,34 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    errors = exc.errors()
+    errors = [{"loc": list(e.get("loc", [])), "msg": e.get("msg", ""), "type": e.get("type", "")} for e in exc.errors()]
     first_error = errors[0]["msg"] if errors else "Invalid request data"
     return _with_cors(JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"ok": False, "error": first_error, "detail": first_error, "details": errors},
     ), request)
 
+@app.exception_handler(DomainError)
+async def domain_exception_handler(request: Request, exc: DomainError):
+    request_id = getattr(request.state, "request_id", None)
+    return _with_cors(JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_dict(request_id=request_id),
+    ), request)
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    import traceback
-    traceback.print_exc()
-    error_msg = "Internal server error. Please contact support." if settings.APP_ENV.lower() in ("production", "prod") else str(exc)
-    return _with_cors(JSONResponse(
+    request_id = getattr(request.state, "request_id", None)
+    logger.error("Unhandled exception (request_id=%s)", request_id, exc_info=exc)
+    expose_detail = settings.DEBUG and settings.is_dev_like
+    error_msg = str(exc) if expose_detail else "Internal server error. Please contact support."
+    response = _with_cors(JSONResponse(
         status_code=500,
-        content={"ok": False, "error": error_msg, "detail": error_msg},
+        content={"ok": False, "error": error_msg, "detail": error_msg, "request_id": request_id},
     ), request)
+    if request_id:
+        response.headers["X-Request-Id"] = request_id
+    return response
 
 # ── Mount Static Files ──
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -254,23 +274,87 @@ async def developer_dashboard():
 async def favicon():
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# ── Root & Health Check ──
-@app.get("/health", tags=["Health"])
-@app.get("/", tags=["Health"])
-async def health_check():
-    db_ok = True
-    redis_ok = True
-    try:
-        redis = await get_redis()
-        await redis.ping()
-    except Exception:
-        redis_ok = False
+HEALTH_CHECK_TIMEOUT_SECONDS = 2.0
 
-    return {
-        "status": "healthy" if (db_ok and redis_ok) else "degraded",
-        "service": settings.APP_NAME,
-        "env": settings.APP_ENV,
-        "database": "connected" if db_ok else "unreachable",
-        "redis": "connected" if redis_ok else "unreachable",
-        "timestamp": time.time(),
-    }
+
+async def _check_database() -> bool:
+    from sqlalchemy import text as _text
+    try:
+        async def _probe() -> None:
+            async with engine.connect() as conn:
+                await conn.execute(_text("SELECT 1"))
+        await asyncio.wait_for(_probe(), timeout=HEALTH_CHECK_TIMEOUT_SECONDS)
+        return True
+    except Exception:
+        logger.warning("Health check: database unreachable")
+        return False
+
+
+async def _check_redis() -> bool:
+    try:
+        client = get_redis()
+        await asyncio.wait_for(client.ping(), timeout=HEALTH_CHECK_TIMEOUT_SECONDS)
+        return True
+    except Exception:
+        logger.warning("Health check: redis unreachable")
+        return False
+
+
+from sqlalchemy.exc import SQLAlchemyError
+from app.schemas.health import HealthCheckResponse, ReadinessCheckResponse
+
+
+async def _check_migrations() -> bool:
+    from sqlalchemy import text as _text
+    try:
+        async def _probe() -> bool:
+            async with engine.connect() as conn:
+                res = await conn.execute(_text("SELECT version_num FROM alembic_version LIMIT 1"))
+                return bool(res.scalar_one_or_none())
+        return await asyncio.wait_for(_probe(), timeout=HEALTH_CHECK_TIMEOUT_SECONDS)
+    except (SQLAlchemyError, asyncio.TimeoutError, OSError):
+        logger.warning("Readiness check: migrations unreachable or not applied")
+        return False
+
+
+# ── Root & Health Check ──
+@app.get("/health", tags=["Health"], response_model=HealthCheckResponse)
+@app.get("/", tags=["Health"], response_model=HealthCheckResponse)
+async def health_check():
+    db_ok = await _check_database()
+    redis_ok = await _check_redis()
+    healthy = db_ok and redis_ok
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "healthy" if healthy else "unhealthy",
+            "service": settings.APP_NAME,
+            "env": settings.ENVIRONMENT,
+            "database": "connected" if db_ok else "unreachable",
+            "redis": "connected" if redis_ok else "unreachable",
+            "timestamp": time.time(),
+        },
+    )
+
+
+# ── Readiness Probe (Kubernetes / ECS / Fly.io / Compose) ──
+@app.get("/ready", tags=["Health"], response_model=ReadinessCheckResponse)
+async def readiness_check():
+    db_ok = await _check_database()
+    redis_ok = await _check_redis()
+    mig_ok = await _check_migrations()
+    ready = db_ok and redis_ok and mig_ok
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "ready" if ready else "not_ready",
+            "ready": ready,
+            "database": "connected" if db_ok else "unreachable",
+            "redis": "connected" if redis_ok else "unreachable",
+            "migrations": "applied" if mig_ok else "unreachable",
+            "timestamp": time.time(),
+        },
+    )
+

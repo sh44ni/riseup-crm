@@ -1,0 +1,123 @@
+name: riseup-prod
+
+services:
+  # ── PostgreSQL Database (Hardened, internal network only) ─────────────────
+  postgres:
+    image: postgres:16.4-alpine
+    container_name: riseup_prod_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-riseup_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-riseup_production}
+    # No exposed host ports in production (accessible only inside Docker network)
+    expose:
+      - "5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-riseup_admin} -d ${POSTGRES_DB:-riseup_production}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 In-Memory Cache & Task Queue ──────────────────────────────────
+  redis:
+    image: redis:7.2.5-alpine
+    container_name: riseup_prod_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction", "--requirepass", "${REDIS_PASSWORD}"]
+    expose:
+      - "6379"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── MinIO S3-Compatible Object Storage ─────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+    container_name: riseup_prod_minio
+    restart: unless-stopped
+    expose:
+      - "9000"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data
+    volumes:
+      - minio_prod_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Auto-provision Private MinIO Buckets (Presigned URLs only; no anonymous downloads)
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-02T08-27-28Z
+    container_name: riseup_prod_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/riseup-media;
+      mc mb --ignore-existing local/riseup-documents;
+      echo 'Private production buckets initialized (no anonymous downloads).';
+      exit 0;
+      "
+
+  # ── FastAPI Application Service (Slim, Non-Root) ─────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: riseup_prod_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-riseup_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-riseup_production}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - WEB_CONCURRENCY=4
+    volumes:
+      - static_prod_uploads:/app/static/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Dedicated ARQ & PDF Worker (Isolated Chromium Sandbox) ────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: riseup_prod_worker
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-riseup_admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-riseup_production}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
+    volumes:
+      - static_prod_uploads:/app/static/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  minio_prod_data:
+  static_prod_uploads:

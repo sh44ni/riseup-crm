@@ -1,194 +1,196 @@
 <div align="center">
 
-<img src="public/logo.svg" alt="Rise Up Roofing Logo" width="80" />
+# Rise Up Roofing & Construction — Enterprise Monorepo
 
-# Rise Up Roofing & Construction
+**Production-Grade Platform: High-Performance Backend API, Modern React CRM, and Public Marketing Site**
 
-**Production-grade Next.js website for Rise Up Roofing & Construction Inc.**  
-*San Diego County's premier roofing & construction contractor.*
-
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?logo=next.js)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8?logo=tailwindcss)](https://tailwindcss.com)
-[![Vercel](https://img.shields.io/badge/Deployed-Vercel-black?logo=vercel)](https://vercel.com)
-[![License](https://img.shields.io/badge/License-Private-red)](#)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript)](https://www.typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)](https://www.postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-Multi--stage-2496ED?logo=docker)](https://www.docker.com)
 
 </div>
 
 ---
 
-## Overview
+## 1. System Overview
 
-Full-stack marketing website built for Rise Up Roofing & Construction Inc. — a licensed San Diego County roofing contractor with 25+ years of experience. The site is engineered for performance, SEO, and conversion with a premium dual-theme (dark/light) design system.
+Rise Up Roofing & Construction operates a unified, hardened digital infrastructure designed to power roofing and construction operations across San Diego County.
 
-**Live:** [`riseuproofing.vercel.app`](https://riseuproofing.vercel.app)
+```mermaid
+graph TD
+    Client["Client Browsers / Devices"] -->|HTTPS| Cloudflare["Cloudflare / Reverse Proxy"]
+    
+    subgraph Frontend Applications
+        Web["Next.js 16 Website<br/>(Public Lead Gen, Estimator)"]
+        CRM["React 19 CRM<br/>(Kanban, Contracts, RBAC)"]
+    end
 
----
+    subgraph Core Platform
+        API["FastAPI Backend<br/>(Domain Driven, Cookie Auth, CSRF)"]
+        Worker["ARQ Background Worker<br/>(Playwright Chromium PDF Gen, Reviews)"]
+    end
 
-## Tech Stack
+    subgraph Data & Storage
+        PG[("PostgreSQL 16<br/>(ACID Transactions, Row Auditing)")]
+        Redis[("Redis 7<br/>(Session Cache, Rate Limit, ARQ Queue)")]
+        S3[("MinIO / S3<br/>(Contracts, Photos, Media)")]
+    end
 
-| Layer | Technology |
-|---|---|
-| **Framework** | Next.js 16 (App Router, Turbopack) |
-| **Language** | TypeScript 5 (strict) |
-| **Styling** | Tailwind CSS v4 + custom CSS design tokens |
-| **UI** | Lucide React icons, custom glassmorphism system |
-| **Maps** | Leaflet.js (interactive project map) |
-| **Images** | Next.js `<Image>` with Unsplash + base44 CDN |
-| **SEO** | Structured metadata per route, sitemap, robots.txt |
-| **Deploy** | Vercel (standalone output, edge-optimized) |
-
----
-
-## Project Structure
-
-```
-rise-up-next/
-├── app/                    # Next.js App Router
-│   ├── globals.css         # Design system tokens & global styles
-│   ├── layout.tsx          # Root layout with theme provider
-│   ├── page.tsx            # Homepage
-│   ├── services/[slug]/    # Dynamic service pages
-│   ├── projects/[slug]/    # Dynamic project case studies
-│   ├── service-area/[city]/# 30+ city landing pages (SSG)
-│   ├── about/              # About page
-│   ├── careers/[slug]/     # Careers + job detail pages
-│   ├── reviews/            # Reviews aggregation page
-│   ├── contact/            # Contact & estimate form
-│   ├── sitemap.xml/        # Dynamic XML sitemap
-│   └── robots.txt/         # Robots.txt route
-│
-├── components/
-│   ├── home/               # Homepage section components
-│   │   ├── Hero.tsx        # Full-screen video hero
-│   │   ├── ServicesOverview.tsx
-│   │   ├── WhyRiseUp.tsx   # Stats bento grid
-│   │   ├── Certifications.tsx
-│   │   ├── ReviewsStrip.tsx
-│   │   ├── FeaturedProjects.tsx
-│   │   ├── ProjectsMap.tsx # Interactive Leaflet map
-│   │   └── FinalCTA.tsx
-│   ├── layout/             # Navbar, Footer, ThemeToggle
-│   └── shared/             # Reusable: Container, SectionHeading, Tooltip
-│
-├── lib/
-│   ├── data/               # Static data (services, projects, reviews)
-│   ├── seo/                # Per-page metadata generators
-│   ├── schema/             # JSON-LD structured data
-│   ├── theme.tsx           # Theme context & provider
-│   ├── types.ts            # Shared type barrel
-│   └── utils.ts            # cn(), constants
-│
-├── types/                  # TypeScript interfaces
-│   ├── project.ts
-│   ├── service.ts
-│   ├── review.ts
-│   └── job.ts
-│
-├── public/
-│   ├── badges/             # Certification & partner logos
-│   ├── videos/             # Hero background video
-│   ├── logo.svg
-│   └── favicon.svg
-│
-└── next.config.ts          # Next.js config (standalone, turbopack)
+    Cloudflare --> Web
+    Cloudflare --> CRM
+    Web -->|API Key| API
+    CRM -->|HttpOnly Cookie + CSRF| API
+    API --> PG
+    API --> Redis
+    API --> S3
+    Worker --> PG
+    Worker --> Redis
+    Worker --> S3
 ```
 
 ---
 
-## Getting Started
+## 2. Repository Layout
+
+```
+riseup-roofing/
+├── backend/                  # FastAPI Application, Domain Models & Migrations
+│   ├── alembic/              # Database schema migrations
+│   ├── app/
+│   │   ├── api/              # Routers (admin, public, developer)
+│   │   ├── core/             # Security, CSRF, permissions, database, config
+│   │   ├── domain/           # DDD Domain entities, aggregates & rules
+│   │   ├── middlewares/      # Auth, security headers, rate limiting, telemetry
+│   │   └── tasks/            # ARQ background worker and cron jobs
+│   ├── Dockerfile            # Hardened multi-stage non-root runtime image
+│   ├── Dockerfile.worker     # Isolated Chromium worker image
+│   ├── docker-compose.yml    # Development stack
+│   ├── docker-compose.prod.yml # Hardened production stack
+│   └── tests/                # 350+ Pytest tests, perf load tests, authz matrix
+│
+├── crm/                      # Staff Backoffice Single Page Application
+│   ├── src/
+│   │   ├── components/       # UI components (Pipeline, Contracts, Leads, Clients)
+│   │   ├── context/          # AuthContext (cookie hydration), CompanyContext
+│   │   ├── features/         # Domain-sliced business workflows
+│   │   ├── shared/           # API clients, design tokens, UI primitives
+│   │   └── lib/              # Client state, structured logger, chunk reload
+│   ├── vercel.json           # Restrictive CSP and defensive HTTP headers
+│   └── package.json          # Vite, Vitest, Tailwind CSS v4, TypeScript
+│
+├── website/                  # Public Next.js Marketing Portal & Estimator
+│
+├── docs/                     # Architectural Documentation & Operational Runbooks
+│   ├── architecture/         # System diagrams, auth specs, backend & frontend rules
+│   ├── decisions/            # Architecture Decision Records (ADRs)
+│   └── ops/                  # Runbooks: deploy, rollback, secret rotation, backups
+│
+├── plans/                    # 10/10 Architecture & Security Engineering Roadmaps
+└── scripts/                  # Quality ratchet, backup restore verification
+```
+
+---
+
+## 3. Quick Start (Development)
 
 ### Prerequisites
+- Docker & Docker Compose
+- Node.js >= 20, npm >= 10
+- Python 3.12+ (uv or venv)
 
-- **Node.js** ≥ 18.17
-- **npm** ≥ 9
-
-### Local Development
-
+### 1. Boot Core Infrastructure & API
 ```bash
-# 1. Clone the repo
-git clone https://github.com/sh44ni/riseuproofing.git
-cd riseuproofing
+# Start PostgreSQL, Redis, MinIO, FastAPI, and ARQ Worker
+cd backend
+docker compose up -d
 
-# 2. Install dependencies
+# Check service health
+curl -f http://localhost:8000/health
+```
+
+### 2. Boot CRM Backoffice
+```bash
+cd crm
 npm install
-
-# 3. Start the dev server
 npm run dev
+# CRM running on http://localhost:5173 (proxies /api to http://localhost:8000)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## Available Scripts
-
-| Command | Description |
-|---|---|
-| `npm run dev` | Start development server with Turbopack |
-| `npm run build` | Create optimized production build |
-| `npm run start` | Serve the production build locally |
-| `npm run lint` | Run ESLint |
-
----
-
-## Design System
-
-The site uses a fully custom CSS design token system defined in [`app/globals.css`](app/globals.css).
-
-### Color Tokens
-
-| Token | Value | Usage |
-|---|---|---|
-| `--color-brand-navy` | `#112D49` | Primary brand navy |
-| `--color-brand-blue` | `#2F9FE3` | Interactive blue |
-| `--color-brand-gold` | `#EAA636` | Accent / trust |
-| `--color-brand-terracotta` | `#C85A2A` | Warmth accent |
-
-### Theming
-
-The site supports **dark** (default) and **light** modes via `data-theme` attribute on `<html>`. All semantic tokens (`--surface-base`, `--text-primary`, etc.) flip automatically.
-
-```css
-/* Dark (default) */
-:root { --surface-base: #07131F; --text-primary: #FFFFFF; }
-
-/* Light */
-[data-theme="light"] { --surface-base: #F4F8FD; --text-primary: #0B1E33; }
-```
-
-Sections marked `.always-dark` (Hero, Footer) remain dark regardless of theme.
-
----
-
-## SEO Architecture
-
-- **Structured metadata** generated per-route via `lib/seo/metadata.ts`
-- **JSON-LD** schema (LocalBusiness, Service, BreadcrumbList) via `lib/schema/`
-- **Dynamic XML sitemap** at `/sitemap.xml`
-- **30+ city pages** pre-rendered at build time for local SEO
-- **robots.txt** configured for full crawl
-
----
-
-## Deployment
-
-This project is configured for **zero-config Vercel deployment**.
-
+### 3. Seed Development Database
 ```bash
-# Deploy to production via Vercel CLI
-npx vercel --prod
+cd backend
+.\.venv\Scripts\python.exe scripts/seed_dev.py
+# Default owner credentials: owner@riseuprac.com / TestPassword123!
 ```
-
-Or connect the GitHub repo to Vercel and set:
-- **Root Directory:** `./` (repo root is the Next.js app)
-- **Framework Preset:** Next.js (auto-detected)
-- **No environment variables required**
-
-Build output uses `standalone` mode for optimal cold-start performance.
 
 ---
 
-## License
+## 4. Test Suites & Verification Gates
 
-Private — All rights reserved © 2026 Rise Up Roofing & Construction Inc.
+### Run All Backend Tests (Pytest)
+```bash
+cd backend
+pytest tests/ -v
+# Validates 350+ tests including auth matrix, CSRF, and domain workflows
+```
+
+### Run Performance Budget Tests
+```bash
+cd backend
+pytest tests/perf/ -v
+# Asserts p95 latencies < 300ms (lists/board) and SQL statement ceilings
+```
+
+### Run Frontend Vitest Suite
+```bash
+cd crm
+npm test -- --run
+```
+
+### Run TypeScript Compilation Check
+```bash
+cd crm
+npx tsc -b
+```
+
+### Enforce Quality Ratchet
+```bash
+python scripts/quality_ratchet.py
+# Fails CI if any metric (untyped any, files over limit, raw fetch) regressed
+```
+
+---
+
+## 5. Security & Authentication Architecture
+
+1. **HttpOnly Cookie Sessions:**
+   - Client never accesses session secrets via JavaScript.
+   - Issued with `HttpOnly; SameSite=Lax; Path=/; Secure`.
+2. **Double-Submit Signed CSRF:**
+   - Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header.
+   - Derived deterministically via HMAC-SHA256(`SESSION_SECRET_KEY`, `session_token`).
+3. **Strict Principal Separation:**
+   - Service API keys have `kind: "api_key"` and `user_id = None`.
+   - Human users have `kind: "user"` with integer `user_id`.
+   - API keys cannot claim record ownership, preventing IDOR vulnerabilities.
+4. **Defensive Headers & Restrictive CSP:**
+   - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Strict-Transport-Security`.
+   - Restrictive Content-Security-Policy on both API and CRM hosting.
+
+---
+
+## 6. Operational Documentation
+- [Architecture Overview](docs/architecture/overview.md)
+- [Auth & Contract Architecture](docs/architecture/auth.md)
+- [Environment Variables](docs/ops/environment.md)
+- [Deploy & Rollback Runbook](docs/ops/deploy_rollback.md)
+- [Secret Rotation Runbook](docs/ops/secret_rotation.md)
+- [Security Policy & Reporting](SECURITY.md)
+
+---
+
+## 7. License
+Private & Proprietary — All rights reserved © 2026 Rise Up Roofing & Construction Inc.

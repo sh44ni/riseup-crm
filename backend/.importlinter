@@ -1,0 +1,15 @@
+[importlinter]
+root_package = app
+include_external_packages = False
+
+[importlinter:contract:layers]
+name = API -> services -> models/utils -> core (no upward imports)
+type = layers
+layers =
+    app.api
+    app.services
+    app.models | app.utils
+    app.core
+# Each ignore below is a *current* violation (the baseline). Remove entries as P3 fixes them;
+# never add new ones.
+ignore_imports =

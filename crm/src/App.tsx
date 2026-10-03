@@ -5,6 +5,7 @@ import { CompanyProvider } from '@/context/CompanyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { CrmLayout } from '@/components/layout/CrmLayout';
 import { PermissionRoute } from '@/components/auth/PermissionRoute';
+import { FeatureRoute } from '@/features/flags/FeatureRoute';
 import { PageLoadingFallback } from '@/components/layout/PageLoadingFallback';
 import { lazyWithRetry } from '@/lib/lazyWithRetry';
 
@@ -141,25 +142,31 @@ export function App() {
                 <Route
                   path="inspections"
                   element={
-                    <PermissionRoute permission="inspections.view">
-                      <InspectionsPage />
-                    </PermissionRoute>
+                    <FeatureRoute feature="inspections">
+                      <PermissionRoute permission="inspections.view">
+                        <InspectionsPage />
+                      </PermissionRoute>
+                    </FeatureRoute>
                   }
                 />
                 <Route
                   path="finances"
                   element={
-                    <PermissionRoute permission="finances.view">
-                      <FinancesPage />
-                    </PermissionRoute>
+                    <FeatureRoute feature="finances">
+                      <PermissionRoute permission="finances.view">
+                        <FinancesPage />
+                      </PermissionRoute>
+                    </FeatureRoute>
                   }
                 />
                 <Route
                   path="warranties"
                   element={
-                    <PermissionRoute permission="warranties.view">
-                      <WarrantiesPage />
-                    </PermissionRoute>
+                    <FeatureRoute feature="warranties">
+                      <PermissionRoute permission="warranties.view">
+                        <WarrantiesPage />
+                      </PermissionRoute>
+                    </FeatureRoute>
                   }
                 />
                 <Route

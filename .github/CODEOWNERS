@@ -1,0 +1,19 @@
+# Global repository code owners
+* @sh44ni
+
+# Backend & Security Core
+/backend/ @sh44ni
+/backend/app/core/ @sh44ni
+/backend/alembic/ @sh44ni
+
+# CRM Frontend & Design System
+/crm/ @sh44ni
+/crm/src/shared/ @sh44ni
+
+# Public Website
+/website/ @sh44ni
+
+# CI / CD & Operational Runbooks
+/.github/ @sh44ni
+/docs/ @sh44ni
+/scripts/ @sh44ni
