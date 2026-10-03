@@ -14,7 +14,7 @@ aioitertools==0.13.0
     # via aiobotocore
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.14.1
+alembic==1.20.0
     # via riseup-backend
 annotated-types==0.8.0
     # via pydantic
@@ -27,17 +27,17 @@ argon2-cffi==25.1.0
     # via passlib
 argon2-cffi-bindings==26.1.0
     # via argon2-cffi
-arq==0.26.1
+arq==0.28.0
     # via riseup-backend
-asyncpg==0.30.0
+asyncpg==0.31.0
     # via riseup-backend
 attrs==26.1.0
     # via aiohttp
 bcrypt==5.0.0
     # via passlib
-boto3==1.40.61
+boto3==1.43.106
     # via aiobotocore
-botocore==1.40.61
+botocore==1.43.106
     # via
     #   aiobotocore
     #   boto3
@@ -54,7 +54,7 @@ click==8.5.0
     #   uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
     # via uvicorn
-fastapi==0.115.6
+fastapi==0.142.2
     # via riseup-backend
 frozenlist==1.8.0
     # via
@@ -81,7 +81,7 @@ idna==3.20
     #   anyio
     #   httpx
     #   yarl
-jinja2==3.1.5
+jinja2==3.1.6
     # via riseup-backend
 jmespath==1.1.0
     # via
@@ -99,13 +99,13 @@ multidict==6.9.1
     #   aiobotocore
     #   aiohttp
     #   yarl
-orjson==3.10.15
+orjson==3.12.0
     # via riseup-backend
 passlib==1.7.4
     # via riseup-backend
 pillow==11.1.0
     # via riseup-backend
-playwright==1.51.0
+playwright==1.63.0
     # via riseup-backend
 propcache==0.5.4
     # via
@@ -115,14 +115,14 @@ psutil==6.1.1
     # via riseup-backend
 pycparser==3.0 ; implementation_name != 'PyPy'
     # via cffi
-pydantic==2.10.6
+pydantic==2.13.5
     # via
     #   fastapi
     #   pydantic-settings
     #   riseup-backend
-pydantic-core==2.27.2
+pydantic-core==2.49.0
     # via pydantic
-pydantic-settings==2.7.1
+pydantic-settings==2.15.0
     # via riseup-backend
 pyee==12.1.1
     # via playwright
@@ -134,7 +134,7 @@ python-dotenv==1.2.4
     # via
     #   pydantic-settings
     #   uvicorn
-python-multipart==0.0.20
+python-multipart==0.0.32
     # via riseup-backend
 pyyaml==6.0.3
     # via uvicorn
@@ -142,11 +142,11 @@ redis==5.2.1
     # via
     #   arq
     #   riseup-backend
-s3transfer==0.14.0
+s3transfer==0.19.2
     # via boto3
 six==1.17.0
     # via python-dateutil
-sqlalchemy==2.0.38
+sqlalchemy==2.1.1
     # via
     #   alembic
     #   riseup-backend
@@ -167,7 +167,7 @@ tzdata==2026.5
     # via riseup-backend
 urllib3==2.8.0
     # via botocore
-uvicorn==0.34.0
+uvicorn==0.54.0
     # via riseup-backend
 uvloop==0.23.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
     # via uvicorn
