@@ -1,6 +1,5 @@
 import React from 'react';
-import { CrmPageHero } from '@/components/common/CrmPageHero';
-import { RefreshCw, Download, Plus, Filter, Kanban, Layers, Clock, Calendar } from 'lucide-react';
+import { RefreshCw, Download, Plus, Search, X, Filter, Kanban, Layers, Clock, Calendar } from 'lucide-react';
 import { PipelineSummary } from '@/api/pipelineApi';
 
 interface PipelineToolbarProps {
@@ -33,7 +32,7 @@ interface PipelineToolbarProps {
 
 export function PipelineToolbar({
   searchQuery, onSearchChange, searchInputRef, isRefreshing, onRefresh, onExportCSV, canCreateLead, onCreateLead,
-  isOwnOnly, summary, dealsCount,
+  isOwnOnly,
   viewMode, onViewModeChange, filteredDealsCount,
   selectedEstimator, onEstimatorChange, availableEstimators,
   selectedService, onServiceChange,
@@ -41,78 +40,66 @@ export function PipelineToolbar({
 }: PipelineToolbarProps) {
   return (
     <>
-      <CrmPageHero
-        pageId="pipeline"
-        defaultEyebrow="Live Pipeline Cadence • Real Database Deals"
-        defaultTitle="SALES PIPELINE & ESTIMATE WORKFLOW"
-        defaultSubtitle="Live multi-stage roofing pipeline with drag-and-drop progression, real estimate values, and automated field notes."
-        showSearch={true}
-        searchPlaceholder="Search pipeline deals, clients, addresses, estimators..."
-        searchValue={searchQuery}
-        onSearchChange={onSearchChange}
-        onSearchClear={() => onSearchChange('')}
-        searchRef={searchInputRef}
-        topRightActions={
-          <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="relative w-full max-w-lg">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1878B8] dark:text-sky-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search pipeline deals, clients, addresses, estimators..."
+            className="w-full h-9 pl-9 pr-8 rounded-xl bg-white/90 dark:bg-[#0B1320]/85 border border-slate-200/90 dark:border-white/12 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-[#1878B8] shadow-2xs"
+          />
+          {searchQuery && (
             <button
               type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="h-9 flex items-center gap-1.5 px-3 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
-              title="Refresh pipeline from database"
+              onClick={() => onSearchChange('')}
+              title="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
             >
-              <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-[#1878B8]' : ''} />
-              <span className="hidden sm:inline">Refresh</span>
+              <X size={13} />
             </button>
+          )}
+        </div>
 
+        <div className="flex items-center gap-2 shrink-0">
+          {isOwnOnly && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200/90 dark:border-indigo-800/60 text-[10px] font-bold text-indigo-800 dark:text-indigo-300 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              <span>My Pipeline Only</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="h-9 flex items-center gap-1.5 px-3 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
+            title="Refresh pipeline from database"
+          >
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-[#1878B8]' : ''} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <button
+            type="button"
+            onClick={onExportCSV}
+            className="h-9 flex items-center gap-1.5 px-3.5 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
+          >
+            <Download size={13} />
+            <span>Export CSV</span>
+          </button>
+          {canCreateLead && (
             <button
               type="button"
-              onClick={onExportCSV}
-              className="h-9 flex items-center gap-1.5 px-3.5 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
+              onClick={onCreateLead}
+              className="h-9 flex items-center gap-1.5 px-4 rounded-xl bg-gradient-to-r from-[#1878B8] via-sky-500 to-[#55C4F5] text-white font-bold text-xs shadow-xs hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
             >
-              <Download size={13} />
-              <span>Export CSV</span>
+              <Plus size={14} className="stroke-[3]" />
+              <span>New Deal</span>
             </button>
-
-            {canCreateLead && (
-              <button
-                type="button"
-                onClick={onCreateLead}
-                className="h-9 flex items-center gap-1.5 px-4 rounded-xl bg-gradient-to-r from-[#1878B8] via-sky-500 to-[#55C4F5] text-white font-bold text-xs shadow-xs hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
-              >
-                <Plus size={14} className="stroke-[3]" />
-                <span>New Deal</span>
-              </button>
-            )}
-          </div>
-        }
-        bottomRightBadges={
-          <>
-            {isOwnOnly && (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200/90 dark:border-indigo-800/60 text-[10px] font-bold text-indigo-800 dark:text-indigo-300 shadow-2xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                <span>My Pipeline Only</span>
-              </div>
-            )}
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50/90 dark:bg-sky-950/60 border border-sky-200/90 dark:border-sky-800/60 text-[10px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-              <span>Database Connected</span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/90 dark:bg-amber-950/60 border border-amber-200/90 dark:border-amber-800/60 text-[10px] font-bold text-amber-800 dark:text-amber-300 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              <span>Drag &amp; Drop Active</span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50/90 dark:bg-teal-950/60 border border-teal-200/90 dark:border-teal-800/60 text-[10px] font-bold text-teal-800 dark:text-teal-300 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
-              <span>SLA Health: {summary?.slaHealthPct != null ? `${summary.slaHealthPct}%` : '—'}</span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50/90 dark:bg-emerald-950/60 border border-emerald-200/90 dark:border-emerald-800/60 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              <span>Live Deals: {dealsCount}</span>
-            </div>
-          </>
-        }
-      />
+          )}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-2.5">
         <div className="w-full p-1.5 rounded-2xl bg-white/85 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/90 dark:border-white/10 shadow-xs">
