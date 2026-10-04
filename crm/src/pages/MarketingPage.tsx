@@ -164,7 +164,7 @@ export const MarketingPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-2.5 max-w-[1600px] mx-auto select-none pb-16">
+    <div className="space-y-2.5 w-full select-none pb-16">
       {/* 1. UNIFIED 220PX HERO BANNER */}
       <CrmPageHero
         pageId="marketing"

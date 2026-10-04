@@ -185,9 +185,10 @@ export function CalendarPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto select-none pb-16">
+    <div className="h-full flex flex-col min-h-0 w-full select-none gap-2">
       {/* 1. Unified Hero Banner with Search & Actions */}
       <CrmPageHero
+        compact={true}
         pageId="calendar"
         defaultEyebrow="Team Operations & Task Hub • Rise Up CRM"
         defaultTitle="TEAM OPERATIONS & TASK CALENDAR"
@@ -198,12 +199,12 @@ export function CalendarPage() {
         onSearchChange={setSearch}
         onSearchClear={() => setSearch('')}
         topRightActions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* New Task Button */}
             <button
               type="button"
               onClick={handleOpenCreate}
-              className="h-9 flex items-center gap-1.5 px-4 rounded-xl bg-gradient-to-r from-[#1878B8] via-sky-500 to-[#55C4F5] text-white font-bold text-xs shadow-xs hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+              className="h-8 sm:h-9 flex items-center gap-1.5 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-[#1878B8] via-sky-500 to-[#55C4F5] text-white font-bold text-xs shadow-xs hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
             >
               <Plus size={14} className="stroke-[3]" />
               <span>Schedule Operation</span>
@@ -214,7 +215,7 @@ export function CalendarPage() {
               type="button"
               onClick={handleRefresh}
               title="Refresh schedule"
-              className="w-9 h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl liquid-glass-btn flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white hover:border-sky-400 transition-all cursor-pointer shadow-2xs"
             >
               <RotateCcw
                 size={14}
@@ -226,14 +227,14 @@ export function CalendarPage() {
         bottomRightBadges={
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
             {/* 1. Active Team Members (Live from DB) */}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 dark:border-emerald-800/40 text-[10.5px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0 backdrop-blur-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 dark:border-emerald-800/40 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 shadow-2xs shrink-0 backdrop-blur-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>{stats.activeTeamMembers || teamMembers.length} Staff Active</span>
             </span>
 
             {/* 2. Live Weather & OSHA Safety */}
             <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/10 dark:bg-sky-950/40 border border-sky-500/20 dark:border-sky-800/40 text-[10.5px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs shrink-0 backdrop-blur-xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-sky-500/10 dark:bg-sky-950/40 border border-sky-500/20 dark:border-sky-800/40 text-[10px] font-bold text-sky-800 dark:text-sky-300 shadow-2xs shrink-0 backdrop-blur-xs"
               title={weather.safetyLabel}
             >
               <span className="text-amber-500">☀️</span>
@@ -244,8 +245,8 @@ export function CalendarPage() {
             </span>
 
             {/* 3. Operations Today */}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-500/20 dark:border-indigo-800/40 text-[10.5px] font-bold text-indigo-800 dark:text-indigo-300 shadow-2xs shrink-0 backdrop-blur-xs">
-              <ShieldCheck size={12} className="text-indigo-600 dark:text-indigo-400" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-500/20 dark:border-indigo-800/40 text-[10px] font-bold text-indigo-800 dark:text-indigo-300 shadow-2xs shrink-0 backdrop-blur-xs">
+              <ShieldCheck size={11} className="text-indigo-600 dark:text-indigo-400" />
               <span>
                 {stats.operationsToday > 0
                   ? `${stats.operationsToday} Ops Today (${stats.completedToday} Done)`
@@ -271,9 +272,9 @@ export function CalendarPage() {
       />
 
       {/* 3. Main Calendar View: Month Grid OR Team Workload + Day Operations Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch flex-1 min-h-0">
         {/* Left Column (Month or Workload Swimlanes) */}
-        <div className="lg:col-span-8 flex flex-col">
+        <div className="lg:col-span-8 flex flex-col min-h-0 h-full">
           {viewMode === 'month' ? (
             <CalendarMonthGrid
               currentMonthName={currentMonthName}
@@ -301,7 +302,7 @@ export function CalendarPage() {
         </div>
 
         {/* Right Column (Day Operations & Tasks Inspector) */}
-        <div className="lg:col-span-4 flex flex-col">
+        <div className="lg:col-span-4 flex flex-col min-h-0 h-full">
           <CalendarDayInspector
             selectedDay={selectedDay}
             currentYear={currentYear}

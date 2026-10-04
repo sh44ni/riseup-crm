@@ -204,7 +204,7 @@ export function ContractsPage() {
   // MODE 2: REGISTRY TABLE VIEW
   // ═════════════════════════════════════════════════════════════════
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto select-none pb-14 animate-in fade-in duration-200">
+    <div className="space-y-4 w-full select-none pb-14 animate-in fade-in duration-200">
       {/* 1. HERO BANNER */}
       <CrmPageHero
         pageId="contracts"

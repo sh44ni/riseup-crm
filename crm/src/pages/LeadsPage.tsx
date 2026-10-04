@@ -260,7 +260,7 @@ export function LeadsPage() {
   };
 
   return (
-    <div className="space-y-3 max-w-[1600px] mx-auto select-none pb-12">
+    <div className="space-y-3 w-full select-none pb-12">
       <CrmPageHero
         pageId="leads"
         defaultEyebrow="Intake & Conversion Pipeline • North County San Diego"
@@ -557,7 +557,7 @@ export function LeadsPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
             {filteredLeads.map((lead) => (
               <LeadCard
                 key={lead.id}

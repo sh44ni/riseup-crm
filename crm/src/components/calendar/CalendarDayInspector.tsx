@@ -58,24 +58,24 @@ export function CalendarDayInspector({
   const formattedDate = getFormattedDate(selectedDay);
 
   return (
-    <div className="bg-white/85 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-sm p-4 sm:p-5 flex flex-col justify-between select-none h-full">
+    <div className="bg-white/85 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-sm p-2.5 sm:p-3.5 flex flex-col justify-between select-none h-full min-h-0 overflow-hidden">
       {/* Top Header */}
-      <div className="shrink-0 flex items-start justify-between gap-3 pb-3.5 border-b border-slate-200/70 dark:border-white/10">
+      <div className="shrink-0 flex items-start justify-between gap-2 pb-2 border-b border-slate-200/70 dark:border-white/10">
         <div>
-          <div className="text-[10.5px] font-black text-[#0284c7] dark:text-sky-400 tracking-wider uppercase flex items-center gap-1.5">
+          <div className="text-[10px] font-black text-[#0284c7] dark:text-sky-400 tracking-wider uppercase flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#0284c7] animate-pulse" />
             <span>Day Operations &amp; Tasks</span>
           </div>
-          <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+          <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
             {formattedDate}
           </h3>
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5 flex items-center gap-1.5">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5 flex items-center gap-1.5">
             <span>
               {dayEvents.length} {dayEvents.length === 1 ? 'operation' : 'operations'} scheduled
             </span>
             {dayEvents.length > 3 && (
-              <span className="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/60 text-[#0284c7] dark:text-sky-300 font-bold text-[10px]">
-                Stacked Schedule
+              <span className="px-1.5 py-0.2 rounded-full bg-sky-100 dark:bg-sky-950/60 text-[#0284c7] dark:text-sky-300 font-bold text-[9.5px]">
+                Stacked
               </span>
             )}
           </div>
@@ -86,15 +86,15 @@ export function CalendarDayInspector({
           type="button"
           onClick={onOpenNewTask}
           title="Schedule operation for this date"
-          className="h-8 px-2.5 rounded-xl bg-gradient-to-r from-[#1878B8] to-sky-500 hover:opacity-95 text-white flex items-center gap-1 text-xs font-bold shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
+          className="h-7 sm:h-8 px-2.5 rounded-xl bg-gradient-to-r from-[#1878B8] to-sky-500 hover:opacity-95 text-white flex items-center gap-1 text-xs font-bold shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
         >
-          <Plus size={14} className="stroke-[3]" />
+          <Plus size={13} className="stroke-[3]" />
           <span className="hidden sm:inline">Add Task</span>
         </button>
       </div>
 
       {/* Main Scrollable Body */}
-      <div className="flex-1 min-h-0 py-3 overflow-y-auto pr-1">
+      <div className="flex-1 min-h-0 py-2 overflow-y-auto pr-1">
         {dayEvents.length === 0 ? (
           /* Empty State */
           <div className="h-full flex flex-col items-center justify-center text-center p-4 space-y-3">
@@ -134,7 +134,7 @@ export function CalendarDayInspector({
               return (
                 <div
                   key={evt.id}
-                  className={`p-3.5 rounded-2xl border transition-all bg-white/95 dark:bg-slate-800/80 shadow-2xs hover:border-sky-300 dark:hover:border-sky-500 space-y-2.5 ${
+                  className={`p-2.5 sm:p-3 rounded-2xl border transition-all bg-white/95 dark:bg-slate-800/80 shadow-2xs hover:border-sky-300 dark:hover:border-sky-500 space-y-2 ${
                     isDone ? 'opacity-70 bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-white/5' : 'border-slate-200/90 dark:border-white/10'
                   }`}
                 >
@@ -277,7 +277,7 @@ export function CalendarDayInspector({
       </div>
 
       {/* Bottom Summary Footer */}
-      <div className="shrink-0 pt-3 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
+      <div className="shrink-0 pt-2 border-t border-slate-200/70 dark:border-white/10 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold">
         <span>Team Schedule</span>
         <button
           type="button"

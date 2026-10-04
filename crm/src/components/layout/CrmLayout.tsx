@@ -13,7 +13,7 @@ const QuickAddLeadModal = React.lazy(() =>
 // Uses opacity + translateY (both GPU-composited) — zero layout thrashing.
 function PageTransitionWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <div className="animate-page-enter flex-1 min-w-0 min-h-0">
+    <div className="animate-page-enter flex-1 min-w-0 min-h-0 h-full flex flex-col">
       {children}
     </div>
   );
@@ -34,6 +34,8 @@ export function CrmLayout() {
   }, [location.pathname]);
 
   const isDashboard = location.pathname === '/';
+  const isCalendar = location.pathname.startsWith('/calendar');
+  const isSingleScreen = isDashboard || isCalendar;
   const isLightGlass =
     location.pathname === '/' ||
     location.pathname.startsWith('/leads') ||
@@ -74,7 +76,7 @@ export function CrmLayout() {
       {/* Column 2: Center Viewport */}
       <div
         ref={centerViewportRef}
-        className={`flex-1 flex flex-col min-w-0 h-screen ${isDashboard ? 'overflow-hidden' : 'overflow-y-auto'} overflow-x-hidden no-scrollbar relative ${isLightGlass ? 'light-glass-canvas text-slate-800' : 'bg-[#070B12] text-slate-100'}`}
+        className={`flex-1 flex flex-col min-w-0 h-screen ${isSingleScreen ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto'} overflow-x-hidden no-scrollbar relative ${isLightGlass ? 'light-glass-canvas text-slate-800' : 'bg-[#070B12] text-slate-100'}`}
       >
         {isLightGlass && (
           <>
@@ -94,7 +96,7 @@ export function CrmLayout() {
           </>
         )}
         {!isLightGlass && <CrmTopBar />}
-        <main className={`flex-1 min-w-0 min-h-0 relative z-10 ${isDashboard ? 'flex flex-col px-4 py-2' : isLightGlass ? 'px-4 py-2.5' : 'p-6'}`}>
+        <main className={`flex-1 min-w-0 min-h-0 relative z-10 ${isSingleScreen ? 'flex flex-col px-3 sm:px-4 py-2' : isLightGlass ? 'px-4 py-2.5' : 'p-6'}`}>
           <ErrorBoundary fallbackTitle="Module Error Encountered">
             <PageTransitionWrapper key={location.pathname}>
               <Outlet />

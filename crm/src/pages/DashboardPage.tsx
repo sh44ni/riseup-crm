@@ -267,7 +267,7 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="h-full flex flex-col justify-between min-h-0 w-full max-w-[1600px] mx-auto select-none gap-2">
+    <div className="h-full flex flex-col justify-between min-h-0 w-full select-none gap-2">
       {toastMessage && (
         <div className="fixed top-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-semibold shadow-2xl border border-white/20 flex items-center gap-2 animate-in fade-in duration-200">
           <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />

@@ -79,7 +79,7 @@ export function WarrantiesPage() {
   );
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto select-none pb-24">
+    <div className="space-y-6 w-full select-none pb-24">
       <CrmPageHero
         pageId="warranties"
         defaultEyebrow="Guarantees & Compliance"

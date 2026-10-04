@@ -266,7 +266,7 @@ export function PipelinePage() {
   );
 
   return (
-    <div className="space-y-3 max-w-[1600px] mx-auto select-none pb-14 animate-in fade-in duration-200">
+    <div className="space-y-3 w-full select-none pb-14 animate-in fade-in duration-200">
       <PipelineToolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}

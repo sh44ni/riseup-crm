@@ -213,7 +213,7 @@ export function ClientsPage() {
   });
 
   return (
-    <div className="space-y-3.5 max-w-[1600px] mx-auto select-none pb-12">
+    <div className="space-y-3.5 w-full select-none pb-12">
       {toastMessage && (
         <div className="fixed top-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs font-semibold shadow-2xl border border-white/20 flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-200">
           <Sparkles size={14} className="text-sky-400" />

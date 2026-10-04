@@ -271,27 +271,44 @@ export function DealCard({
       </div>
 
       {/* SLA Status & Photos */}
-      <div className="flex items-center justify-between text-[9.5px] pt-1 border-t border-slate-200/50 dark:border-white/10">
-        <span
-          className={`font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 truncate max-w-[170px] ${
-            isOverdue || deal.slaStatus === 'overdue'
-              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
-              : deal.slaStatus === 'due_today'
-              ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          <Clock size={8.5} className="shrink-0" />
-          <span className="truncate">{isOverdue ? 'Overdue Contact' : deal.slaText || 'Active in stage'}</span>
-        </span>
+      {(() => {
+        const isSlaGeneric =
+          !deal.slaText ||
+          deal.slaText.trim().toLowerCase() === 'active in stage' ||
+          deal.slaText.trim().toLowerCase().includes('in stage') ||
+          deal.slaText.trim().toLowerCase() === 'on track';
+        const hasSpecificSlaText = Boolean(deal.slaText && !isSlaGeneric);
+        const showSlaBadge = isOverdue || deal.slaStatus === 'overdue' || deal.slaStatus === 'due_today' || hasSpecificSlaText;
+        const showFooterRow = showSlaBadge || deal.photosCount > 0;
 
-        {deal.photosCount > 0 && (
-          <span className="text-indigo-700 dark:text-indigo-400 font-bold flex items-center gap-0.5 shrink-0">
-            <Camera size={9} />
-            <span>{deal.photosCount}</span>
-          </span>
-        )}
-      </div>
+        if (!showFooterRow) return null;
+
+        return (
+          <div className="flex items-center justify-between text-[9.5px] pt-1 border-t border-slate-200/50 dark:border-white/10">
+            {showSlaBadge ? (
+              <span
+                className={`font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 truncate max-w-[170px] ${
+                  isOverdue || deal.slaStatus === 'overdue'
+                    ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                    : deal.slaStatus === 'due_today'
+                    ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                <Clock size={8.5} className="shrink-0" />
+                <span className="truncate">{isOverdue ? 'Overdue Contact' : deal.slaText || (deal.slaStatus === 'due_today' ? 'Due today' : '')}</span>
+              </span>
+            ) : <span />}
+
+            {deal.photosCount > 0 && (
+              <span className="text-indigo-700 dark:text-indigo-400 font-bold flex items-center gap-0.5 shrink-0">
+                <Camera size={9} />
+                <span>{deal.photosCount}</span>
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Claim Lead CTA */}
       {(!deal.assignedToUserId || !deal.estimator?.name || deal.estimator.name === 'Unassigned') &&

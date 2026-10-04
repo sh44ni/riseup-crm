@@ -382,7 +382,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto select-none pb-24">
+    <div className="space-y-6 w-full select-none pb-24">
       {/* 1. Unified 220px Hero Header with Top Search & Actions */}
       <CrmPageHero
         pageId="settings"

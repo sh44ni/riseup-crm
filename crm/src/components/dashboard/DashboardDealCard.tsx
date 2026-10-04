@@ -72,7 +72,7 @@ export function DashboardDealCard({
     stageId: (col.id as PipelineStageId) || 'cold_lead',
     daysInStage: 0,
     slaStatus: (card.isFollowupOverdue ? 'overdue' : 'on_track') as 'overdue' | 'on_track',
-    slaText: card.isFollowupOverdue ? 'Overdue Contact' : 'Active in stage',
+    slaText: card.isFollowupOverdue ? 'Overdue Contact' : '',
     estimator: {
       name: card.assignedToName || 'Unassigned',
       avatar: '',

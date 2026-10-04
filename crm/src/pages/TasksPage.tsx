@@ -295,7 +295,7 @@ export function TasksPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-[1600px] mx-auto select-none pb-20 relative">
+    <div className="space-y-4 w-full select-none pb-20 relative">
       {/* 1. Unified 220px Hero Banner with Dynamic SLA Badge & Top Search */}
       <CrmPageHero
         pageId="tasks"

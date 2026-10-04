@@ -77,19 +77,19 @@ export function CalendarSwimlanesView({
   }, [teamMembersList, events, weekDays]);
 
   return (
-    <div className="bg-white/85 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-sm p-4 sm:p-6 select-none space-y-4">
+    <div className="bg-white/85 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-sm p-2.5 sm:p-3.5 select-none flex flex-col h-full min-h-0 overflow-hidden space-y-2">
       {/* Swimlanes Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-white/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200/70 dark:border-white/10 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
               Team Workload &amp; Capacity
             </h2>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 text-[10px] font-black uppercase">
               Registered Staff
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
             Real-time staff workload, site operations, and scheduled team tasks for {weekDays[0].label} – {weekDays[6].label}
           </p>
         </div>
@@ -114,7 +114,7 @@ export function CalendarSwimlanesView({
       </div>
 
       {/* Grid */}
-      <div className="overflow-x-auto no-scrollbar pb-2">
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto pr-1 pb-1">
         <div className="min-w-[840px]">
           {/* Timeline Header Days */}
           <div className="grid grid-cols-12 gap-2 pb-2 mb-2 border-b border-slate-200/80 dark:border-white/10 text-xs font-black text-slate-500 dark:text-slate-400">
