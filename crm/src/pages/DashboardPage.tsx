@@ -326,6 +326,8 @@ export function DashboardPage() {
         />
 
         <DashboardKanbanSection
+          viewMode={viewMode}
+          onSelectDeal={(deal) => setSelectedDeal(deal)}
           pipelineLoading={pipelineLoading}
           filteredColumns={filteredColumns}
           pipelineSearch={pipelineSearch}

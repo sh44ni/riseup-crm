@@ -4,8 +4,13 @@ import { ChevronRight } from 'lucide-react';
 import { ColumnData, DealCard } from './dashboardTypes';
 import { DashboardDealCard } from './DashboardDealCard';
 import { KanbanColumnSkeleton } from './KanbanColumnSkeleton';
+import { PipelineListView } from '@/components/pipeline/PipelineListView';
+import { PipelineCalendarView } from '@/components/pipeline/PipelineCalendarView';
+import type { EnrichedDeal } from '@/components/pipeline/pipelineTypes';
 
 export interface DashboardKanbanSectionProps {
+  viewMode?: 'kanban' | 'list' | 'calendar';
+  onSelectDeal?: (deal: EnrichedDeal) => void;
   pipelineLoading: boolean;
   filteredColumns: ColumnData[];
   pipelineSearch: string;
@@ -41,6 +46,8 @@ export interface DashboardKanbanSectionProps {
 }
 
 export function DashboardKanbanSection({
+  viewMode = 'kanban',
+  onSelectDeal = () => {},
   pipelineLoading,
   filteredColumns,
   pipelineSearch,
@@ -82,6 +89,31 @@ export function DashboardKanbanSection({
         {Array.from({ length: 7 }).map((_, i) => (
           <KanbanColumnSkeleton key={i} cardCount={i < 3 ? 3 : 2} />
         ))}
+      </div>
+    );
+  }
+
+  if (viewMode === 'list') {
+    return (
+      <div className="flex-1 min-h-0 overflow-auto" data-testid="dashboard-list-view">
+        <PipelineListView
+          columns={filteredColumns}
+          pipelineSearch={pipelineSearch}
+          onSelectDeal={onSelectDeal}
+          getServiceBadgeClass={getServiceBadgeClass}
+        />
+      </div>
+    );
+  }
+  if (viewMode === 'calendar') {
+    return (
+      <div className="flex-1 min-h-0 overflow-auto" data-testid="dashboard-calendar-view">
+        <PipelineCalendarView
+          columns={filteredColumns}
+          pipelineSearch={pipelineSearch}
+          onSelectDeal={onSelectDeal}
+          getServiceBadgeClass={getServiceBadgeClass}
+        />
       </div>
     );
   }
