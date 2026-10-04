@@ -65,6 +65,12 @@ export function AcceptInvitePage() {
         const res = await api.getPublicInvitation(token);
         if (res.ok && res.invitation) {
           setInvitation(res.invitation);
+          if ((res.invitation as any).name) {
+            setName((res.invitation as any).name);
+          }
+          if ((res.invitation as any).phone) {
+            setPhone((res.invitation as any).phone);
+          }
         } else {
           setLoadError('Invalid invitation link.');
         }

@@ -90,3 +90,16 @@ class SessionActionResponse(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+
+class VerifyOtpRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255, description="Staff or applicant email address")
+    otp: str = Field(..., min_length=4, max_length=10, description="6-digit verification code")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ResendOtpRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255, description="Staff or applicant email address")
+
+    model_config = ConfigDict(extra="ignore")
+

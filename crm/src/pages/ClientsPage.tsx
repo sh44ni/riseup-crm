@@ -200,7 +200,9 @@ export function ClientsPage() {
   };
 
   const filteredClients = clients.filter((c) => {
-    const matchesFilter = directoryFilter === 'all' || c.status === directoryFilter;
+    // Lost clients live only in the Closed Lost tab; All Records excludes them
+    const matchesFilter =
+      directoryFilter === 'all' ? c.status !== 'closed_lost' : c.status === directoryFilter;
     const matchesSearch =
       searchQuery.trim() === '' ||
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -243,7 +245,7 @@ export function ClientsPage() {
             directoryFilter={directoryFilter}
             onFilterChange={setDirectoryFilter}
             counts={{
-              all: clients.length,
+              all: clients.filter((c) => c.status !== 'closed_lost').length,
               active_job: clients.filter((c) => c.status === 'active_job').length,
               completed: clients.filter((c) => c.status === 'completed').length,
               closed_lost: clients.filter((c) => c.status === 'closed_lost').length,

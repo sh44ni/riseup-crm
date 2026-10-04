@@ -150,7 +150,9 @@ export function LeadsPage() {
   const filteredLeads = leads
     .filter((lead) => {
       // Stage filter
+      // Lost leads live only in the Lost tab; every other tab (incl. All) excludes them
       if (activeStage === 'lost' && lead.status !== 'lost') return false;
+      if (activeStage !== 'lost' && lead.status === 'lost') return false;
       if (activeStage !== 'all' && activeStage !== 'lost' && lead.status !== activeStage) return false;
 
       // Source filter
@@ -167,7 +169,7 @@ export function LeadsPage() {
       if (selectedService !== 'all' && lead.service !== selectedService) return false;
 
       // Loss Reason filter
-      if (selectedLossReason !== 'all') {
+      if (activeStage === 'lost' && selectedLossReason !== 'all') {
         if (lead.status !== 'lost' || lead.lossReason !== selectedLossReason) return false;
       }
 
@@ -428,7 +430,7 @@ export function LeadsPage() {
 
       <LeadToolbar
         leads={leads}
-        totalLeads={totalLeads}
+        totalLeads={Math.max(totalLeads - lostLeadsCount, 0)}
         lostLeads={lostLeads}
         activeStage={activeStage}
         setActiveStage={setActiveStage}

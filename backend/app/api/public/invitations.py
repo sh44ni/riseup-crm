@@ -45,10 +45,15 @@ async def get_invitation_details(token: str, db: AsyncSession = Depends(get_db))
         """), {"rids": inv["invited_role_ids"]})).mappings().all()
         roles = [dict(r) for r in role_rows]
 
+    # Prepopulate user's name and phone if already on record
+    user_row = (await db.execute(text("SELECT name, phone FROM users WHERE LOWER(email) = LOWER(:email)"), {"email": inv["email"]})).mappings().first()
+
     return {
         "ok": True,
         "invitation": {
             "email": inv["email"],
+            "name": user_row["name"] if user_row and user_row.get("name") else None,
+            "phone": user_row["phone"] if user_row and user_row.get("phone") else None,
             "invited_by": inv["invited_by_name"] or "Rise Up Roofing Team",
             "roles": roles,
             "primary_role": roles[0]["name"] if roles else "Team Member",
@@ -172,6 +177,18 @@ async def accept_invitation(
 
     # Resolve dynamic permissions
     perms, is_protected = await get_user_effective_permissions(db, user_id)
+    if primary_role_slug == "owner":
+        is_protected = True
+        perms["*"] = "all"
+
+    # Check authorized signatory status
+    sig_check = (await db.execute(text("""
+        SELECT 1 FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+        WHERE ur.user_id = :uid AND r.is_authorized_signatory = true
+        LIMIT 1
+    """), {"uid": user_id})).scalar()
+    is_auth_sig = bool(sig_check or primary_role_slug == "owner" or is_protected)
 
     return {
         "ok": True,
@@ -184,5 +201,6 @@ async def accept_invitation(
             "phone": phone,
             "permissions": perms,
             "is_protected_owner": is_protected,
+            "is_authorized_signatory": is_auth_sig,
         }
     }

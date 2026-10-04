@@ -45,8 +45,8 @@ export function RoleSelectorGrid({
                       </span>
                     )}
                     {r.is_protected && (
-                      <span title="Protected Owner Role">
-                        <Lock size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span title={r.name.toLowerCase() === 'owner' ? "Root Owner Role" : "Protected Administrator Role"}>
+                        <Lock size={11} className={r.name.toLowerCase() === 'owner' ? "text-amber-600 dark:text-amber-400 shrink-0" : "text-indigo-600 dark:text-indigo-400 shrink-0"} />
                       </span>
                     )}
                   </div>

@@ -268,6 +268,7 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
         isLoading={isLoading}
         canAssignRoles={can('users.assign_roles')}
         canDeactivate={can('users.deactivate')}
+        isOwner={isOwner}
         onRoleChange={handleRoleChange}
         onToggleStatus={handleToggleStatus}
       />
@@ -322,7 +323,7 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
 
       <InviteMemberModal
         isOpen={isInviteModalOpen}
-        roles={roles}
+        roles={isOwner ? roles : roles.filter((r) => !['owner', 'administrator', 'admin'].includes(r.name.toLowerCase()))}
         onClose={() => setIsInviteModalOpen(false)}
         onSendInvite={handleSendInvite}
         onResendFromModal={handleResendFromModal}

@@ -268,7 +268,7 @@ export function LeadToolbar({
           </div>
 
           {/* 4. Loss Reason Filter (Shown on Lost tab or if lost leads exist) */}
-          {(activeStage === 'lost' || activeStage === 'all') && (
+          {activeStage === 'lost' && (
             <div className="relative">
               <button
                 type="button"

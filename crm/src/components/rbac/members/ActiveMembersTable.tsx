@@ -10,6 +10,7 @@ interface ActiveMembersTableProps {
   isLoading: boolean;
   canAssignRoles: boolean;
   canDeactivate: boolean;
+  isOwner: boolean;
   onRoleChange: (userId: number, roleId: number) => void;
   onToggleStatus: (user: UserItem) => void;
 }
@@ -20,6 +21,7 @@ export function ActiveMembersTable({
   isLoading,
   canAssignRoles,
   canDeactivate,
+  isOwner,
   onRoleChange,
   onToggleStatus,
 }: ActiveMembersTableProps) {
@@ -75,7 +77,12 @@ export function ActiveMembersTable({
             ) : (
               users.map((u) => {
                 const roleName = getRoleDisplayName(u);
-                const isProtected = u.roles?.some((r) => r.is_protected) || u.role === 'owner';
+                const isUserOwner = u.role === 'owner' || u.roles?.some((r) => r.name.toLowerCase() === 'owner');
+                const isUserAdmin = ['admin', 'administrator'].includes(u.role?.toLowerCase() || '') || u.roles?.some((r) => ['administrator', 'admin'].includes(r.name.toLowerCase()));
+
+                const canChangeThisUserRole = isUserOwner ? false : (isUserAdmin ? isOwner : canAssignRoles);
+                const canToggleThisUserStatus = isUserOwner ? false : (isUserAdmin ? isOwner : canDeactivate);
+                const selectableRoles = isOwner ? roles : roles.filter((r) => !['owner', 'administrator', 'admin'].includes(r.name.toLowerCase()));
 
                 return (
                   <tr key={u.id} className="hover:bg-slate-50/70 hover:dark:bg-slate-800/40 transition-colors">
@@ -87,9 +94,14 @@ export function ActiveMembersTable({
                         <div>
                           <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                             <span>{u.name}</span>
-                            {isProtected && (
+                            {isUserOwner && (
                               <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
                                 Owner
+                              </span>
+                            )}
+                            {isUserAdmin && !isUserOwner && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
+                                Administrator
                               </span>
                             )}
                             {isDevEmail(u.email) && <DevBadge size="xs" />}
@@ -104,23 +116,29 @@ export function ActiveMembersTable({
                     </td>
 
                     <td className="py-3 px-4">
-                      {isProtected || !canAssignRoles ? (
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 inline-flex items-center gap-1">
-                          <Shield size={12} />
-                          {roleName}
-                        </span>
-                      ) : (
+                      {canChangeThisUserRole ? (
                         <select
                           value={u.roles?.[0]?.id || roles.find((r) => r.name.toLowerCase() === u.role.toLowerCase() || r.name.toLowerCase().replace(/ /g, '_') === u.role.toLowerCase())?.id || ''}
                           onChange={(e) => onRoleChange(u.id, Number(e.target.value))}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-white/10 hover:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer shadow-2xs"
                         >
-                          {roles.map((r) => (
+                          {selectableRoles.map((r) => (
                             <option key={r.id} value={r.id} className="dark:bg-slate-900 dark:text-white">
                               {r.name}
                             </option>
                           ))}
                         </select>
+                      ) : (
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border inline-flex items-center gap-1 ${
+                          isUserOwner
+                            ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50'
+                            : isUserAdmin
+                            ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/50'
+                            : 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/50'
+                        }`}>
+                          <Shield size={12} />
+                          {roleName}
+                        </span>
                       )}
                     </td>
 
@@ -148,7 +166,7 @@ export function ActiveMembersTable({
                     </td>
 
                     <td className="py-3 px-4 text-right">
-                      {!isProtected && canDeactivate && (
+                      {canToggleThisUserStatus && (
                         <button
                           onClick={() => onToggleStatus(u)}
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${

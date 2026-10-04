@@ -91,9 +91,9 @@ MODULE_CONFIG_MAP = {
     }
 }
 
-def role_permissions_to_modules(role_perms: List[dict], is_protected: bool = False) -> Dict[str, dict]:
+def role_permissions_to_modules(role_perms: List[dict], is_protected: bool = False, role_name: str = "") -> Dict[str, dict]:
     modules = {}
-    if is_protected:
+    if (role_name or "").strip().lower() == "owner":
         for mod_key in MODULE_CONFIG_MAP:
             modules[mod_key] = {"view": "all", "manage": True}
         return modules
@@ -179,7 +179,7 @@ async def list_roles(db: AsyncSession = Depends(get_db)):
     roles = []
     for r in rows:
         d = dict(r)
-        d["modules"] = role_permissions_to_modules(d.get("permissions") or [], d.get("is_protected", False))
+        d["modules"] = role_permissions_to_modules(d.get("permissions") or [], d.get("is_protected", False), d.get("name", ""))
         roles.append(d)
     return {"roles": roles}
 
@@ -191,6 +191,8 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
     is_authorized_signatory = bool(body.get("is_authorized_signatory", False))
     if not name:
         raise HTTPException(status_code=400, detail="Role name is required")
+    if name.lower() in ("owner", "administrator", "admin"):
+        raise HTTPException(status_code=400, detail="Cannot create role with reserved system name")
 
     insert_sql = text("""
         INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_by, created_at, updated_at)
@@ -233,7 +235,7 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
         """)
         new_role = (await db.execute(sql, {"id": role_id})).mappings().first()
         d = dict(new_role)
-        d["modules"] = role_permissions_to_modules(d.get("permissions") or [], d.get("is_protected", False))
+        d["modules"] = role_permissions_to_modules(d.get("permissions") or [], d.get("is_protected", False), d.get("name", ""))
         return {"ok": True, "role": d}
     except Exception:
         await db.rollback()
@@ -247,25 +249,46 @@ async def update_role(role_id: int, request: Request, db: AsyncSession = Depends
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     
-    name = body.get("name")
-    description = body.get("description")
+    caller_is_owner = _is_owner(user)
+    role_name_lower = (role["name"] or "").strip().lower()
+    is_owner_role = role_name_lower == "owner"
+    is_admin_role = role_name_lower in ("administrator", "admin")
+    is_system_role = bool(role["is_protected"]) or is_owner_role or is_admin_role
 
-    if role["is_protected"]:
+    # 1. Renaming protection: neither Owner nor Administrator can be renamed
+    name = body.get("name")
+    if is_system_role:
         if name and name.strip().lower() != role["name"].lower():
-            raise HTTPException(status_code=403, detail="Cannot rename protected system role")
+            raise HTTPException(status_code=403, detail="Cannot rename permanent system role")
     else:
         if name and name.strip():
             await db.execute(text("UPDATE roles SET name = :name, updated_at = NOW() WHERE id = :id"), {"name": name.strip(), "id": role_id})
 
+    # 2. Permission & settings editing:
+    # - Owner role permissions are permanent root (* -> all)
+    # - Administrator role is protected from other admins: only the Owner can modify administrator permissions
+    if is_owner_role:
+        # Owner role permissions cannot be altered
+        pass
+    elif is_admin_role:
+        if not caller_is_owner:
+            raise HTTPException(status_code=403, detail="Only the owner can modify administrator permissions")
+
+    description = body.get("description")
     if description is not None:
+        if is_admin_role and not caller_is_owner:
+            raise HTTPException(status_code=403, detail="Only the owner can modify administrator role details")
         await db.execute(text("UPDATE roles SET description = :desc, updated_at = NOW() WHERE id = :id"), {"desc": description, "id": role_id})
 
     if "is_authorized_signatory" in body:
-        is_auth = bool(body["is_authorized_signatory"])
-        await db.execute(text("UPDATE roles SET is_authorized_signatory = :is_auth, updated_at = NOW() WHERE id = :id"), {"is_auth": is_auth, "id": role_id})
+        if is_admin_role and not caller_is_owner:
+            raise HTTPException(status_code=403, detail="Only the owner can modify administrator signatory authority")
+        if not is_owner_role:
+            is_auth = bool(body["is_authorized_signatory"])
+            await db.execute(text("UPDATE roles SET is_authorized_signatory = :is_auth, updated_at = NOW() WHERE id = :id"), {"is_auth": is_auth, "id": role_id})
 
-    # Resolve permissions if modules or permissions provided
-    if not role["is_protected"]:
+    # 3. Resolve permissions for non-owner roles (if admin_role, caller_is_owner was already validated above)
+    if not is_owner_role:
         all_perms = (await db.execute(text("SELECT id, key FROM permissions"))).mappings().all()
         all_perms_map = {p["key"]: p["id"] for p in all_perms}
 
@@ -302,7 +325,7 @@ async def update_role(role_id: int, request: Request, db: AsyncSession = Depends
     """)
     updated_role = (await db.execute(sql, {"id": role_id})).mappings().first()
     d = dict(updated_role)
-    d["modules"] = role_permissions_to_modules(d.get("permissions") or [], d.get("is_protected", False))
+    d["modules"] = role_permissions_to_modules(d.get("permissions") or [], d.get("is_protected", False), d.get("name", ""))
     await record_audit_log(db, "role.update", "role", role_id, user.id, user.email, user.role, body, request)
     return {"ok": True, "role": d}
 
@@ -311,8 +334,9 @@ async def delete_role(role_id: int, request: Request, db: AsyncSession = Depends
     role = (await db.execute(text("SELECT is_protected, name FROM roles WHERE id = :id"), {"id": role_id})).mappings().first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
-    if role["is_protected"]:
-        raise HTTPException(status_code=403, detail="Cannot delete protected system role")
+    name_lower = (role["name"] or "").strip().lower()
+    if role["is_protected"] or name_lower in ("owner", "administrator", "admin"):
+        raise HTTPException(status_code=403, detail="Cannot delete permanent system role")
 
     await db.execute(text("DELETE FROM roles WHERE id = :id"), {"id": role_id})
     await db.commit()
@@ -420,7 +444,15 @@ async def _resolve_role(db: AsyncSession, role_id: Optional[int], role_name: Opt
 
 
 def _is_owner_role(role: dict) -> bool:
-    return bool(role.get("is_protected")) or str(role.get("name", "")).strip().lower() == "owner"
+    return str(role.get("name", "")).strip().lower() == "owner"
+
+
+def _is_admin_role(role: dict) -> bool:
+    return str(role.get("name", "")).strip().lower() in ("administrator", "admin")
+
+
+def _is_elevated_role(role: dict) -> bool:
+    return _is_owner_role(role) or _is_admin_role(role) or bool(role.get("is_protected"))
 
 
 @router.post("/users", dependencies=[Depends(require_permission("users.assign_roles"))])
@@ -430,8 +462,8 @@ async def create_user(body: CreateUserRequest, request: Request, db: AsyncSessio
     role = await _resolve_role(db, body.role_id, body.role or ("sales_rep" if body.role_id is None else None))
     if not role:
         raise HTTPException(status_code=400, detail="Unknown role")
-    if _is_owner_role(role) and not _is_owner(current_user):
-        raise _forbid_owner_management()
+    if _is_elevated_role(role) and not _is_owner(current_user):
+        raise HTTPException(status_code=403, detail="Only the owner can assign administrator or owner roles")
 
     if body.password is None:
         # No password supplied: onboard through the invitation flow, never a default password.
@@ -469,21 +501,31 @@ async def update_user(user_id: int, body: UpdateUserRequest, request: Request, d
         SELECT u.id, u.role,
                EXISTS (
                    SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-                   WHERE ur.user_id = u.id AND r.is_protected
-               ) AS is_protected
+                   WHERE ur.user_id = u.id AND (r.name = 'Owner' OR u.role = 'owner')
+               ) AS is_owner,
+               EXISTS (
+                   SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                   WHERE ur.user_id = u.id AND (LOWER(r.name) IN ('administrator', 'admin') OR u.role IN ('admin', 'administrator'))
+               ) AS is_admin
         FROM users u WHERE u.id = :id
     """), {"id": user_id})).mappings().first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
     caller_is_owner = _is_owner(current_user)
-    target_is_protected = bool(target["is_protected"]) or target["role"] == "owner"
+    target_is_owner = bool(target["is_owner"])
+    target_is_admin = bool(target["is_admin"])
     wants_role_change = body.role is not None or body.role_id is not None
     is_self = user_id == current_user.id
 
-    # Guard: protected (owner) accounts can only have role/status changed by an owner.
-    if target_is_protected and not caller_is_owner and (wants_role_change or body.status is not None):
+    # Guard: protected Owner accounts can only have role/status changed by an owner.
+    if target_is_owner and not caller_is_owner:
         raise _forbid_owner_management()
+
+    # Guard: Administrator accounts can only have role or status changed by an owner.
+    # "an admin cant change what other admin can see, but the owner can do it"
+    if target_is_admin and not caller_is_owner and (wants_role_change or body.status is not None):
+        raise HTTPException(status_code=403, detail="Only the owner can change an administrator's role or status")
 
     updates = []
     params: Dict[str, Any] = {"id": user_id}
@@ -501,14 +543,14 @@ async def update_user(user_id: int, body: UpdateUserRequest, request: Request, d
         if new_slug != target["role"]:
             if is_self:
                 raise HTTPException(status_code=403, detail="You cannot change your own role")
-            if (_is_owner_role(new_role) or target_is_protected) and not caller_is_owner:
-                raise _forbid_owner_management()
-            if target_is_protected and not _is_owner_role(new_role):
+            if (_is_elevated_role(new_role) or target_is_owner or target_is_admin) and not caller_is_owner:
+                raise HTTPException(status_code=403, detail="Only the owner can assign or alter administrator/owner roles")
+            if target_is_owner and not _is_owner_role(new_role):
                 other_owners = (await db.execute(text("""
                     SELECT COUNT(DISTINCT u.id) FROM users u
                     JOIN user_roles ur ON ur.user_id = u.id
                     JOIN roles r ON r.id = ur.role_id
-                    WHERE r.is_protected AND u.status = 'active' AND u.id <> :id
+                    WHERE r.name = 'Owner' AND u.status = 'active' AND u.id <> :id
                 """), {"id": user_id})).scalar() or 0
                 if other_owners < 1:
                     raise HTTPException(status_code=409, detail="At least one active owner is required")
@@ -559,8 +601,8 @@ async def _issue_invitation(db: AsyncSession, request: Request, user: Any, email
         )).mappings().all()
         if len(role_rows) != len(set(role_ids)):
             raise HTTPException(status_code=400, detail="Unknown role")
-        if any(_is_owner_role(dict(r)) for r in role_rows) and not _is_owner(user):
-            raise _forbid_owner_management()
+        if any(_is_elevated_role(dict(r)) for r in role_rows) and not _is_owner(user):
+            raise HTTPException(status_code=403, detail="Only the owner can invite administrators or owners")
 
     # Check if a user with this email is already active
     existing_user = (await db.execute(text("SELECT id, status FROM users WHERE LOWER(email) = :e"), {"e": email})).mappings().first()

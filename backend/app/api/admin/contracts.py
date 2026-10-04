@@ -1121,7 +1121,7 @@ async def counter_sign_contract(
             SELECT u.id, u.name, u.signature_data, u.signature_type, u.signature_title
             FROM users u
             INNER JOIN user_roles ur ON u.id = ur.user_id
-            INNER JOIN roles r ON ur.role_id = r.id AND r.is_authorized_signatory = true
+            INNER JOIN roles r ON ur.role_id = r.id AND (r.is_authorized_signatory = true OR r.is_protected = true OR u.role = 'owner')
             WHERE u.id = :uid AND u.status = 'active'
             LIMIT 1
         """),

@@ -689,3 +689,98 @@ async def send_team_invitation_email(
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+async def send_otp_verification_email(
+    to_email: str,
+    otp: str,
+    recipient_name: Optional[str] = "Team Member",
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Sends a branded 6-digit OTP verification code via Resend to verify an invited
+    user's identity during initial login / setup.
+    """
+    key = api_key or getattr(settings, "RESEND_API_KEY", "") or os.environ.get("RESEND_API_KEY", "")
+    recipient_name = html.escape(str(recipient_name or "Team Member"))
+    clean_otp = html.escape(str(otp or "").strip())
+    # Format OTP with spaced digits for aesthetic readability
+    spaced_otp = " ".join(list(clean_otp))
+
+    subject = f"Your Rise Up Verification Code: {clean_otp}"
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>{subject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; margin: 0; padding: 24px; background-color: #f1f5f9;">
+      <div style="max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+
+        <!-- Header with Logo -->
+        <div style="background-color: #091b36; padding: 26px 24px; text-align: center; color: #ffffff;">
+          <img src="https://riseuprac.com/logo-white.svg" alt="Rise Up Roofing" style="height: 38px; margin-bottom: 8px; display: inline-block;">
+          <p style="margin: 0; font-size: 11px; color: #38bdf8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em;">
+            Identity Verification &bull; Lic #1096492
+          </p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 28px; text-align: center;">
+          <h2 style="font-size: 20px; font-weight: 800; color: #091b36; margin: 0 0 12px 0;">Confirm Your Identity</h2>
+
+          <p style="font-size: 14px; color: #475569; margin: 0 0 24px 0; text-align: left;">
+            Hello <strong>{recipient_name}</strong>,<br><br>
+            A first-time sign in was initiated for your Rise Up CRM account. Please enter the following 6-digit confirmation code on the login screen to verify it's you and complete your account setup:
+          </p>
+
+          <!-- OTP Box -->
+          <div style="margin: 28px auto; padding: 18px 24px; background: #f0f9ff; border-radius: 12px; border: 2px dashed #0284c7; max-width: 320px;">
+            <div style="font-size: 11px; font-weight: 800; color: #0369a1; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px;">One-Time Verification Code</div>
+            <div style="font-family: 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 32px; font-weight: 900; letter-spacing: 0.25em; color: #0c4a6e;">
+              {spaced_otp}
+            </div>
+            <div style="font-size: 11px; color: #0284c7; margin-top: 6px; font-weight: 600;">Valid for 10 minutes</div>
+          </div>
+
+          <p style="font-size: 12px; color: #64748b; margin: 20px 0 0 0; text-align: left;">
+            If you did not request this verification code, please ignore this email or notify your system administrator immediately.
+          </p>
+
+          <!-- Footer Contact -->
+          <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: left;">
+            <strong>Rise Up Roofing &amp; Construction</strong><br>
+            2182 S El Camino Real, Ste 202, Oceanside, CA 92054<br>
+            Phone: (760) 622 - 1230 &bull; Email: marc@riseuprac.com
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    if not key:
+        return {"success": False, "missing_key": True, "error": "Missing Resend API key", "otp": clean_otp}
+
+    from_email = getattr(settings, "RESEND_VERIFICATION_EMAIL", "Rise Up Roofing <verification@riseuprac.com>")
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+    }
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(RESEND_API_URL, json=payload, headers=headers)
+            if resp.status_code in (200, 201):
+                return {"success": True, "data": resp.json(), "recipient": to_email}
+            return {"success": False, "status_code": resp.status_code, "error": resp.text}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+

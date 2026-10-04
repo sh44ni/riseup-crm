@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
 import {
   Lock,
   Mail,
   ArrowRight,
+  ArrowLeft,
   Eye,
   EyeOff,
   Sun,
@@ -17,6 +19,8 @@ import {
   Zap,
   CheckCircle2,
   HelpCircle,
+  ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { BrandLogo } from '@/components/common/BrandLogo';
 import { CoastalPalmTrees } from '@/components/common/CoastalPalmTrees';
@@ -68,6 +72,15 @@ export function LoginPage() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [activeQuoteIndex, setActiveQuoteIndex] = useState(0);
 
+  // OTP Verification Flow for First-Time Setup
+  const [isOtpStep, setIsOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccessMessage, setResendSuccessMessage] = useState<string | null>(null);
+
   const { login, user } = useAuth();
   const { city, licenseNumber, legalName, dba, publicPhone, primaryEmail } = useCompany();
   const navigate = useNavigate();
@@ -87,6 +100,15 @@ export function LoginPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // OTP Resend Countdown Timer
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -104,7 +126,16 @@ export function LoginPage() {
       await login(password, email, rememberMe);
       navigate('/');
     } catch (err: any) {
-      // If the email is invited but account not created yet → go to accept-invite
+      // First-time setup / uninitialized account: require OTP verification before proceeding
+      if (err.detail?.code === 'OTP_REQUIRED') {
+        setIsOtpStep(true);
+        setOtpError(null);
+        setError(null);
+        setOtpCode('');
+        setResendCountdown(60);
+        return;
+      }
+      // Fallback for legacy invitations with direct tokens
       if (err.detail?.code === 'INVITE_PENDING' && err.detail?.token) {
         navigate(`/accept-invite?token=${err.detail.token}`);
         return;
@@ -115,6 +146,45 @@ export function LoginPage() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanOtp = otpCode.trim();
+    if (!cleanOtp || cleanOtp.length < 4) {
+      setOtpError('Please enter the 6-digit confirmation code.');
+      return;
+    }
+    setOtpError(null);
+    setOtpLoading(true);
+    try {
+      const res = await api.verifyOtp(email, cleanOtp);
+      if (res && res.token) {
+        navigate(`/accept-invite?token=${res.token}`);
+      } else {
+        throw new Error('Verification succeeded but no activation token was returned.');
+      }
+    } catch (err: any) {
+      setOtpError(err.message || 'Invalid or expired verification code.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCountdown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setOtpError(null);
+    try {
+      await api.resendOtp(email);
+      setResendSuccessMessage('A new 6-digit code has been emailed to you.');
+      setResendCountdown(60);
+      setTimeout(() => setResendSuccessMessage(null), 5000);
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to resend code. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -316,137 +386,263 @@ export function LoginPage() {
                   : 'bg-[#0E1626]/85 border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.5)]'
               }`}
             >
-              {/* Form Heading */}
-              <div className="mb-7">
-                <h2
-                  className={`text-2xl sm:text-3xl font-bold tracking-tight ${
-                    isCoastal ? 'text-slate-900' : 'text-white'
-                  }`}
-                >
-                  Welcome back
-                </h2>
-                <p
-                  className={`text-xs sm:text-sm font-medium mt-1.5 ${
-                    isCoastal ? 'text-slate-500' : 'text-slate-400'
-                  }`}
-                >
-                  Sign in to access your CRM workspace
-                </p>
-              </div>
-
-              {/* Error Alert */}
-              {error && (
-                <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5">
-                  <div className="w-4 h-4 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
-                    !
-                  </div>
-                  <div className="flex-1 leading-relaxed">{error}</div>
-                </div>
-              )}
-
-              {/* Login Form */}
-              <form onSubmit={handleLogin} className="space-y-4">
-                {/* Email Input */}
+              {isOtpStep ? (
+                /* ── OTP Verification Step ── */
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Email address
-                  </label>
-                  <div className="relative flex items-center">
-                    <Mail
-                      size={16}
-                      className={`absolute left-3.5 transition-colors ${
-                        isCoastal ? 'text-slate-400' : 'text-slate-500'
-                      }`}
-                    />
-                    <input
-                      required
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@riseuprc.com"
-                      autoComplete="email"
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all focus:outline-none ${
-                        isCoastal
-                          ? 'bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-[#1878B8] focus:ring-2 focus:ring-[#1878B8]/15'
-                          : 'bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.08] text-white border border-white/10 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder-slate-500'
-                      }`}
-                    />
-                  </div>
-                </div>
-
-                {/* Password Input */}
-                <div>
-                  <div className="mb-1.5">
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Password
-                    </label>
-                  </div>
-                  <div className="relative flex items-center">
-                    <Lock
-                      size={16}
-                      className={`absolute left-3.5 transition-colors ${
-                        isCoastal ? 'text-slate-400' : 'text-slate-500'
-                      }`}
-                    />
-                    <input
-                      required
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      autoComplete="current-password"
-                      className={`w-full pl-10 pr-11 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all focus:outline-none ${
-                        isCoastal
-                          ? 'bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-[#1878B8] focus:ring-2 focus:ring-[#1878B8]/15'
-                          : 'bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.08] text-white border border-white/10 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder-slate-500'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                      tabIndex={-1}
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Remember Me */}
-                <div className="pt-1">
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#1878B8] border-slate-300 dark:border-white/20 focus:ring-[#1878B8] cursor-pointer"
-                    />
-                    <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                      Remember me on this device
-                    </span>
-                  </label>
-                </div>
-
-                {/* Submit Action */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-[#1878B8] to-[#0284c7] text-white text-sm font-semibold shadow-md shadow-sky-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 hover:brightness-105 hover:shadow-lg hover:shadow-sky-600/30 active:scale-[0.99]"
-                >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Signing in...</span>
+                  <div className="mb-6">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#1878B8] to-sky-400 flex items-center justify-center text-white shadow-md shadow-sky-600/20 mb-4">
+                      <ShieldCheck size={26} className="stroke-[2.2]" />
                     </div>
-                  ) : (
-                    <>
-                      <span>Sign In</span>
-                      <ArrowRight size={16} />
-                    </>
+                    <h2
+                      className={`text-2xl font-bold tracking-tight ${
+                        isCoastal ? 'text-slate-900' : 'text-white'
+                      }`}
+                    >
+                      Confirm It's You
+                    </h2>
+                    <p
+                      className={`text-xs sm:text-sm font-medium mt-1.5 leading-relaxed ${
+                        isCoastal ? 'text-slate-500' : 'text-slate-400'
+                      }`}
+                    >
+                      We've sent a 6-digit confirmation code to{' '}
+                      <strong className={isCoastal ? 'text-slate-900 font-semibold' : 'text-white font-semibold'}>
+                        {email}
+                      </strong>
+                      . Enter it below to confirm your identity and complete your account setup.
+                    </p>
+                  </div>
+
+                  {/* OTP Error Alert */}
+                  {otpError && (
+                    <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5">
+                      <div className="w-4 h-4 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+                        !
+                      </div>
+                      <div className="flex-1 leading-relaxed">{otpError}</div>
+                    </div>
                   )}
-                </button>
-              </form>
+
+                  {/* Resend Success Banner */}
+                  {resendSuccessMessage && (
+                    <div className="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2.5">
+                      <CheckCircle2 size={16} className="shrink-0" />
+                      <span>{resendSuccessMessage}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 text-center">
+                        6-Digit Verification Code
+                      </label>
+                      <input
+                        autoFocus
+                        required
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                        placeholder="••••••"
+                        className={`w-full py-3.5 px-4 rounded-xl text-center font-mono text-2xl tracking-[0.35em] font-bold transition-all focus:outline-none ${
+                          isCoastal
+                            ? 'bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-[#1878B8] focus:ring-2 focus:ring-[#1878B8]/15'
+                            : 'bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.08] text-white border border-white/10 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder-slate-600'
+                        }`}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={otpLoading || otpCode.length < 4}
+                      className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#1878B8] to-[#0284c7] text-white text-sm font-semibold shadow-md shadow-sky-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 hover:brightness-105 hover:shadow-lg hover:shadow-sky-600/30 active:scale-[0.99]"
+                    >
+                      {otpLoading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Verifying code...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span>Verify &amp; Continue</span>
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+
+                    <div className="pt-2 flex flex-col items-center gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                        <span>Didn't receive the code?</span>
+                        {resendCountdown > 0 ? (
+                          <span className="font-semibold text-slate-400">
+                            Resend in {resendCountdown}s
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleResendOtp}
+                            disabled={resendLoading}
+                            className="font-bold text-[#1878B8] dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          >
+                            {resendLoading && <RefreshCw size={11} className="animate-spin" />}
+                            <span>Resend Code</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsOtpStep(false);
+                          setOtpError(null);
+                          setOtpCode('');
+                        }}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium flex items-center gap-1 mt-1 cursor-pointer"
+                      >
+                        <ArrowLeft size={13} />
+                        <span>Back to sign in</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                /* ── Standard Login Form ── */
+                <>
+                  {/* Form Heading */}
+                  <div className="mb-7">
+                    <h2
+                      className={`text-2xl sm:text-3xl font-bold tracking-tight ${
+                        isCoastal ? 'text-slate-900' : 'text-white'
+                      }`}
+                    >
+                      Welcome back
+                    </h2>
+                    <p
+                      className={`text-xs sm:text-sm font-medium mt-1.5 ${
+                        isCoastal ? 'text-slate-500' : 'text-slate-400'
+                      }`}
+                    >
+                      Sign in to access your CRM workspace
+                    </p>
+                  </div>
+
+                  {/* Error Alert */}
+                  {error && (
+                    <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-start gap-2.5">
+                      <div className="w-4 h-4 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+                        !
+                      </div>
+                      <div className="flex-1 leading-relaxed">{error}</div>
+                    </div>
+                  )}
+
+                  {/* Login Form */}
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    {/* Email Input */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Email address
+                      </label>
+                      <div className="relative flex items-center">
+                        <Mail
+                          size={16}
+                          className={`absolute left-3.5 transition-colors ${
+                            isCoastal ? 'text-slate-400' : 'text-slate-500'
+                          }`}
+                        />
+                        <input
+                          required
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="name@riseuprc.com"
+                          autoComplete="email"
+                          className={`w-full pl-10 pr-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all focus:outline-none ${
+                            isCoastal
+                              ? 'bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-[#1878B8] focus:ring-2 focus:ring-[#1878B8]/15'
+                              : 'bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.08] text-white border border-white/10 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder-slate-500'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Password Input */}
+                    <div>
+                      <div className="mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Password
+                        </label>
+                      </div>
+                      <div className="relative flex items-center">
+                        <Lock
+                          size={16}
+                          className={`absolute left-3.5 transition-colors ${
+                            isCoastal ? 'text-slate-400' : 'text-slate-500'
+                          }`}
+                        />
+                        <input
+                          required
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          autoComplete="current-password"
+                          className={`w-full pl-10 pr-11 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all focus:outline-none ${
+                            isCoastal
+                              ? 'bg-slate-50 hover:bg-white focus:bg-white text-slate-900 border border-slate-200 focus:border-[#1878B8] focus:ring-2 focus:ring-[#1878B8]/15'
+                              : 'bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.08] text-white border border-white/10 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 placeholder-slate-500'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                          tabIndex={-1}
+                          title={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Remember Me */}
+                    <div className="pt-1">
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={rememberMe}
+                          onChange={(e) => setRememberMe(e.target.checked)}
+                          className="w-4 h-4 rounded text-[#1878B8] border-slate-300 dark:border-white/20 focus:ring-[#1878B8] cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                          Remember me on this device
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Submit Action */}
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-[#1878B8] to-[#0284c7] text-white text-sm font-semibold shadow-md shadow-sky-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 hover:brightness-105 hover:shadow-lg hover:shadow-sky-600/30 active:scale-[0.99]"
+                    >
+                      {loading ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Signing in...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span>Sign In</span>
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </>
+              )}
 
               {/* Bottom Copyright & Help */}
               <div className="mt-8 pt-5 border-t border-slate-200/60 dark:border-white/10 text-center space-y-1">

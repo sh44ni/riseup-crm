@@ -9,6 +9,8 @@ PUBLIC_EXACT_ROUTES: FrozenSet[str] = frozenset({
     "/openapi.json",
     "/api/admin/auth/login",
     "/api/admin/auth",
+    "/api/admin/auth/verify-otp",
+    "/api/admin/auth/resend-otp",
 })
 
 # Public tree prefixes

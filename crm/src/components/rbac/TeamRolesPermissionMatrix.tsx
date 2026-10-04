@@ -132,10 +132,15 @@ export function TeamRolesPermissionMatrix() {
     applySelectRole(role);
   };
 
+  const isOwnerRole = activeRole?.name.toLowerCase() === 'owner';
+  const isAdminRole = ['administrator', 'admin'].includes(activeRole?.name.toLowerCase() || '');
+  const canEditActiveRole = Boolean(activeRole && !isOwnerRole && (isAdminRole ? isOwner : (can('roles.edit') || isOwner)));
+
   const handleSignatoryChange = (val: boolean) => {
-    if (!activeRole || activeRole.is_protected) return;
-    if (!can('roles.edit') && !isOwner) {
-      showToast('You do not have permission to edit roles.');
+    if (!activeRole || !canEditActiveRole) {
+      if (isAdminRole && !isOwner) {
+        showToast('Only the Owner can modify Administrator signatory authority.');
+      }
       return;
     }
     setActiveIsSignatory(val);
@@ -143,9 +148,10 @@ export function TeamRolesPermissionMatrix() {
   };
 
   const handleViewChange = (moduleId: string, newView: 'none' | 'own' | 'assigned' | 'all') => {
-    if (!activeRole || activeRole.is_protected) return;
-    if (!can('roles.edit') && !isOwner) {
-      showToast('You do not have permission to edit roles.');
+    if (!activeRole || !canEditActiveRole) {
+      if (isAdminRole && !isOwner) {
+        showToast('Only the Owner can customize what Administrators can see.');
+      }
       return;
     }
 
@@ -164,9 +170,10 @@ export function TeamRolesPermissionMatrix() {
   };
 
   const handleManageChange = (moduleId: string, newManage: boolean) => {
-    if (!activeRole || activeRole.is_protected) return;
-    if (!can('roles.edit') && !isOwner) {
-      showToast('You do not have permission to edit roles.');
+    if (!activeRole || !canEditActiveRole) {
+      if (isAdminRole && !isOwner) {
+        showToast('Only the Owner can customize what Administrators can see.');
+      }
       return;
     }
 
@@ -189,7 +196,7 @@ export function TeamRolesPermissionMatrix() {
   };
 
   const handleSaveChanges = async () => {
-    if (!activeRole || activeRole.is_protected) return;
+    if (!activeRole || !canEditActiveRole) return;
     setIsSaving(true);
     try {
       await api.updateRole(activeRole.id, {
@@ -233,8 +240,9 @@ export function TeamRolesPermissionMatrix() {
   };
 
   const promptDeleteRole = (role: Role) => {
-    if (role.is_protected) {
-      toast.warning('Cannot delete system protected Owner role.');
+    const rName = role.name.toLowerCase();
+    if (role.is_protected || rName === 'owner' || rName === 'administrator' || rName === 'admin') {
+      toast.warning(`Cannot delete permanent system role "${role.name}".`);
       return;
     }
     setRoleToDelete(role);
@@ -368,6 +376,7 @@ export function TeamRolesPermissionMatrix() {
                 activeIsSignatory={activeIsSignatory}
                 hasUnsavedChanges={hasUnsavedChanges}
                 isSaving={isSaving}
+                isOwner={isOwner}
                 onSaveChanges={handleSaveChanges}
                 onPromptDeleteRole={promptDeleteRole}
                 onSignatoryChange={handleSignatoryChange}
@@ -410,7 +419,8 @@ export function TeamRolesPermissionMatrix() {
                     key={module.id}
                     module={module}
                     modConfig={activeModules[module.id] || { view: 'none', manage: false }}
-                    isProtected={Boolean(activeRole.is_protected)}
+                    isProtected={isOwnerRole}
+                    disabled={!canEditActiveRole}
                     onViewChange={handleViewChange}
                     onManageChange={handleManageChange}
                   />
@@ -418,7 +428,7 @@ export function TeamRolesPermissionMatrix() {
               </div>
 
               {/* Bottom Sticky Save Bar if unsaved */}
-              {hasUnsavedChanges && !activeRole.is_protected && (
+              {hasUnsavedChanges && canEditActiveRole && (
                 <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-800/50 flex items-center justify-between animate-in slide-in-from-bottom-2">
                   <div className="flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200">
                     <AlertCircle size={15} className="text-amber-600 dark:text-amber-400" />

@@ -1,6 +1,8 @@
 from app.core.logger import get_logger
 import os
 import uuid
+import secrets
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Request, Response, Depends, HTTPException, status, UploadFile, File, Form
@@ -10,7 +12,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import verify_password, hash_scrypt_password, generate_session_token
 from app.core.audit import record_audit_log
-from app.core.redis import invalidate_session_cache
+from app.core.redis import invalidate_session_cache, cache_get, cache_set, cache_delete
 from app.core.permissions import get_user_effective_permissions
 from app.middlewares.auth import (
     get_optional_current_user, require_auth, invalidate_session
@@ -18,8 +20,10 @@ from app.middlewares.auth import (
 from app.middlewares.rate_limit import rate_limit
 from app.schemas.auth import (
     LoginRequest, LoginResponse, UserProfileResponse,
-    SessionListResponse, SessionActionResponse
+    SessionListResponse, SessionActionResponse,
+    VerifyOtpRequest, ResendOtpRequest
 )
+from app.services.email_service import send_otp_verification_email
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Auth"])
@@ -85,20 +89,48 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             authenticated_user = dict(row)
 
     if not authenticated_user:
-        # Check if email has a pending invitation (account not yet created)
+        clean_email = email.strip().lower()
+        # Check if email has a pending invitation (first-time onboarding)
         invite_row = (await db.execute(text("""
             SELECT token FROM invitations
             WHERE LOWER(email) = LOWER(:email)
             AND status = 'pending'
             AND expires_at > NOW()
             ORDER BY created_at DESC LIMIT 1
-        """), {"email": email.strip()})).mappings().first()
+        """), {"email": clean_email})).mappings().first()
 
         if invite_row:
-            # They're invited but haven't set up their account yet
+            # First-time setup / invited user: generate secure 6-digit numeric OTP,
+            # store in Redis with 10-minute TTL, send verification email, and prompt user
+            otp = f"{secrets.randbelow(900_000) + 100_000}"
+            otp_data = {
+                "otp": otp,
+                "token": invite_row["token"],
+                "email": clean_email,
+                "attempts": 0,
+            }
+            await cache_set(f"otp:invite:{clean_email}", json.dumps(otp_data), ttl_seconds=600)
+
+            # Determine recipient name
+            user_name = row["name"] if row and row.get("name") else ("Sylvester" if clean_email == "account@riseuprac.com" else "Team Member")
+            try:
+                await send_otp_verification_email(
+                    to_email=clean_email,
+                    otp=otp,
+                    recipient_name=user_name,
+                )
+            except Exception as e:
+                logger.error(f"Failed to send OTP verification email to {clean_email}: {e}")
+
+            logger.info(f"===> [FIRST-TIME SIGN-IN OTP] 6-digit code for {clean_email}: {otp}")
+
             raise HTTPException(
                 status_code=403,
-                detail={"code": "INVITE_PENDING", "token": invite_row["token"]}
+                detail={
+                    "code": "OTP_REQUIRED",
+                    "message": f"A 6-digit verification code has been sent to {clean_email}. Please enter it to verify your identity.",
+                    "email": clean_email,
+                }
             )
 
         raise HTTPException(status_code=401, detail="You are not authorized to access this system.")
@@ -191,9 +223,17 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
         is_protected = True
         perms["*"] = "all"
 
+    # Check authorized signatory status
+    sig_check = (await db.execute(text("""
+        SELECT 1 FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+        WHERE ur.user_id = :uid AND r.is_authorized_signatory = true
+        LIMIT 1
+    """), {"uid": authenticated_user["id"]})).scalar()
+    is_auth_sig = bool(sig_check or (authenticated_user["role"] == "owner") or is_protected)
+
     # Prime Redis session cache for instantaneous subsequent checks
     try:
-        from app.core.redis import cache_set
         import orjson
         from app.middlewares.auth import SESSION_CACHE_TTL
         redis_key = f"session_user:{token}"
@@ -207,6 +247,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             "avatar_url": authenticated_user.get("avatar_url"),
             "permissions": perms,
             "is_protected_owner": is_protected,
+            "is_authorized_signatory": is_auth_sig,
             "kind": "user",
             "user_id": authenticated_user["id"],
         }
@@ -227,9 +268,109 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             "avatar_url": authenticated_user.get("avatar_url"),
             "permissions": perms,
             "is_protected_owner": is_protected,
+            "is_authorized_signatory": is_auth_sig,
             "kind": "user",
             "user_id": authenticated_user["id"],
         }
+    }
+
+
+@router.post("/auth/verify-otp")
+async def verify_otp(
+    payload: VerifyOtpRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    clean_email = payload.email.strip().lower()
+    submitted_otp = payload.otp.strip()
+
+    cached_str = await cache_get(f"otp:invite:{clean_email}")
+    if not cached_str:
+        # Check if active invite still exists
+        invite_row = (await db.execute(text("""
+            SELECT token FROM invitations
+            WHERE LOWER(email) = LOWER(:email)
+            AND status = 'pending'
+            AND expires_at > NOW()
+            ORDER BY created_at DESC LIMIT 1
+        """), {"email": clean_email})).mappings().first()
+        if not invite_row:
+            raise HTTPException(status_code=400, detail="No active invitation found for this email address.")
+        raise HTTPException(
+            status_code=400,
+            detail="The verification code has expired. Please sign in again to receive a fresh code."
+        )
+
+    try:
+        data = json.loads(cached_str)
+    except Exception:
+        await cache_delete(f"otp:invite:{clean_email}")
+        raise HTTPException(status_code=400, detail="Corrupted verification session. Please sign in again.")
+
+    if str(data.get("otp", "")).strip() != submitted_otp:
+        attempts = int(data.get("attempts", 0)) + 1
+        if attempts >= 5:
+            await cache_delete(f"otp:invite:{clean_email}")
+            raise HTTPException(status_code=400, detail="Too many invalid code attempts. Please sign in again to receive a new code.")
+        data["attempts"] = attempts
+        await cache_set(f"otp:invite:{clean_email}", json.dumps(data), ttl_seconds=600)
+        raise HTTPException(status_code=400, detail="Invalid verification code. Please check your email and try again.")
+
+    # Valid OTP verified! Invalidate the OTP and return the invite token
+    token = data["token"]
+    await cache_delete(f"otp:invite:{clean_email}")
+
+    return {
+        "ok": True,
+        "message": "Identity verified successfully.",
+        "token": token,
+        "email": clean_email,
+    }
+
+
+@router.post("/auth/resend-otp")
+async def resend_otp(
+    payload: ResendOtpRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    clean_email = payload.email.strip().lower()
+    invite_row = (await db.execute(text("""
+        SELECT token FROM invitations
+        WHERE LOWER(email) = LOWER(:email)
+        AND status = 'pending'
+        AND expires_at > NOW()
+        ORDER BY created_at DESC LIMIT 1
+    """), {"email": clean_email})).mappings().first()
+
+    if not invite_row:
+        raise HTTPException(status_code=400, detail="No pending invitation found for this email address.")
+
+    user_row = (await db.execute(text("SELECT name FROM users WHERE LOWER(email) = LOWER(:email)"), {"email": clean_email})).mappings().first()
+    user_name = user_row["name"] if user_row and user_row.get("name") else ("Sylvester" if clean_email == "account@riseuprac.com" else "Team Member")
+
+    otp = f"{secrets.randbelow(900_000) + 100_000}"
+    otp_data = {
+        "otp": otp,
+        "token": invite_row["token"],
+        "email": clean_email,
+        "attempts": 0,
+    }
+    await cache_set(f"otp:invite:{clean_email}", json.dumps(otp_data), ttl_seconds=600)
+
+    try:
+        await send_otp_verification_email(
+            to_email=clean_email,
+            otp=otp,
+            recipient_name=user_name,
+        )
+    except Exception as e:
+        logger.error(f"Failed to resend OTP verification email to {clean_email}: {e}")
+
+    logger.info(f"===> [RESENT FIRST-TIME SIGN-IN OTP] Code for {clean_email}: {otp}")
+
+    return {
+        "ok": True,
+        "message": f"A new 6-digit verification code has been sent to {clean_email}.",
+        "email": clean_email,
     }
 
 @router.delete("/auth", response_model=SessionActionResponse)
@@ -355,7 +496,7 @@ async def get_current_profile(db: AsyncSession = Depends(get_db), user = Depends
     user_dict["permissions"] = perms
     user_dict["is_protected_owner"] = is_protected
     user_dict["has_signature"] = bool(row.get("signature_data") and str(row.get("signature_data")).strip())
-    user_dict["is_authorized_signatory"] = bool(row.get("is_authorized_signatory"))
+    user_dict["is_authorized_signatory"] = bool(row.get("is_authorized_signatory") or row["role"] == "owner" or is_protected)
     if user_dict.get("created_at"):
         user_dict["created_at"] = user_dict["created_at"].isoformat()
     if user_dict.get("last_login_at"):

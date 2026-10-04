@@ -4,7 +4,8 @@ import { ModuleConfig, ModuleDefinition } from '../types';
 interface ModulePermissionRowProps {
   module: ModuleDefinition;
   modConfig: ModuleConfig;
-  isProtected: boolean;
+  isProtected?: boolean;
+  disabled?: boolean;
   onViewChange: (moduleId: string, newView: 'none' | 'own' | 'assigned' | 'all') => void;
   onManageChange: (moduleId: string, newManage: boolean) => void;
 }
@@ -12,14 +13,16 @@ interface ModulePermissionRowProps {
 export function ModulePermissionRow({
   module,
   modConfig,
-  isProtected,
+  isProtected = false,
+  disabled = false,
   onViewChange,
   onManageChange,
 }: ModulePermissionRowProps) {
   const Icon = module.icon;
-  const currentView = isProtected ? 'all' : modConfig.view;
-  const currentManage = isProtected ? true : modConfig.manage;
-  const canManageDisabled = isProtected || currentView === 'none';
+  const currentView = isProtected ? 'all' : (modConfig.view || 'none');
+  const currentManage = isProtected ? true : Boolean(modConfig.manage);
+  const isRowDisabled = isProtected || disabled;
+  const canManageDisabled = isRowDisabled || currentView === 'none';
 
   // Compute summary badge
   let summaryBadge = {
@@ -75,13 +78,13 @@ export function ModulePermissionRow({
             {/* None */}
             <button
               type="button"
-              disabled={isProtected}
+              disabled={isRowDisabled}
               onClick={() => onViewChange(module.id, 'none')}
               className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 currentView === 'none'
                   ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold border border-slate-200 dark:border-white/10'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 hover:dark:text-white'
-              } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
+              } ${isRowDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
               None
             </button>
@@ -91,39 +94,39 @@ export function ModulePermissionRow({
               <>
                 <button
                   type="button"
-                  disabled={isProtected}
+                  disabled={isRowDisabled}
                   onClick={() => onViewChange(module.id, 'own')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     currentView === 'own'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-2xs font-bold'
                       : 'text-slate-500 dark:text-slate-400 hover:text-amber-600 hover:dark:text-amber-300'
-                  } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  } ${isRowDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                   title="Can only view records created by this user (e.g. Door Knocker)"
                 >
                   Own Only
                 </button>
                 <button
                   type="button"
-                  disabled={isProtected}
+                  disabled={isRowDisabled}
                   onClick={() => onViewChange(module.id, 'assigned')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     currentView === 'assigned'
                       ? 'bg-sky-600 text-white shadow-2xs font-bold'
                       : 'text-slate-500 dark:text-slate-400 hover:text-sky-600 hover:dark:text-sky-300'
-                  } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  } ${isRowDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                   title="Can view records assigned to user or created by them (e.g. Sales Rep)"
                 >
                   Assigned
                 </button>
                 <button
                   type="button"
-                  disabled={isProtected}
+                  disabled={isRowDisabled}
                   onClick={() => onViewChange(module.id, 'all')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                     currentView === 'all'
                       ? 'bg-emerald-600 text-white shadow-2xs font-bold'
                       : 'text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:dark:text-emerald-300'
-                  } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  } ${isRowDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                   title="Can view all organization records (e.g. Door Knocker Lead / Manager)"
                 >
                   Org-Wide
@@ -132,13 +135,13 @@ export function ModulePermissionRow({
             ) : (
               <button
                 type="button"
-                disabled={isProtected}
+                disabled={isRowDisabled}
                 onClick={() => onViewChange(module.id, 'all')}
                 className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                   currentView === 'all'
                     ? 'bg-emerald-600 text-white shadow-2xs font-bold'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 hover:dark:text-white'
-                } ${isProtected ? 'opacity-60 cursor-not-allowed' : ''}`}
+                } ${isRowDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 Can View
               </button>

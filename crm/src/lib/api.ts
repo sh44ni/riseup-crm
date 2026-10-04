@@ -169,6 +169,20 @@ class ApiClient {
     return res;
   }
 
+  async verifyOtp(email: string, otp: string) {
+    return this.request<{ ok: boolean; message: string; token: string; email: string }>('/admin/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim() }),
+    });
+  }
+
+  async resendOtp(email: string) {
+    return this.request<{ ok: boolean; message: string; email: string }>('/admin/auth/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+  }
+
   async logout() {
     try {
       await this.request('/admin/auth/logout', { method: 'POST' });

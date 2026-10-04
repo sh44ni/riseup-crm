@@ -109,8 +109,9 @@ export function AuthorizedSignatoriesTab({ onNavigateToRoles }: AuthorizedSignat
     setEditingSignatory(signatory);
   };
 
+  const isOwner = Boolean(currentUser?.role === 'owner' || currentUser?.is_protected_owner);
   const mySignatory = signatories.find((s) => (s.is_self ?? (s.id === currentUser?.id)));
-  const isCurrentUserSignatory = Boolean(currentUser?.is_authorized_signatory || mySignatory);
+  const isCurrentUserSignatory = Boolean(isOwner || currentUser?.is_authorized_signatory || mySignatory);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">

@@ -27,6 +27,7 @@ class AuthUser:
         avatar_url: Optional[str] = None,
         permissions: Optional[Dict[str, str]] = None,
         is_protected_owner: bool = False,
+        is_authorized_signatory: bool = False,
         is_api_key: bool = False,
         api_key_id: Optional[int] = None,
         kind: Optional[str] = None,
@@ -35,6 +36,7 @@ class AuthUser:
         self.role, self.status, self.phone = role, status, phone
         self.avatar_url, self.permissions = avatar_url, permissions or {}
         self.is_protected_owner, self.is_api_key = is_protected_owner, is_api_key
+        self.is_authorized_signatory = bool(is_authorized_signatory or (role == "owner") or is_protected_owner)
         self.api_key_id = api_key_id
         self.kind = "api_key" if is_api_key else (kind or "user")
         self.user_id = None if self.kind == "api_key" else id
@@ -53,6 +55,7 @@ class AuthUser:
             "id": self.id, "name": self.name, "email": self.email, "role": self.role,
             "status": self.status, "phone": self.phone, "avatar_url": self.avatar_url,
             "permissions": self.permissions, "is_protected_owner": self.is_protected_owner,
+            "is_authorized_signatory": self.is_authorized_signatory,
             "is_api_key": self.is_api_key, "api_key_id": self.api_key_id,
             "kind": self.kind, "user_id": self.user_id,
         }
@@ -232,6 +235,7 @@ async def get_user_effective_permissions(db: AsyncSession, user_id: int) -> Tupl
     """
     sql = text("""
         SELECT 
+            r.name as role_name,
             r.is_protected,
             p.key as permission_key,
             rp.scope
@@ -249,7 +253,7 @@ async def get_user_effective_permissions(db: AsyncSession, user_id: int) -> Tupl
     permissions: Dict[str, str] = {}
 
     for r in rows:
-        if r.get("is_protected"):
+        if r.get("role_name") == "Owner":
             is_protected_owner = True
 
         p_key = r.get("permission_key")
@@ -378,14 +382,31 @@ async def seed_system_rbac(conn):
 
     # Ensure Owner role exists
     await conn.execute(text("""
-        INSERT INTO roles (name, description, is_protected, created_at, updated_at)
-        VALUES ('Owner', 'Executive owner with unrestricted access across all systems', true, NOW(), NOW())
-        ON CONFLICT (name) DO UPDATE SET is_protected = true
+        INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_at, updated_at)
+        VALUES ('Owner', 'Executive owner with unrestricted access across all systems', true, true, NOW(), NOW())
+        ON CONFLICT (name) DO UPDATE SET is_protected = true, is_authorized_signatory = true
     """))
+
+    # Ensure Administrator role exists
+    await conn.execute(text("""
+        INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_at, updated_at)
+        VALUES ('Administrator', 'System administrator with elevated operational privileges', true, true, NOW(), NOW())
+        ON CONFLICT (name) DO UPDATE SET is_protected = true, is_authorized_signatory = true
+    """))
+
+    # Populate role_permissions for Administrator (preserving any custom scopes set by Owner)
+    admin_role_id = (await conn.execute(text("SELECT id FROM roles WHERE name = 'Administrator'"))).scalar()
+    if admin_role_id:
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id, scope)
+            SELECT :rid, p.id, 'all'
+            FROM permissions p
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """), {"rid": admin_role_id})
 
     # Associate Owner role with owner user
     owner_user = (await conn.execute(text("SELECT id FROM users WHERE role = 'owner' ORDER BY id ASC LIMIT 1"))).mappings().first()
-    owner_role = (await conn.execute(text("SELECT id FROM roles WHERE is_protected = true LIMIT 1"))).mappings().first()
+    owner_role = (await conn.execute(text("SELECT id FROM roles WHERE name = 'Owner' LIMIT 1"))).mappings().first()
     if owner_user and owner_role:
         await conn.execute(
             text("""

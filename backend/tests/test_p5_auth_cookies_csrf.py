@@ -255,8 +255,165 @@ async def test_security_headers_present(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_public_routes_registry():
     assert is_public_backend_route("/api/admin/auth/login") is True
+    assert is_public_backend_route("/api/admin/auth/verify-otp") is True
+    assert is_public_backend_route("/api/admin/auth/resend-otp") is True
     assert is_public_backend_route("/api/contact") is True
     assert is_public_backend_route("/health") is True
     assert is_public_backend_route("/api/admin/leads") is False
     assert is_public_backend_route("/api/admin/finances") is False
     assert is_public_backend_route("/api/admin/auth/sessions") is False
+
+
+@pytest.mark.asyncio
+async def test_login_pending_invite_requires_otp_and_verifies(client: AsyncClient, db: AsyncSession):
+    import json
+    from app.core.redis import cache_get
+    test_email = "test_otp_user@example.com"
+    test_token = "test_invite_token_1234567890"
+
+    # Insert pending invitation
+    await db.execute(text("""
+        INSERT INTO invitations (email, invited_role_ids, token, status, expires_at, created_at)
+        VALUES (:email, ARRAY[4]::integer[], :token, 'pending', NOW() + INTERVAL '7 days', NOW())
+        ON CONFLICT (token) DO NOTHING
+    """), {"email": test_email, "token": test_token})
+    await db.commit()
+
+    # 1. First-time login attempt with wrong password triggers OTP
+    res = await client.post("/api/admin/auth/login", json={"email": test_email, "password": "wrongpassword!"})
+    assert res.status_code == 403
+    data = res.json()
+    assert data["detail"]["code"] == "OTP_REQUIRED"
+    assert data["detail"]["email"] == test_email
+
+    # Verify OTP was written to cache
+    cached_val = await cache_get(f"otp:invite:{test_email}")
+    assert cached_val is not None
+    otp_obj = json.loads(cached_val)
+    valid_otp = otp_obj["otp"]
+
+    # 2. Verify with wrong OTP fails
+    bad_verify = await client.post("/api/admin/auth/verify-otp", json={"email": test_email, "otp": "999999" if valid_otp != "999999" else "111111"})
+    assert bad_verify.status_code == 400
+
+    # 3. Verify with correct OTP succeeds and returns invite token
+    good_verify = await client.post("/api/admin/auth/verify-otp", json={"email": test_email, "otp": valid_otp})
+    assert good_verify.status_code == 200
+    assert good_verify.json()["ok"] is True
+    assert good_verify.json()["token"] == test_token
+
+    # 4. Clean up
+    await db.execute(text("DELETE FROM invitations WHERE email = :email"), {"email": test_email})
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_owner_is_authorized_signatory_and_can_set_signature(client: AsyncClient, db: AsyncSession):
+    owner = await make_user(db, role="owner", email="owner_sig_test@example.com")
+    await db.commit()
+
+    # Log in as owner
+    login_res = await client.post("/api/admin/auth/login", json={"email": owner.email, "password": "TestPassword123!"})
+    assert login_res.status_code == 200
+    login_data = login_res.json()
+    assert login_data["user"]["is_authorized_signatory"] is True
+
+    session_token = login_data["token"]
+    csrf_token = login_data["csrf_token"]
+    headers = {"Authorization": f"Bearer {session_token}", "X-CSRF-Token": csrf_token}
+
+    # Verify owner appears in signatories list
+    sig_list_res = await client.get("/api/admin/signatories", headers=headers)
+    assert sig_list_res.status_code == 200
+    sigs = sig_list_res.json()["signatories"]
+    owner_sig = next((s for s in sigs if s["id"] == owner.id), None)
+    assert owner_sig is not None
+    assert owner_sig["is_self"] is True
+
+    # Configure signature for owner
+    set_sig_res = await client.put(
+        f"/api/admin/signatories/{owner.id}/signature",
+        headers=headers,
+        json={
+            "signature_name": "Test Owner",
+            "signature_title": "Executive Owner",
+            "signature_type": "typed",
+            "signature_data": "Test Owner Signature"
+        }
+    )
+    assert set_sig_res.status_code == 200
+    assert set_sig_res.json()["ok"] is True
+    assert set_sig_res.json()["signatory"]["signature_data"] == "Test Owner Signature"
+
+
+@pytest.mark.asyncio
+async def test_administrator_role_protected_and_owner_can_manage(client: AsyncClient, db: AsyncSession):
+    # Setup: Ensure Administrator role exists and is protected
+    admin_role = (await db.execute(text("SELECT id, name, is_protected FROM roles WHERE name = 'Administrator'"))).mappings().first()
+    assert admin_role is not None
+    assert admin_role["is_protected"] is True
+
+    owner_role = (await db.execute(text("SELECT id, name, is_protected FROM roles WHERE name = 'Owner'"))).mappings().first()
+    assert owner_role is not None
+
+    # Create Owner user
+    owner = await make_user(db, role="owner", email="owner_rbac_test@example.com")
+    # Create two Admin users
+    admin1 = await make_user(db, role="admin", email="admin1_rbac_test@example.com")
+    admin2 = await make_user(db, role="admin", email="admin2_rbac_test@example.com")
+    await db.execute(text("INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r) ON CONFLICT DO NOTHING"), {"u": admin1.id, "r": admin_role["id"]})
+    await db.execute(text("INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r) ON CONFLICT DO NOTHING"), {"u": admin2.id, "r": admin_role["id"]})
+    await db.commit()
+
+    # 1. Login as Admin 1
+    admin_login = await client.post("/api/admin/auth/login", json={"email": admin1.email, "password": "TestPassword123!"})
+    assert admin_login.status_code == 200
+    admin_headers = {"Authorization": f"Bearer {admin_login.json()['token']}", "X-CSRF-Token": admin_login.json()["csrf_token"]}
+
+    # Admin 1 attempts to delete Administrator role -> 403 Forbidden
+    del_admin_res = await client.delete(f"/api/admin/roles/{admin_role['id']}", headers=admin_headers)
+    assert del_admin_res.status_code == 403
+
+    # Admin 1 attempts to delete Owner role -> 403 Forbidden
+    del_owner_res = await client.delete(f"/api/admin/roles/{owner_role['id']}", headers=admin_headers)
+    assert del_owner_res.status_code == 403
+
+    # Admin 1 attempts to modify Administrator role permissions -> 403 Forbidden
+    edit_admin_role_res = await client.put(
+        f"/api/admin/roles/{admin_role['id']}",
+        headers=admin_headers,
+        json={"modules": {"leads": {"view": "own", "manage": False}}}
+    )
+    assert edit_admin_role_res.status_code == 403
+
+    # Admin 1 attempts to change Admin 2's role or status -> 403 Forbidden
+    edit_admin2_res = await client.put(
+        f"/api/admin/users/{admin2.id}",
+        headers=admin_headers,
+        json={"status": "suspended"}
+    )
+    assert edit_admin2_res.status_code == 403
+
+    # 2. Login as Owner
+    owner_login = await client.post("/api/admin/auth/login", json={"email": owner.email, "password": "TestPassword123!"})
+    assert owner_login.status_code == 200
+    owner_headers = {"Authorization": f"Bearer {owner_login.json()['token']}", "X-CSRF-Token": owner_login.json()["csrf_token"]}
+
+    # Owner attempts to modify Administrator role permissions -> 200 OK!
+    owner_edit_res = await client.put(
+        f"/api/admin/roles/{admin_role['id']}",
+        headers=owner_headers,
+        json={"modules": {"leads": {"view": "all", "manage": True}}}
+    )
+    assert owner_edit_res.status_code == 200
+    assert owner_edit_res.json()["ok"] is True
+
+    # Owner attempts to change Admin 2's status -> 200 OK!
+    owner_edit_admin2_res = await client.put(
+        f"/api/admin/users/{admin2.id}",
+        headers=owner_headers,
+        json={"status": "suspended"}
+    )
+    assert owner_edit_admin2_res.status_code == 200
+    assert owner_edit_admin2_res.json()["ok"] is True
+

@@ -49,6 +49,15 @@ async def resolve_auth_user(token: str, db: AsyncSession) -> Optional[AuthUser]:
         is_protected_owner = True
         perms["*"] = "all"
 
+    # Check authorized signatory status
+    sig_check = (await db.execute(text("""
+        SELECT 1 FROM user_roles ur
+        JOIN roles r ON ur.role_id = r.id
+        WHERE ur.user_id = :uid AND r.is_authorized_signatory = true
+        LIMIT 1
+    """), {"uid": row["id"]})).scalar()
+    is_authorized_signatory = bool(sig_check or (row["role"] == "owner") or is_protected_owner)
+
     auth_user = AuthUser(
         id=row["id"],
         name=row["name"],
@@ -59,6 +68,7 @@ async def resolve_auth_user(token: str, db: AsyncSession) -> Optional[AuthUser]:
         avatar_url=row.get("avatar_url"),
         permissions=perms,
         is_protected_owner=is_protected_owner,
+        is_authorized_signatory=is_authorized_signatory,
     )
 
     # Cache user object in Redis

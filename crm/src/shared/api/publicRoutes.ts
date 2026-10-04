@@ -16,6 +16,8 @@ export const PUBLIC_ENDPOINTS = [
   '/admin/auth/login',
   '/admin/auth/me',
   '/admin/auth',
+  '/admin/auth/verify-otp',
+  '/admin/auth/resend-otp',
   '/public/invitations',
   '/public/contracts',
   '/contract/sign',
