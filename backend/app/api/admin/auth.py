@@ -14,6 +14,7 @@ from app.core.security import verify_password, hash_scrypt_password, generate_se
 from app.core.audit import record_audit_log
 from app.core.redis import invalidate_session_cache, cache_get, cache_set, cache_delete
 from app.core.permissions import get_user_effective_permissions
+from app.core.invite_verification import invite_verified_key, INVITE_VERIFIED_TTL
 from app.middlewares.auth import (
     get_optional_current_user, require_auth, invalidate_session
 )
@@ -275,7 +276,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
     }
 
 
-@router.post("/auth/verify-otp")
+@router.post("/auth/verify-otp", dependencies=[Depends(rate_limit("invite-otp-verify", 20, 600))])
 async def verify_otp(
     payload: VerifyOtpRequest,
     db: AsyncSession = Depends(get_db),
@@ -318,6 +319,9 @@ async def verify_otp(
     # Valid OTP verified! Invalidate the OTP and return the invite token
     token = data["token"]
     await cache_delete(f"otp:invite:{clean_email}")
+    # Unlock the invitation for account setup. /public/invitations/{token}/accept refuses
+    # any token that hasn't been unlocked by proving ownership of the invited inbox.
+    await cache_set(invite_verified_key(token), clean_email, ttl_seconds=INVITE_VERIFIED_TTL)
 
     return {
         "ok": True,
@@ -327,7 +331,7 @@ async def verify_otp(
     }
 
 
-@router.post("/auth/resend-otp")
+@router.post("/auth/resend-otp", dependencies=[Depends(rate_limit("invite-otp-send", 8, 600))])
 async def resend_otp(
     payload: ResendOtpRequest,
     db: AsyncSession = Depends(get_db),

@@ -1,21 +1,17 @@
 import React from 'react';
-import { AlertCircle, Check, Copy, Mail, RotateCcw, Shield, Trash2 } from 'lucide-react';
+import { AlertCircle, Mail, RotateCcw, Shield, Trash2 } from 'lucide-react';
 import { DevBadge } from '@/components/common/DevBadge';
 import { isDevEmail } from '@/utils/devUtils';
 import { InvitationItem } from '../types';
 
 interface PendingInvitationsTableProps {
   invitations: InvitationItem[];
-  copiedToken: string | null;
-  onCopyLink: (token: string) => void;
   onResend: (id: number) => void;
   onRevoke: (id: number) => void;
 }
 
 export function PendingInvitationsTable({
   invitations,
-  copiedToken,
-  onCopyLink,
   onResend,
   onRevoke,
 }: PendingInvitationsTableProps) {
@@ -29,7 +25,7 @@ export function PendingInvitationsTable({
           </span>
         </div>
         <span className="text-[11px] text-slate-500 dark:text-slate-400">
-          Invited users can redeem their role immediately by clicking the link.
+          Invited users must verify ownership of their email via a 6-digit confirmation code to activate their account.
         </span>
       </div>
 
@@ -108,37 +104,20 @@ export function PendingInvitationsTable({
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          onClick={() => onCopyLink(inv.token)}
-                          title="Copy Invitation Link"
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 hover:bg-sky-100 hover:dark:bg-sky-900/60 transition-all flex items-center gap-1 cursor-pointer"
-                        >
-                          {copiedToken === inv.token ? (
-                            <>
-                              <Check size={12} className="text-emerald-600 dark:text-emerald-400" />
-                              <span className="text-emerald-700 dark:text-emerald-300">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={12} />
-                              <span>Copy Link</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
                           onClick={() => onResend(inv.id)}
-                          title="Extend 7 Days"
-                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 hover:dark:bg-slate-700 hover:text-slate-900 hover:dark:text-white transition-all shadow-2xs cursor-pointer"
+                          title="Resend Invitation Email & Extend 7 Days"
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-50 hover:dark:bg-slate-700 hover:text-slate-900 hover:dark:text-white transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
                         >
                           <RotateCcw size={12} />
+                          <span className="text-[11px]">Resend Email</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => onRevoke(inv.id)}
-                          title="Revoke Link"
-                          aria-label="Revoke Invitation Link"
-                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:dark:bg-rose-900/60 transition-all cursor-pointer"
+                          title="Revoke Invitation"
+                          aria-label="Revoke Invitation"
+                          className="px-2 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:dark:bg-rose-900/60 transition-all cursor-pointer"
                         >
                           <Trash2 size={12} />
                         </button>

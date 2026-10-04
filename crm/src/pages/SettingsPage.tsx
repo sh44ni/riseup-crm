@@ -65,8 +65,6 @@ export function SettingsPage() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
-  const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
-  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   // Global Company State from context (applies everywhere across the CRM)
   const { company, updateCompany, resetCompany } = useCompany();
@@ -252,15 +250,10 @@ export function SettingsPage() {
 
   const handleInviteMember = async (newMemberData: any) => {
     try {
-      const res = await api.createInvitation({
+      await api.createInvitation({
         email: newMemberData.email,
       });
-      // Save the invite link so the user can copy it (works on local too)
-      if (res?.accept_url) {
-        setLastInviteLink(res.accept_url);
-        setInviteLinkCopied(false);
-      }
-      toast.success(`Invitation sent to ${newMemberData.email}${res?.email_sent ? ' via email' : ' — copy the link below!'}`);
+      toast.success(`Invitation emailed to ${newMemberData.email}.`);
       const usersRes = await api.getUsers().catch(() => null);
       if (usersRes?.users) setMembers(usersRes.users as any);
     } catch (e: any) {

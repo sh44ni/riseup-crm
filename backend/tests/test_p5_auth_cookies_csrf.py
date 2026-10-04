@@ -417,3 +417,65 @@ async def test_administrator_role_protected_and_owner_can_manage(client: AsyncCl
     assert owner_edit_admin2_res.status_code == 200
     assert owner_edit_admin2_res.json()["ok"] is True
 
+
+@pytest.mark.asyncio
+async def test_invitation_accept_requires_otp_verification(client: AsyncClient, db: AsyncSession):
+    import json
+    from app.core.redis import cache_get
+    test_email = "secure_invitee@example.com"
+    test_token = "secure_token_abc_123456789"
+
+    # Insert pending invitation
+    await db.execute(text("""
+        INSERT INTO invitations (email, invited_role_ids, token, status, expires_at, created_at)
+        VALUES (:email, ARRAY[4]::integer[], :token, 'pending', NOW() + INTERVAL '7 days', NOW())
+        ON CONFLICT (token) DO NOTHING
+    """), {"email": test_email, "token": test_token})
+    await db.commit()
+
+    # 1. Direct accept attempt without OTP fails with 403 Forbidden
+    unverified_accept = await client.post(
+        f"/api/public/invitations/{test_token}/accept",
+        json={"name": "Secure Invitee", "password": "SecurePassword123!"}
+    )
+    assert unverified_accept.status_code == 403
+    assert unverified_accept.json()["detail"]["code"] == "OTP_VERIFICATION_REQUIRED"
+
+    # 2. GET invitation details shows verified = false
+    details_res = await client.get(f"/api/public/invitations/{test_token}")
+    assert details_res.status_code == 200
+    assert details_res.json()["verified"] is False
+    assert details_res.json()["invitation"]["email"] == test_email
+
+    # 3. Trigger OTP dispatch via resend-otp
+    resend_res = await client.post("/api/admin/auth/resend-otp", json={"email": test_email})
+    assert resend_res.status_code == 200
+
+    # Read OTP from cache
+    cached_val = await cache_get(f"otp:invite:{test_email}")
+    assert cached_val is not None
+    otp_code = json.loads(cached_val)["otp"]
+
+    # 4. Verify OTP
+    verify_res = await client.post("/api/admin/auth/verify-otp", json={"email": test_email, "otp": otp_code})
+    assert verify_res.status_code == 200
+
+    # 5. GET invitation details now shows verified = true
+    details_res_after = await client.get(f"/api/public/invitations/{test_token}")
+    assert details_res_after.status_code == 200
+    assert details_res_after.json()["verified"] is True
+
+    # 6. Now accept succeeds and activates account
+    verified_accept = await client.post(
+        f"/api/public/invitations/{test_token}/accept",
+        json={"name": "Secure Invitee", "password": "SecurePassword123!"}
+    )
+    assert verified_accept.status_code == 200
+    assert verified_accept.json()["ok"] is True
+    assert verified_accept.json()["user"]["email"] == test_email
+
+    # Clean up created user and invitation
+    await db.execute(text("DELETE FROM users WHERE email = :email"), {"email": test_email})
+    await db.execute(text("DELETE FROM invitations WHERE email = :email"), {"email": test_email})
+    await db.commit()
+

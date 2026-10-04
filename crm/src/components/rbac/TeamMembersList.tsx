@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Check,
   CheckCircle2,
-  Copy,
   Search,
   X,
 } from 'lucide-react';
@@ -33,14 +31,8 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
 
   // Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [revokeConfirmId, setRevokeConfirmId] = useState<number | null>(null);
-  const [lastInviteResult, setLastInviteResult] = useState<{
-    email: string;
-    url: string;
-    emailSent: boolean;
-  } | null>(null);
 
   const fetchTeamData = async () => {
     setIsLoading(true);
@@ -70,25 +62,13 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
 
   const handleSendInvite = async (email: string, roleId: number) => {
     try {
-      const res = await api.createInvitation({
+      await api.createInvitation({
         email,
         roleIds: [roleId],
       });
       const assignedRole = roles.find((r) => r.id === roleId)?.name || 'Role';
-      const origin = window.location.origin;
-      const token = res?.token;
-      const inviteUrl = token ? `${origin}/accept-invite?token=${token}` : null;
 
-      if (inviteUrl) {
-        try { await navigator.clipboard.writeText(inviteUrl); } catch {}
-        setLastInviteResult({ email, url: inviteUrl, emailSent: !!res?.email_sent });
-      }
-
-      showNotification(
-        inviteUrl
-          ? `Invite sent as "${assignedRole}"! Link copied to clipboard.`
-          : `Invitation sent to ${email} as "${assignedRole}"!`
-      );
+      showNotification(`Invitation sent to ${email} as "${assignedRole}"! An email invitation has been dispatched.`);
       await fetchTeamData();
       onRefresh();
       return { success: true };
@@ -99,7 +79,7 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
         const existingId = Number(dupMatch[1]);
         return {
           success: false,
-          error: `${email} already has a pending invite. Resend it to generate a fresh link.`,
+          error: `${email} already has a pending invite. Resend it to dispatch a fresh email.`,
           pendingResendId: existingId,
         };
       }
@@ -109,15 +89,8 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
 
   const handleResendFromModal = async (pendingResendId: number, email: string) => {
     try {
-      const res = await api.resendInvitation(pendingResendId);
-      const origin = window.location.origin;
-      const token = res?.token;
-      const inviteUrl = token ? `${origin}/accept-invite?token=${token}` : null;
-      if (inviteUrl) {
-        try { await navigator.clipboard.writeText(inviteUrl); } catch {}
-        setLastInviteResult({ email, url: inviteUrl, emailSent: !!res?.email_sent });
-      }
-      showNotification('Invitation resent — link renewed for 7 more days!');
+      await api.resendInvitation(pendingResendId);
+      showNotification(`Invitation email resent to ${email} — renewed for 7 more days!`);
       await fetchTeamData();
       onRefresh();
       return { success: true };
@@ -129,7 +102,7 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
   const handleRevokeInvitation = async (id: number) => {
     try {
       await api.revokeInvitation(id);
-      showNotification('Invitation link revoked.');
+      showNotification('Invitation revoked.');
       await fetchTeamData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to revoke invitation');
@@ -141,20 +114,13 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
   const handleResendInvitation = async (id: number) => {
     try {
       await api.resendInvitation(id);
-      showNotification('Invitation renewed for 7 additional days.');
+      showNotification('Invitation email resent — extended for 7 additional days.');
       await fetchTeamData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to resend invitation');
     }
   };
 
-  const handleCopyInviteLink = (token: string) => {
-    const origin = window.location.origin;
-    const inviteUrl = `${origin}/accept-invite?token=${token}`;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopiedToken(token);
-    setTimeout(() => setCopiedToken(null), 2500);
-  };
 
   const handleRoleChange = async (userId: number, newRoleId: number) => {
     try {
@@ -273,53 +239,12 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
         onToggleStatus={handleToggleStatus}
       />
 
-      {/* Last Invite Link Banner */}
-      {lastInviteResult && (
-        <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-4 flex items-start gap-3 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center shrink-0">
-            <Check size={15} className="text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
-              Invite sent to {lastInviteResult.email}
-              {lastInviteResult.emailSent ? ' via email' : ' — share this link manually:'}
-            </p>
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                readOnly
-                value={lastInviteResult.url}
-                className="flex-1 min-w-0 text-[11px] font-mono bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800/60 rounded-lg px-3 py-1.5 text-slate-700 dark:text-slate-300 truncate select-all"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(lastInviteResult.url);
-                  setCopiedToken('__last__');
-                  setTimeout(() => setCopiedToken(null), 2000);
-                }}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                {copiedToken === '__last__' ? <Check size={12} /> : <Copy size={12} />}
-                {copiedToken === '__last__' ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-          <button
-            onClick={() => setLastInviteResult(null)}
-            className="shrink-0 text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer"
-          >
-            <X size={15} />
-          </button>
-        </div>
-      )}
-
       <PendingInvitationsTable
         invitations={invitations}
-        copiedToken={copiedToken}
-        onCopyLink={handleCopyInviteLink}
         onResend={handleResendInvitation}
         onRevoke={(id) => setRevokeConfirmId(id)}
       />
+
 
       <InviteMemberModal
         isOpen={isInviteModalOpen}

@@ -10,8 +10,24 @@ from app.core.security import hash_scrypt_password, generate_session_token
 from app.core.permissions import get_user_effective_permissions
 from app.core.redis import invalidate_session_cache
 from app.core.audit import record_audit_log
+from app.core.invite_verification import get_verified_invite_email, clear_invite_verification
 
 router = APIRouter(prefix="/api/public/invitations", tags=["Public Invitations"])
+
+
+async def _require_email_verified(token: str, invited_email: str) -> None:
+    """Refuses the invitation unless the invitee proved inbox ownership via the emailed OTP."""
+    verified_email = await get_verified_invite_email(token)
+    if not verified_email or verified_email != (invited_email or "").strip().lower():
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "OTP_VERIFICATION_REQUIRED",
+                "message": "Please verify your email address to continue setting up your account.",
+                "email": (invited_email or "").strip().lower(),
+            },
+        )
+
 
 @router.get("/{token}")
 async def get_invitation_details(token: str, db: AsyncSession = Depends(get_db)):
@@ -37,6 +53,8 @@ async def get_invitation_details(token: str, db: AsyncSession = Depends(get_db))
     if inv["expires_at"] < now:
         raise HTTPException(status_code=400, detail="This invitation has expired. Please ask for a new invite.")
 
+    is_verified = (await get_verified_invite_email(clean_token)) == (inv["email"] or "").strip().lower()
+
     # Fetch assigned roles details
     roles = []
     if inv["invited_role_ids"]:
@@ -50,6 +68,7 @@ async def get_invitation_details(token: str, db: AsyncSession = Depends(get_db))
 
     return {
         "ok": True,
+        "verified": is_verified,
         "invitation": {
             "email": inv["email"],
             "name": user_row["name"] if user_row and user_row.get("name") else None,
@@ -95,6 +114,9 @@ async def accept_invitation(
     now = datetime.now(inv["expires_at"].tzinfo) if inv["expires_at"].tzinfo else datetime.now()
     if inv["expires_at"] < now:
         raise HTTPException(status_code=400, detail="This invitation has expired.")
+
+    # Strictly require that the invitee has verified ownership of their email inbox via OTP
+    await _require_email_verified(clean_token, inv["email"])
 
     p_hash, salt = hash_scrypt_password(password)
     email = inv["email"].strip().lower()
@@ -162,6 +184,7 @@ async def accept_invitation(
 
     await db.commit()
     await invalidate_session_cache()
+    await clear_invite_verification(clean_token)
 
     # Set httpOnly cookie
     is_prod = settings.ENVIRONMENT == "production"

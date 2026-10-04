@@ -14,7 +14,8 @@ import {
   RotateCcw,
   Camera,
   Eye,
-  EyeOff
+  EyeOff,
+  CheckCircle2
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -36,6 +37,15 @@ export function AcceptInvitePage() {
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Email verification / OTP state
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(60);
+  const [resendSuccessMessage, setResendSuccessMessage] = useState<string | null>(null);
+
   // Wizard state
   const [step, setStep] = useState(1);
   const [formError, setFormError] = useState<string | null>(null);
@@ -52,6 +62,14 @@ export function AcceptInvitePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
 
   useEffect(() => {
     if (!token) {
@@ -71,6 +89,17 @@ export function AcceptInvitePage() {
           if ((res.invitation as any).phone) {
             setPhone((res.invitation as any).phone);
           }
+          if ((res as any).verified) {
+            setIsEmailVerified(true);
+          } else {
+            setIsEmailVerified(false);
+            // Proactively trigger OTP dispatch so user receives their code immediately upon opening
+            try {
+              await api.resendOtp(res.invitation.email);
+            } catch {
+              // Ignore rate limit or send failure on mount
+            }
+          }
         } else {
           setLoadError('Invalid invitation link.');
         }
@@ -83,6 +112,47 @@ export function AcceptInvitePage() {
 
     verifyToken();
   }, [token]);
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invitation?.email) return;
+    const cleanOtp = otpCode.trim();
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setOtpError('Please enter the 6-digit confirmation code.');
+      return;
+    }
+    setOtpError(null);
+    setOtpLoading(true);
+    try {
+      const res = await api.verifyOtp(invitation.email, cleanOtp);
+      if (res && res.token) {
+        setIsEmailVerified(true);
+        setStep(1);
+      } else {
+        throw new Error('Verification succeeded but confirmation token was missing.');
+      }
+    } catch (err: any) {
+      setOtpError(err.message || 'Invalid or expired confirmation code.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!invitation?.email || resendCountdown > 0 || resendLoading) return;
+    setResendLoading(true);
+    setOtpError(null);
+    try {
+      await api.resendOtp(invitation.email);
+      setResendSuccessMessage('A fresh 6-digit code has been emailed to you.');
+      setResendCountdown(60);
+      setTimeout(() => setResendSuccessMessage(null), 5000);
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to resend code. Please try again.');
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -105,6 +175,7 @@ export function AcceptInvitePage() {
     setFormError(null);
     setStep(2);
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,17 +302,21 @@ export function AcceptInvitePage() {
           <div className="absolute top-4 left-0 w-full h-0.5 bg-slate-200 z-0"></div>
           <div 
             className="absolute top-4 left-0 h-0.5 bg-sky-500 z-0 transition-all duration-500 ease-in-out" 
-            style={{ width: `${((step - 1) / 2) * 100}%` }}
+            style={{ width: !isEmailVerified ? '0%' : `${((step - 1) / 2) * 100}%` }}
           ></div>
           
           <div className="flex justify-between w-full relative z-10">
-            {[1, 2, 3].map(s => {
-              const isActive = step === s;
-              const isCompleted = step > s;
-              const label = s === 1 ? 'Profile' : s === 2 ? 'Security' : 'Complete';
+            {[
+              { id: 0, label: 'Verify' },
+              { id: 1, label: 'Profile' },
+              { id: 2, label: 'Security' },
+              { id: 3, label: 'Complete' },
+            ].map(s => {
+              const isActive = !isEmailVerified ? s.id === 0 : step === s.id;
+              const isCompleted = isEmailVerified && (s.id === 0 || step > s.id);
               
               return (
-                <div key={s} className="flex flex-col items-center gap-2">
+                <div key={s.id} className="flex flex-col items-center gap-2">
                   <div 
                     className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
                       isActive ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30' : 
@@ -249,12 +324,12 @@ export function AcceptInvitePage() {
                       'bg-white border-2 border-slate-200 text-slate-400'
                     }`}
                   >
-                    {isCompleted ? <Check size={16} /> : <span className="text-xs font-bold">{s}</span>}
+                    {isCompleted ? <Check size={16} /> : <span className="text-xs font-bold">{s.id === 0 ? '•' : s.id}</span>}
                   </div>
                   <span className={`text-[10px] font-bold uppercase tracking-wider ${
                     isActive ? 'text-sky-600' : isCompleted ? 'text-emerald-600' : 'text-slate-400'
                   }`}>
-                    {label}
+                    {s.label}
                   </span>
                 </div>
               );
@@ -272,8 +347,90 @@ export function AcceptInvitePage() {
             </div>
           )}
 
-          {/* STEP 1: Profile Setup */}
-          {step === 1 && (
+          {/* STEP 0: Email OTP Confirmation */}
+          {!isEmailVerified ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#1878B8] to-sky-400 flex items-center justify-center text-white shadow-md shadow-sky-600/20 mx-auto mb-3">
+                  <ShieldCheck size={26} className="stroke-[2.2]" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Confirm It's You</h3>
+                <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                  To confirm you own this email and secure your account, please enter the 6-digit confirmation code sent to{' '}
+                  <strong className="text-slate-900 font-semibold font-mono">{invitation?.email}</strong>.
+                </p>
+              </div>
+
+              {otpError && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-start gap-2.5">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-600" />
+                  <span className="flex-1">{otpError}</span>
+                </div>
+              )}
+
+              {resendSuccessMessage && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                  <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                  <span>{resendSuccessMessage}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 text-center">
+                    6-Digit Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setOtpCode(val);
+                      if (otpError) setOtpError(null);
+                    }}
+                    placeholder="• • • • • •"
+                    className="w-full py-3.5 text-center text-2xl font-mono font-bold tracking-[0.4em] rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-300 focus:outline-none focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/10 shadow-2xs transition-all"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={otpLoading || otpCode.trim().length < 6}
+                  className="w-full py-3.5 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:grayscale"
+                >
+                  {otpLoading ? (
+                    <>
+                      <RotateCcw size={15} className="animate-spin" />
+                      <span>Verifying Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Verify Code & Continue</span>
+                      <ArrowRight size={15} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="text-slate-500">Didn't receive the code?</span>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCountdown > 0 || resendLoading}
+                  className="font-bold text-sky-600 hover:text-sky-700 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  {resendLoading ? 'Sending...' : resendCountdown > 0 ? `Resend in ${resendCountdown}s` : 'Resend Code'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* STEP 1: Profile Setup */}
+              {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
               {/* Invitation Details Banner */}
               <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 to-slate-50 border border-sky-100/50 shadow-sm space-y-2">
@@ -520,6 +677,8 @@ export function AcceptInvitePage() {
                 </div>
               </div>
             </div>
+          )}
+            </>
           )}
 
         </div>

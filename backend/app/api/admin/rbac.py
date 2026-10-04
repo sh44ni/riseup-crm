@@ -336,7 +336,7 @@ async def delete_role(role_id: int, request: Request, db: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="Role not found")
     name_lower = (role["name"] or "").strip().lower()
     if role["is_protected"] or name_lower in ("owner", "administrator", "admin"):
-        raise HTTPException(status_code=403, detail="Cannot delete permanent system role")
+        raise HTTPException(status_code=403, detail="Cannot delete protected system role")
 
     await db.execute(text("DELETE FROM roles WHERE id = :id"), {"id": role_id})
     await db.commit()
@@ -513,8 +513,8 @@ async def update_user(user_id: int, body: UpdateUserRequest, request: Request, d
         raise HTTPException(status_code=404, detail="User not found")
 
     caller_is_owner = _is_owner(current_user)
-    target_is_owner = bool(target["is_owner"])
-    target_is_admin = bool(target["is_admin"])
+    target_is_owner = bool(target.get("is_owner") or target.get("role") == "owner" or target.get("is_protected"))
+    target_is_admin = bool(target.get("is_admin") or target.get("role") in ("admin", "administrator"))
     wants_role_change = body.role is not None or body.role_id is not None
     is_self = user_id == current_user.id
 
@@ -577,7 +577,7 @@ async def update_user(user_id: int, body: UpdateUserRequest, request: Request, d
 @router.get("/invitations", dependencies=[Depends(require_permission("users.invite"))])
 async def list_invitations(db: AsyncSession = Depends(get_db)):
     sql = text("""
-        SELECT i.id, i.email, i.invited_role_ids, i.token, i.status, i.expires_at, i.created_at,
+        SELECT i.id, i.email, i.invited_role_ids, i.status, i.expires_at, i.created_at,
                u.name as invited_by_name,
                COALESCE((
                    SELECT json_agg(json_build_object('id', r.id, 'name', r.name))
@@ -667,8 +667,6 @@ async def _issue_invitation(db: AsyncSession, request: Request, user: Any, email
     await record_audit_log(db, "user.invite", "invitation", inv["id"], user.id, user.email, user.role, {"email": email, "role_ids": role_ids}, request)
     return {
         "email_sent": email_sent,
-        "accept_url": accept_url,
-        "token": token,
         "invitation": {
             "id": inv["id"],
             "email": inv["email"],
@@ -735,8 +733,6 @@ async def resend_invitation(invitation_id: int, request: Request, db: AsyncSessi
     return {
         "ok": True,
         "email_sent": email_sent,
-        "token": inv["token"],
-        "accept_url": accept_url,
         "expires_at": new_expires.isoformat()
     }
 
