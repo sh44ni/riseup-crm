@@ -19,6 +19,12 @@ export const ContractFormSchema = z.object({
   status: z.enum(['draft', 'sent', 'client_signed', 'signed']).default('draft'),
   createdAt: z.string().optional(),
 
+  // Cover Page info
+  contractTitle: z.string().optional().default('HOME IMPROVEMENT CONTRACT'),
+  propertyPhotoUrl: z.string().optional().default(''),
+  preparedByName: z.string().optional().default(''),
+  preparedByTitle: z.string().optional().default('Project Manager'),
+
   // Client & Lead info
   leadId: z.string().optional(),
   clientId: z.string().optional(),
@@ -61,6 +67,24 @@ export const ContractFormSchema = z.object({
   insurancePhone: z.string().optional().default(''),
   workersCompCarrier: z.string().optional().default(''),
   workersCompPhone: z.string().optional().default(''),
+
+  // Rule 11 Editable Legal Clauses
+  licensingClause: z.string().optional(),
+  changeOrderClause: z.string().optional(),
+  paymentTermsText: z.string().optional(),
+  refundPolicyText: z.string().optional(),
+  liabilityInsuranceText: z.string().optional(),
+  workersCompText: z.string().optional(),
+  mechanicsLienWarningText: z.string().optional(),
+  cslbDisclosureText: z.string().optional(),
+  representationsText: z.string().optional(),
+  generalProvisionsText: z.string().optional(),
+  termTerminationText: z.string().optional(),
+  bondText: z.string().optional(),
+  threeDayNoticeText: z.string().optional(),
+  fiveDayNoticeText: z.string().optional(),
+  jobsiteStandardsText: z.string().optional(),
+  deckingAllowanceText: z.string().optional(),
 
   // Execution & Signatures
   isSigned: z.boolean().default(false),

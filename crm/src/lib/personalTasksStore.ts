@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import {
   PersonalTaskPayload,
   TaskPriority,
@@ -59,6 +59,185 @@ export interface CategoryConfig {
   label: string;
   badgeClass: string;
   dotClass: string;
+}
+
+export interface CategoryStylePreset {
+  badgeClass: string;
+  dotClass: string;
+  buttonActiveClass: string;
+  accent: string;
+}
+
+export const CATEGORY_COLOR_PRESETS: CategoryStylePreset[] = [
+  {
+    badgeClass: 'bg-sky-50/90 dark:bg-sky-950/50 text-[#0284c7] dark:text-sky-400 border-sky-200/80 dark:border-sky-800/50',
+    dotClass: 'bg-[#0284c7]',
+    buttonActiveClass: 'bg-sky-50/90 dark:bg-sky-950/40 border-[#1878B8] text-[#0284c7] dark:text-sky-300 ring-2 ring-sky-400/25 shadow-xs scale-[1.02] font-black',
+    accent: '#0284c7',
+  },
+  {
+    badgeClass: 'bg-purple-50/90 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200/80 dark:border-purple-800/50',
+    dotClass: 'bg-purple-500',
+    buttonActiveClass: 'bg-purple-50/90 dark:bg-purple-950/40 border-purple-500 text-purple-700 dark:text-purple-300 ring-2 ring-purple-400/25 shadow-xs scale-[1.02] font-black',
+    accent: '#7c3aed',
+  },
+  {
+    badgeClass: 'bg-emerald-50/90 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/50',
+    dotClass: 'bg-emerald-500',
+    buttonActiveClass: 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-400/25 shadow-xs scale-[1.02] font-black',
+    accent: '#059669',
+  },
+];
+
+export const FALLBACK_CATEGORY_PRESET: CategoryStylePreset = {
+  badgeClass: 'bg-slate-100/90 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-300/80 dark:border-white/10',
+  dotClass: 'bg-slate-400',
+  buttonActiveClass: 'bg-slate-100 dark:bg-slate-800 border-slate-400 text-slate-800 dark:text-white ring-2 ring-slate-400/25 shadow-xs scale-[1.02] font-bold',
+  accent: '#64748b',
+};
+
+export function getCategoryStyle(
+  categoryName?: string | null,
+  userCategories: string[] = [],
+  index?: number
+): CategoryStylePreset {
+  if (typeof index === 'number' && index >= 0 && index < CATEGORY_COLOR_PRESETS.length) {
+    return CATEGORY_COLOR_PRESETS[index];
+  }
+  if (!categoryName || !categoryName.trim()) {
+    return FALLBACK_CATEGORY_PRESET;
+  }
+  const clean = categoryName.trim();
+  const foundIndex = userCategories.findIndex((c) => c.toLowerCase() === clean.toLowerCase());
+  if (foundIndex >= 0 && foundIndex < CATEGORY_COLOR_PRESETS.length) {
+    return CATEGORY_COLOR_PRESETS[foundIndex];
+  }
+  // Check known legacy names
+  if (clean.toLowerCase() === 'rise up') return CATEGORY_COLOR_PRESETS[0];
+  if (clean.toLowerCase() === 'content creation') return CATEGORY_COLOR_PRESETS[1];
+  if (clean.toLowerCase() === 'marketing') return CATEGORY_COLOR_PRESETS[2];
+
+  // Hash-based deterministic fallback across presets
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = (hash << 5) - hash + clean.charCodeAt(i);
+    hash |= 0;
+  }
+  const presetIndex = Math.abs(hash) % CATEGORY_COLOR_PRESETS.length;
+  return CATEGORY_COLOR_PRESETS[presetIndex] || FALLBACK_CATEGORY_PRESET;
+}
+
+export const MAX_CUSTOM_CATEGORIES = 3;
+
+export function getUserCategoriesStorageKey(userId?: string | number | null): string {
+  const normalizedId =
+    userId !== undefined && userId !== null && String(userId).trim() !== ''
+      ? String(userId).trim()
+      : 'guest';
+  return `riseup_user_${normalizedId}_custom_note_categories`;
+}
+
+export function getUserCustomCategories(userId?: string | number | null): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(getUserCategoriesStorageKey(userId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+        .slice(0, MAX_CUSTOM_CATEGORIES)
+        .map((c) => c.trim().slice(0, 30));
+    }
+  } catch (err) {
+    console.error('Error reading custom categories from localStorage', err);
+  }
+  return [];
+}
+
+export function saveUserCustomCategories(categories: string[], userId?: string | number | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const cleaned = categories
+      .filter((c) => typeof c === 'string' && c.trim().length > 0)
+      .map((c) => c.trim().slice(0, 30))
+      .filter((c, idx, arr) => arr.indexOf(c) === idx)
+      .slice(0, MAX_CUSTOM_CATEGORIES);
+
+    const key = getUserCategoriesStorageKey(userId);
+    localStorage.setItem(key, JSON.stringify(cleaned));
+
+    // Broadcast event for live cross-component sync
+    window.dispatchEvent(
+      new CustomEvent('riseup_custom_note_categories_updated', {
+        detail: { userId: String(userId ?? 'guest'), categories: cleaned },
+      })
+    );
+  } catch (err) {
+    console.error('Error saving custom categories to localStorage', err);
+  }
+}
+
+export function useUserCustomCategories(userId?: string | number | null) {
+  const [categories, setCategories] = useState<string[]>(() => getUserCustomCategories(userId));
+
+  useEffect(() => {
+    setCategories(getUserCustomCategories(userId));
+
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<{ userId?: string; categories?: string[] }>;
+      const currentId = String(userId ?? 'guest');
+      if (!customEvent.detail || customEvent.detail.userId === currentId) {
+        setCategories(getUserCustomCategories(userId));
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === getUserCategoriesStorageKey(userId)) {
+        setCategories(getUserCustomCategories(userId));
+      }
+    };
+
+    window.addEventListener('riseup_custom_note_categories_updated', handleUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('riseup_custom_note_categories_updated', handleUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [userId]);
+
+  const addCategory = useCallback(
+    (name: string): boolean => {
+      const trimmed = name.trim().slice(0, 30);
+      if (!trimmed) return false;
+      const current = getUserCustomCategories(userId);
+      if (current.length >= MAX_CUSTOM_CATEGORIES) return false;
+      if (current.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return false;
+      const next = [...current, trimmed];
+      saveUserCustomCategories(next, userId);
+      setCategories(next);
+      return true;
+    },
+    [userId]
+  );
+
+  const removeCategory = useCallback(
+    (name: string) => {
+      const current = getUserCustomCategories(userId);
+      const next = current.filter((c) => c.toLowerCase() !== name.trim().toLowerCase());
+      saveUserCustomCategories(next, userId);
+      setCategories(next);
+    },
+    [userId]
+  );
+
+  return {
+    categories,
+    addCategory,
+    removeCategory,
+    canAddMore: categories.length < MAX_CUSTOM_CATEGORIES,
+    maxCategories: MAX_CUSTOM_CATEGORIES,
+  };
 }
 
 export interface StickyThemeConfig {

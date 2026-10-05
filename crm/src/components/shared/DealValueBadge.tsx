@@ -41,6 +41,16 @@ export function DealValueBadge(props: DealValueBadgeProps) {
   };
 
   if (resolved.source === 'unavailable') {
+    if (size === 'xs') {
+      return (
+        <span
+          title={resolved.tooltip}
+          className={`font-semibold text-slate-300 dark:text-slate-600 cursor-help px-0.5 ${textSizes[size]} ${className}`}
+        >
+          —
+        </span>
+      );
+    }
     return (
       <span
         title={resolved.tooltip}

@@ -20,12 +20,18 @@ import { Client360ApiResponse } from '@/api/clientsApi';
 export function normalizeClientStatus(
   status?: string | null,
   category?: string | null,
-  hasCompletedJob?: boolean
+  hasCompletedJob?: boolean,
+  lostReason?: string | null
 ): { status: ClientStatus; label: string } {
   const s = (status || '').toLowerCase();
   const c = (category || '').toLowerCase();
 
-  if (c === 'lost_lead' || s === 'lost' || s === 'closed_lost') {
+  if (
+    c === 'lost_lead' ||
+    s === 'lost' ||
+    s === 'closed_lost' ||
+    Boolean(lostReason && String(lostReason).trim())
+  ) {
     return { status: 'closed_lost', label: 'Closed Lost • Win-Back Opportunity' };
   }
 
@@ -59,10 +65,12 @@ export function backendClientToClient360(
     raw.status === 'completed' ||
     warranties.length > 0;
 
+  const effectiveLostReason = raw.lost_reason || raw.lead_lost_reason;
   const { status, label: statusLabel } = normalizeClientStatus(
     raw.status,
     raw.client_category,
-    hasCompletedJob
+    hasCompletedJob,
+    effectiveLostReason
   );
 
   const repName = raw.acquired_by_name || raw.assigned_to_name || 'Staff';
@@ -123,8 +131,8 @@ export function backendClientToClient360(
 
   // Loss Post Mortem (if lost)
   let lossPostMortem: LossPostMortem | undefined = undefined;
-  if (status === 'closed_lost') {
-    const lostReason = raw.lost_reason || raw.lead_lost_reason || 'Lost Opportunity';
+  if (status === 'closed_lost' || effectiveLostReason) {
+    const lostReason = effectiveLostReason || 'Lost Opportunity';
     const updatedDate = raw.updated_at ? new Date(raw.updated_at) : null;
     const daysAgo = updatedDate ? Math.max(0, Math.floor((Date.now() - updatedDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
@@ -253,6 +261,10 @@ export function backendClientToClient360(
     tasks: clientTasks,
     timeline,
     quotes,
+    notes: raw.notes || '',
+    createdAt: raw.created_at || '',
+    updatedAt: raw.updated_at || '',
+    totalRevenue: Number(raw.total_revenue || raw.total_paid || 0),
   };
 }
 

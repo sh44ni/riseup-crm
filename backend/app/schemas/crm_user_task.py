@@ -4,7 +4,7 @@ from typing import Optional, List, Literal
 from datetime import datetime
 
 PriorityEnum = Literal["urgent", "high", "normal", "low"]
-WorkCategoryEnum = Literal["Rise Up", "Content Creation", "Marketing"]
+WorkCategoryEnum = str
 
 
 class CamelModel(BaseModel):
@@ -18,7 +18,7 @@ class CamelModel(BaseModel):
 class PersonalTaskBase(CamelModel):
     title: str = Field(..., min_length=1, max_length=255, description="Task content or reminder title")
     priority: PriorityEnum = Field("normal", description="Urgent, High, Normal, Low")
-    work_category: WorkCategoryEnum = Field("Rise Up", description="Rise Up, Content Creation, Marketing")
+    work_category: str = Field("", max_length=50, description="Custom category label")
     due_date: Optional[str] = Field("Today", max_length=50)
     sort_order: Optional[int] = Field(0)
     notes: Optional[str] = None

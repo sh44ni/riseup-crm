@@ -117,7 +117,11 @@ export function ContractsPage() {
     }
   };
 
-  const handleDownloadPdf = async (e: React.MouseEvent, c: ContractRow) => {
+  const handleDownloadPdf = async (
+    e: React.MouseEvent,
+    c: ContractRow,
+    version?: 'draft' | 'partially_executed' | 'fully_executed'
+  ) => {
     e.stopPropagation();
     if (downloadingId === c.id) return;
     setDownloadingId(c.id);
@@ -127,6 +131,7 @@ export function ContractsPage() {
         {
           params: {
             path: { contract_id: c.id },
+            query: version ? ({ version } as any) : undefined,
           },
           parseAs: 'blob',
         }
@@ -139,7 +144,13 @@ export function ContractsPage() {
       const anchor = document.createElement('a');
       anchor.href = blobUrl;
       const statusSuffix =
-        c.status === 'signed'
+        version === 'draft'
+          ? 'Draft'
+          : version === 'partially_executed'
+          ? 'Partially-Executed'
+          : version === 'fully_executed'
+          ? 'Fully-Executed'
+          : c.status === 'signed'
           ? 'Fully-Executed'
           : c.status === 'client_signed'
           ? 'Partially-Executed'

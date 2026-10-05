@@ -10,7 +10,11 @@ interface ContractsTableProps {
   downloadingId: number | null;
   canCounterSign: boolean;
   onOpenStudio: (id?: number) => void;
-  onDownloadPdf: (e: React.MouseEvent, c: ContractRow) => void;
+  onDownloadPdf: (
+    e: React.MouseEvent,
+    c: ContractRow,
+    version?: 'draft' | 'partially_executed' | 'fully_executed'
+  ) => void;
   onCounterSign: (c: ContractRow) => void;
   onToggleArchive: (c: ContractRow) => void;
   onDeleteDraft: (c: ContractRow) => void;

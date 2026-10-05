@@ -36,7 +36,12 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     PORT=8000
+
+# Install Playwright Chromium dependencies and headless browser
+RUN /opt/venv/bin/playwright install --with-deps chromium && \
+    chmod -R 777 /ms-playwright
 
 # Copy application source code with non-root ownership
 COPY --chown=app:app app ./app

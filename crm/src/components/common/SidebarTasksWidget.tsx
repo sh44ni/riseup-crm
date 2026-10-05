@@ -10,11 +10,13 @@ import {
   TaskPriority,
   WorkCategory,
   PRIORITY_OPTIONS,
-  WORK_CATEGORIES,
   PRIORITY_THEMES,
   formatDueDate,
   PersonalTask,
+  useUserCustomCategories,
+  getCategoryStyle,
 } from '@/lib/personalTasksStore';
+import { useAuth } from '@/context/AuthContext';
 import { CreatePersonalTaskModal } from './CreatePersonalTaskModal';
 import { PersonalTaskDetailModal } from './PersonalTaskDetailModal';
 
@@ -29,6 +31,8 @@ export function SidebarTasksWidget() {
     deleteTask,
   } = usePersonalTasks();
 
+  const { user } = useAuth();
+  const { categories: userCategories } = useUserCustomCategories(user?.id);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<PersonalTask | null>(null);
 
@@ -79,8 +83,7 @@ export function SidebarTasksWidget() {
             visibleTasks.map((task) => {
               const currentPriority =
                 PRIORITY_OPTIONS.find((p) => p.id === task.priority) || PRIORITY_OPTIONS[2];
-              const currentCategory =
-                WORK_CATEGORIES.find((c) => c.id === task.workCategory) || WORK_CATEGORIES[0];
+              const currentCategoryStyle = getCategoryStyle(task.workCategory, userCategories);
               const theme = PRIORITY_THEMES[task.priority] || PRIORITY_THEMES['normal'];
               const formattedDue = formatDueDate(task.dueDate);
 
@@ -136,12 +139,14 @@ export function SidebarTasksWidget() {
                       {/* Badges Row: category, priority, date */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {/* Category badge */}
-                        <span
-                          className={`inline-flex items-center gap-1 text-[7.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-2xs leading-none ${currentCategory.badgeClass}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${currentCategory.dotClass}`} />
-                          {currentCategory.label}
-                        </span>
+                        {task.workCategory && task.workCategory.trim() && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[7.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-2xs leading-none ${currentCategoryStyle.badgeClass}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${currentCategoryStyle.dotClass}`} />
+                            {task.workCategory}
+                          </span>
+                        )}
 
                         {/* Priority badge */}
                         <span

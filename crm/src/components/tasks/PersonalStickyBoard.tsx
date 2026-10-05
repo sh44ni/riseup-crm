@@ -17,11 +17,13 @@ import {
   TaskPriority,
   WorkCategory,
   PRIORITY_OPTIONS,
-  WORK_CATEGORIES,
   PRIORITY_WEIGHTS,
   PRIORITY_THEMES,
   formatDueDate,
+  useUserCustomCategories,
+  getCategoryStyle,
 } from '@/lib/personalTasksStore';
+import { useAuth } from '@/context/AuthContext';
 import { CreatePersonalTaskModal } from '@/components/common/CreatePersonalTaskModal';
 import { PersonalTaskDetailModal } from '@/components/common/PersonalTaskDetailModal';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -47,11 +49,29 @@ export function PersonalStickyBoard({
   completedCount,
   progressPercent,
 }: PersonalStickyBoardProps) {
-  const [selectedCategory, setSelectedCategory] = useState<'all' | WorkCategory>('all');
+  const { user } = useAuth();
+  const { categories: userCategories } = useUserCustomCategories(user?.id);
+  const [selectedCategory, setSelectedCategory] = useState<'all' | string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<PersonalTask | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<PersonalTask | null>(null);
+
+  const extraCategories = useMemo(() => {
+    const customSet = new Set(userCategories.map((c) => c.toLowerCase()));
+    const extras: string[] = [];
+    tasks.forEach((t) => {
+      const cat = (t.workCategory || '').trim();
+      if (
+        cat &&
+        !customSet.has(cat.toLowerCase()) &&
+        !extras.some((e) => e.toLowerCase() === cat.toLowerCase())
+      ) {
+        extras.push(cat);
+      }
+    });
+    return extras;
+  }, [userCategories, tasks]);
 
   // Local draft notes map for responsive debounce typing
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
@@ -80,7 +100,12 @@ export function PersonalStickyBoard({
   const filteredTasks = useMemo(() => {
     return tasks
       .filter((t) => {
-        if (selectedCategory !== 'all' && t.workCategory !== selectedCategory) return false;
+        if (
+          selectedCategory !== 'all' &&
+          (t.workCategory || '').toLowerCase() !== selectedCategory.toLowerCase()
+        ) {
+          return false;
+        }
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const matchTitle = t.title.toLowerCase().includes(q);
@@ -179,22 +204,48 @@ export function PersonalStickyBoard({
             >
               All ({tasks.length})
             </button>
-            {WORK_CATEGORIES.map((cat) => {
-              const count = tasks.filter((t) => t.workCategory === cat.id).length;
-              const isSelected = selectedCategory === cat.id;
+            {userCategories.map((cat, idx) => {
+              const count = tasks.filter(
+                (t) => (t.workCategory || '').toLowerCase() === cat.toLowerCase()
+              ).length;
+              const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
+              const style = getCategoryStyle(cat, userCategories, idx);
               return (
                 <button
-                  key={cat.id}
+                  key={cat}
                   type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => setSelectedCategory(cat)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-slate-900 text-white shadow-xs dark:bg-sky-600'
                       : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:border-white/10 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${cat.dotClass}`} />
-                  <span>{cat.label}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${style.dotClass}`} />
+                  <span>{cat}</span>
+                  {count > 0 && <span className="opacity-75 text-[10px]">({count})</span>}
+                </button>
+              );
+            })}
+            {extraCategories.map((cat) => {
+              const count = tasks.filter(
+                (t) => (t.workCategory || '').toLowerCase() === cat.toLowerCase()
+              ).length;
+              const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
+              const style = getCategoryStyle(cat, userCategories);
+              return (
+                <button
+                  key={`extra-${cat}`}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-slate-900 text-white shadow-xs dark:bg-sky-600'
+                      : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:border-white/10 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${style.dotClass}`} />
+                  <span>{cat}</span>
                   {count > 0 && <span className="opacity-75 text-[10px]">({count})</span>}
                 </button>
               );
@@ -229,8 +280,7 @@ export function PersonalStickyBoard({
           {filteredTasks.map((task) => {
             const currentPriority =
               PRIORITY_OPTIONS.find((p) => p.id === task.priority) || PRIORITY_OPTIONS[2];
-            const currentCategory =
-              WORK_CATEGORIES.find((c) => c.id === task.workCategory) || WORK_CATEGORIES[0];
+            const currentCategoryStyle = getCategoryStyle(task.workCategory, userCategories);
             const theme = PRIORITY_THEMES[task.priority] || PRIORITY_THEMES['normal'];
             const isPinned = task.isPinned || (task.sortOrder !== undefined && task.sortOrder < 0);
             const formattedDue = formatDueDate(task.dueDate);
@@ -289,12 +339,14 @@ export function PersonalStickyBoard({
                         {/* Badges Strip */}
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           {/* Work Category Badge */}
-                          <span
-                            className={`inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shadow-2xs ${currentCategory.badgeClass}`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${currentCategory.dotClass}`} />
-                            {currentCategory.label}
-                          </span>
+                          {task.workCategory && task.workCategory.trim() && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shadow-2xs ${currentCategoryStyle.badgeClass}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${currentCategoryStyle.dotClass}`} />
+                              {task.workCategory}
+                            </span>
+                          )}
 
                           {/* Priority Badge */}
                           <span

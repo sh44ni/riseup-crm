@@ -9,6 +9,22 @@ setup('authenticate as owner and sales_rep', async ({ browser }) => {
     fs.mkdirSync(authDir, { recursive: true });
   }
 
+  const ownerAuthPath = path.join(authDir, 'owner.json');
+  const repAuthPath = path.join(authDir, 'rep.json');
+
+  if (fs.existsSync(ownerAuthPath) && fs.existsSync(repAuthPath)) {
+    try {
+      const ownerData = JSON.parse(fs.readFileSync(ownerAuthPath, 'utf-8'));
+      const repData = JSON.parse(fs.readFileSync(repAuthPath, 'utf-8'));
+      if (ownerData.cookies?.length > 0 && repData.cookies?.length > 0) {
+        console.log('Valid auth state already exists, skipping re-auth.');
+        return;
+      }
+    } catch {
+      // Continue to re-auth if parse fails
+    }
+  }
+
   // 1. Authenticate as owner
   const ownerContext = await browser.newContext();
   const ownerPage = await ownerContext.newPage();

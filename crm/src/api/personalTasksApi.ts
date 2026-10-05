@@ -8,7 +8,7 @@
 import { httpClient } from '@/shared/api/client';
 
 export type TaskPriority = 'urgent' | 'high' | 'normal' | 'low';
-export type WorkCategory = 'Rise Up' | 'Content Creation' | 'Marketing';
+export type WorkCategory = string;
 
 export interface PersonalTaskPayload {
   id: string;

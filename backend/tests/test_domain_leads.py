@@ -165,3 +165,54 @@ async def test_lead_activity_author_cannot_be_spoofed(client, auth_sales_rep, us
     data = res.json()
     assert "Spoofed Executive" not in data["activity"]["performed_by"]
 
+
+@pytest.mark.asyncio
+async def test_lead_and_client_notes_sync_and_persistence(client, db, auth_owner):
+    """
+    Test that field notes added or edited on a lead or client synchronize
+    across both records and reload properly from the Client 360 source of truth.
+    """
+    from tests.factories import make_client, make_lead
+
+    # 1. Create client and linked lead
+    c = await make_client(db, full_name="Homeowner Field Notes", email="homeowner_notes@test.local")
+    l = await make_lead(db, client_id=c.id, full_name="Homeowner Field Notes", email="homeowner_notes@test.local")
+
+    # 2. Add note via PUT /api/admin/leads/{l.id}
+    note_1 = "[10/05/2026, 3:30 AM — Sylvester (Owner)]\nInitial roof damage observed on east slope."
+    update_res = await client.put(f"/api/admin/leads/{l.id}", json={"notes": note_1}, headers=auth_owner)
+    assert update_res.status_code == 200
+    assert update_res.json()["lead"]["notes"] == note_1
+
+    # 3. Verify lead detail loads note from client record as source of truth
+    detail_res = await client.get(f"/api/admin/leads/{l.id}", headers=auth_owner)
+    assert detail_res.status_code == 200
+    assert detail_res.json()["lead"]["notes"] == note_1
+
+    # 4. Verify client record itself has the synchronized note
+    client_res = await client.get(f"/api/admin/clients/{c.id}", headers=auth_owner)
+    assert client_res.status_code == 200
+    assert client_res.json()["client"]["notes"] == note_1
+
+    # 5. Verify pipeline endpoint includes the client note
+    pipeline_res = await client.get("/api/admin/pipeline", headers=auth_owner)
+    assert pipeline_res.status_code == 200
+    pipe_deals = []
+    for stage_deals in pipeline_res.json().get("stages", {}).values():
+        pipe_deals.extend(stage_deals)
+    matching_deal = next((d for d in pipe_deals if d["id"] == l.id), None)
+    assert matching_deal is not None
+    assert matching_deal["notes"] == note_1
+
+    # 6. Edit note via PATCH /api/admin/clients/{c.id} and verify sync back to lead
+    note_edited = f"{note_1}\n\n[10/05/2026, 3:45 AM — Sylvester (Owner)]\nEstimated 4 replacement tiles needed."
+    c_update_res = await client.patch(f"/api/admin/clients/{c.id}", json={"notes": note_edited}, headers=auth_owner)
+    assert c_update_res.status_code == 200
+    assert c_update_res.json()["client"]["notes"] == note_edited
+
+    # 7. Verify lead detail reflects edited note
+    detail_res2 = await client.get(f"/api/admin/leads/{l.id}", headers=auth_owner)
+    assert detail_res2.status_code == 200
+    assert detail_res2.json()["lead"]["notes"] == note_edited
+
+

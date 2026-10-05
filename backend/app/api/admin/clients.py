@@ -155,7 +155,7 @@ async def get_clients(
         conditions.append("c.client_category = :target_cat")
     elif status and status != "all":
         if status in ("lost", "closed_lost"):
-            conditions.append("(c.client_category = 'lost_lead' OR c.status IN ('lost', 'closed_lost'))")
+            conditions.append("(c.client_category = 'lost_lead' OR c.status IN ('lost', 'closed_lost') OR c.lost_reason IS NOT NULL)")
         else:
             params["status"] = status
             conditions.append("c.status = :status")
@@ -231,13 +231,13 @@ async def get_clients(
     summary_where = f"WHERE {' AND '.join(summary_conditions)}" if summary_conditions else ""
     summary_query = text(f"""
         SELECT 
-            COUNT(CASE WHEN c.client_category != 'lost_lead' OR c.client_category IS NULL THEN 1 END) as total_clients,
+            COUNT(CASE WHEN (c.client_category != 'lost_lead' OR c.client_category IS NULL) AND (c.status IS NULL OR c.status NOT IN ('lost', 'closed_lost')) AND c.lost_reason IS NULL THEN 1 END) as total_clients,
             COUNT(CASE WHEN c.client_category = 'existing_client' OR c.status IN ('active_job', 'completed', 'repeat') THEN 1 END) as existing_clients_count,
             COUNT(CASE WHEN c.client_category = 'new_client' OR (c.client_category != 'existing_client' AND c.client_category != 'lost_lead' AND c.status = 'opportunity') THEN 1 END) as new_clients_count,
             COUNT(CASE WHEN c.client_category = 'lead' OR (c.client_category IS NULL AND c.status = 'lead') THEN 1 END) as leads_count,
-            COUNT(CASE WHEN c.client_category = 'lost_lead' OR c.status IN ('lost', 'closed_lost') THEN 1 END) as lost_leads_count,
+            COUNT(CASE WHEN c.client_category = 'lost_lead' OR c.status IN ('lost', 'closed_lost') OR c.lost_reason IS NOT NULL THEN 1 END) as lost_leads_count,
             COUNT(CASE WHEN c.status = 'active_job' THEN 1 END) as active_jobs,
-            COALESCE(SUM(CASE WHEN c.client_category != 'lost_lead' THEN c.total_revenue ELSE 0 END), 0) as total_ltv
+            COALESCE(SUM(CASE WHEN c.client_category != 'lost_lead' AND (c.status IS NULL OR c.status NOT IN ('lost', 'closed_lost')) AND c.lost_reason IS NULL THEN c.total_revenue ELSE 0 END), 0) as total_ltv
         FROM clients c
         {summary_where}
     """)
@@ -1091,8 +1091,8 @@ async def update_client(
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    # Synchronize contact details & address updates back to associated leads so Client 360 is the source of truth
-    contact_fields = ["full_name", "email", "phone", "address", "city", "zip"]
+    # Synchronize contact details, address & notes updates back to associated leads so Client 360 is the source of truth
+    contact_fields = ["full_name", "email", "phone", "address", "city", "zip", "notes"]
     if any(k in payload_dict for k in contact_fields):
         lead_sync_updates = []
         lead_sync_params = {"cid": client_id}

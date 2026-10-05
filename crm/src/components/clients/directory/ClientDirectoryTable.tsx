@@ -1,6 +1,6 @@
 import React from 'react';
-import { ChevronRight, Edit3, Mail, Phone } from 'lucide-react';
-import { Client360Record } from '@/types/client360Types';
+import { ChevronRight, Edit3, Mail, Phone, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Client360Record, ClientSortConfig, ClientSortField } from '@/types/client360Types';
 import { getTelUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { ClientStatusBadge } from '@/components/clients/ClientStatusBadge';
 
@@ -8,23 +8,101 @@ interface ClientDirectoryTableProps {
   clients: Client360Record[];
   onSelectClient: (client: Client360Record) => void;
   onEditContact: (client: Client360Record) => void;
+  sortConfig?: ClientSortConfig;
+  onSortChange?: (config: ClientSortConfig) => void;
 }
 
 export function ClientDirectoryTable({
   clients,
   onSelectClient,
   onEditContact,
+  sortConfig,
+  onSortChange,
 }: ClientDirectoryTableProps) {
+  const handleHeaderClick = (field: ClientSortField) => {
+    if (!onSortChange) return;
+    if (sortConfig?.field === field) {
+      onSortChange({
+        field,
+        direction: sortConfig.direction === 'asc' ? 'desc' : 'asc',
+      });
+    } else {
+      onSortChange({
+        field,
+        direction: 'asc',
+      });
+    }
+  };
+
+  const renderSortIndicator = (field: ClientSortField) => {
+    if (!sortConfig) return null;
+    if (sortConfig.field === field) {
+      return sortConfig.direction === 'asc' ? (
+        <ArrowUp size={12} className="text-[#1878B8] dark:text-sky-400 shrink-0" />
+      ) : (
+        <ArrowDown size={12} className="text-[#1878B8] dark:text-sky-400 shrink-0" />
+      );
+    }
+    return (
+      <ArrowUpDown size={11} className="text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    );
+  };
+
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs">
       <table className="w-full text-left text-xs border-collapse">
         <thead>
-          <tr className="bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 font-bold">
-            <th className="py-3 px-4">Homeowner</th>
-            <th className="py-3 px-4">Address / City</th>
-            <th className="py-3 px-4">Roof Specs</th>
-            <th className="py-3 px-4">Status</th>
-            <th className="py-3 px-4">Assigned Rep</th>
+          <tr className="bg-slate-50/90 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-white/10 text-slate-500 dark:text-slate-400 font-bold select-none">
+            <th
+              className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors group"
+              onClick={() => handleHeaderClick('name')}
+              title="Click to sort by Homeowner Name"
+            >
+              <div className="flex items-center gap-1.5">
+                <span>Homeowner</span>
+                {renderSortIndicator('name')}
+              </div>
+            </th>
+            <th
+              className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors group"
+              onClick={() => handleHeaderClick('city')}
+              title="Click to sort by City / Location"
+            >
+              <div className="flex items-center gap-1.5">
+                <span>Address / City</span>
+                {renderSortIndicator('city')}
+              </div>
+            </th>
+            <th
+              className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors group"
+              onClick={() => handleHeaderClick('roofArea')}
+              title="Click to sort by Roof Area"
+            >
+              <div className="flex items-center gap-1.5">
+                <span>Roof Specs</span>
+                {renderSortIndicator('roofArea')}
+              </div>
+            </th>
+            <th
+              className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors group"
+              onClick={() => handleHeaderClick('status')}
+              title="Click to sort by Status"
+            >
+              <div className="flex items-center gap-1.5">
+                <span>Status</span>
+                {renderSortIndicator('status')}
+              </div>
+            </th>
+            <th
+              className="py-3 px-4 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors group"
+              onClick={() => handleHeaderClick('assignedRep')}
+              title="Click to sort by Assigned Rep"
+            >
+              <div className="flex items-center gap-1.5">
+                <span>Assigned Rep</span>
+                {renderSortIndicator('assignedRep')}
+              </div>
+            </th>
             <th className="py-3 px-4 text-right">Actions</th>
           </tr>
         </thead>

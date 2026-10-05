@@ -3,7 +3,8 @@ import { httpClient } from '@/shared/api/client';
 import { PublicContractData, PublicSignContractPayload } from '@/types/contractStudioTypes';
 
 export interface ContractData {
-  lead_id: number;
+  lead_id?: number | null;
+  client_id?: number | null;
   contract_id?: number | null;
   estimate_id?: number | null;
   contract_data: {
@@ -130,11 +131,24 @@ export async function getContractsByLead(leadId: number): Promise<ContractRecord
   return api.request(`/admin/contracts/by-lead/${leadId}`);
 }
 
+export async function getContractById(contractId: number | string): Promise<{
+  contract: ContractRow & { contract_data?: any; signing_token?: string };
+}> {
+  return api.request(`/admin/contracts/${contractId}`);
+}
+
 export async function getDraftContractByLead(leadId: number | string): Promise<{
   exists: boolean;
   contract?: (ContractRow & { contract_data?: any; signing_token?: string }) | null;
 }> {
   return api.request(`/admin/contracts/draft-by-lead/${leadId}`);
+}
+
+export async function getDraftContractByClient(clientId: number | string): Promise<{
+  exists: boolean;
+  contract?: (ContractRow & { contract_data?: any; signing_token?: string }) | null;
+}> {
+  return api.request(`/admin/contracts/draft-by-client/${clientId}`);
 }
 
 export async function autoSaveContractDraft(

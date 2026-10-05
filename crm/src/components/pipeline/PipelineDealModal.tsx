@@ -61,6 +61,7 @@ export function PipelineDealModal({
     handleCancelAppointment,
     handleLogTouchpoint,
     handleAddNote,
+    handleEditNote,
   } = usePipelineDealData(deal, isOpen, onUpdateDeal);
 
   if (!isOpen || !deal) return null;
@@ -206,6 +207,7 @@ export function PipelineDealModal({
                 <DealNotesTab
                   notes={notes}
                   onAddNote={handleAddNote}
+                  onEditNote={handleEditNote}
                 />
               )}
             </div>

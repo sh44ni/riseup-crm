@@ -8,10 +8,12 @@ import {
   TaskPriority,
   WorkCategory,
   PRIORITY_OPTIONS,
-  WORK_CATEGORIES,
   PersonalTask,
+  useUserCustomCategories,
 } from '@/lib/personalTasksStore';
+import { useAuth } from '@/context/AuthContext';
 import { CrmModal } from './CrmModal';
+import { PersonalWorkCategorySelector } from './PersonalWorkCategorySelector';
 
 export interface CreatePersonalTaskModalProps {
   isOpen: boolean;
@@ -24,9 +26,11 @@ export function CreatePersonalTaskModal({
   onClose,
   onAddTask,
 }: CreatePersonalTaskModalProps) {
+  const { user } = useAuth();
+  const { categories } = useUserCustomCategories(user?.id);
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('urgent');
-  const [workCategory, setWorkCategory] = useState<WorkCategory>('Rise Up');
+  const [workCategory, setWorkCategory] = useState<WorkCategory>('');
   const [dueDate, setDueDate] = useState('Today');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,11 +39,11 @@ export function CreatePersonalTaskModal({
     if (isOpen) {
       setTitle('');
       setPriority('urgent');
-      setWorkCategory('Rise Up');
+      setWorkCategory(categories[0] || '');
       setDueDate('Today');
       setTimeout(() => inputRef.current?.focus(), 80);
     }
-  }, [isOpen]);
+  }, [isOpen, categories]);
 
   if (!isOpen) return null;
 
@@ -189,27 +193,11 @@ export function CreatePersonalTaskModal({
             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Project stream</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {WORK_CATEGORIES.map((cat) => {
-              const isSelected = workCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setWorkCategory(cat.id)}
-                  className={`p-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-sky-50/90 dark:bg-sky-950/40 border-[#1878B8] text-[#0284c7] dark:text-sky-300 ring-2 ring-sky-400/25 shadow-xs scale-[1.02] font-black'
-                      : 'bg-slate-50/80 hover:bg-white dark:bg-white/5 dark:hover:bg-white/10 border-slate-200/90 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-2xs font-semibold'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${cat.dotClass}`} />
-                  <span className="text-xs">{cat.label}</span>
-                  {isSelected && <Check size={11} className="stroke-[3] ml-0.5" />}
-                </button>
-              );
-            })}
-          </div>
+          <PersonalWorkCategorySelector
+            selectedCategory={workCategory}
+            onSelectCategory={setWorkCategory}
+            userId={user?.id}
+          />
         </div>
 
         {/* ========================================================

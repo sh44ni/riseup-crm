@@ -284,3 +284,22 @@ export function parseProfileNotes(rawNotes: any): ParsedProfileNote[] {
     },
   ];
 }
+
+/**
+ * Reserializes an array of ParsedProfileNote items (typically displayed newest-first)
+ * into a standard database string formatted in chronological order (oldest first).
+ */
+export function reserializeProfileNotes(notesList: ParsedProfileNote[]): string {
+  if (!notesList || notesList.length === 0) return '';
+  // Reverse newest-first display order to chronological storage order
+  const chronological = [...notesList].reverse();
+  return chronological
+    .map((n) => {
+      const clean = cleanseAuthor(n.author, n.role);
+      const roleSuffix = clean.role && !clean.name.includes('(') ? ` (${clean.role})` : '';
+      const header = `[${n.timestamp} — ${clean.name}${roleSuffix}]`;
+      return `${header}\n${n.content.trim()}`;
+    })
+    .join('\n\n');
+}
+

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Sparkles } from 'lucide-react';
-import { Client360Record, TimelineEvent, RoofSpecs } from '@/types/client360Types';
+import { Client360Record, TimelineEvent, RoofSpecs, ClientSortConfig, isClientLost } from '@/types/client360Types';
 import { useClients } from '@/hooks/useClients';
 import { useDashboardStats } from '@/lib/dashboardStatsStore';
 import { useAuth } from '@/context/AuthContext';
@@ -15,9 +15,10 @@ import { ClientProfileView } from '@/components/clients/profile/ClientProfileVie
 import { ClientProfileTab } from '@/components/clients/profile/ClientProfileHeader';
 import { ClientModalsSection } from '@/components/clients/ClientModalsSection';
 import { CreateClientPayload, CreateExistingClientPayload } from '@/api/clientsApi';
+import { sortClients, getSavedClientSort, saveClientSort } from '@/utils/clientSortUtils';
 
 export function ClientsPage() {
-  const { can, isOwner, getScope } = useAuth();
+  const { can, isOwner, getScope, user } = useAuth();
   const canViewFinances = isOwner || can('finances.view');
   const canCreateClient = isOwner || can('clients.create') || can('leads.create');
   const clientScope = getScope('leads.view');
@@ -60,6 +61,23 @@ export function ClientsPage() {
   const [directoryFilter, setDirectoryFilter] = useState<DirectoryFilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [directoryDisplayMode, setDirectoryDisplayMode] = useState<'table' | 'cards'>('cards');
+
+  // Directory sorting state (persisted per user in localStorage)
+  const [sortConfig, setSortConfig] = useState<ClientSortConfig>(() =>
+    getSavedClientSort(user?.id)
+  );
+
+  // Sync sort preferences if the logged-in user changes
+  useEffect(() => {
+    if (user?.id) {
+      setSortConfig(getSavedClientSort(user.id));
+    }
+  }, [user?.id]);
+
+  const handleSortChange = (newConfig: ClientSortConfig) => {
+    setSortConfig(newConfig);
+    saveClientSort(newConfig, user?.id);
+  };
 
   // Modals state
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -199,18 +217,46 @@ export function ClientsPage() {
     setIsEditContactOpen(true);
   };
 
-  const filteredClients = clients.filter((c) => {
-    // Lost clients live only in the Closed Lost tab; All Records excludes them
-    const matchesFilter =
-      directoryFilter === 'all' ? c.status !== 'closed_lost' : c.status === directoryFilter;
-    const matchesSearch =
-      searchQuery.trim() === '' ||
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.roofSpecs.roofMaterial.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.assignedRep.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  const nonLostClientsCount = useMemo(
+    () => clients.filter((c) => !isClientLost(c)).length,
+    [clients]
+  );
+  const activeJobsCount = useMemo(
+    () => clients.filter((c) => c.status === 'active_job' && !isClientLost(c)).length,
+    [clients]
+  );
+  const completedJobsCount = useMemo(
+    () => clients.filter((c) => c.status === 'completed' && !isClientLost(c)).length,
+    [clients]
+  );
+  const lostClientsCount = useMemo(
+    () => clients.filter((c) => isClientLost(c)).length,
+    [clients]
+  );
+
+  const filteredClients = useMemo(() => {
+    return clients.filter((c) => {
+      const isLost = isClientLost(c);
+      const matchesFilter =
+        directoryFilter === 'all'
+          ? !isLost
+          : directoryFilter === 'closed_lost'
+          ? isLost
+          : c.status === directoryFilter && !isLost;
+
+      const matchesSearch =
+        searchQuery.trim() === '' ||
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.roofSpecs.roofMaterial.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.assignedRep.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesFilter && matchesSearch;
+    });
+  }, [clients, directoryFilter, searchQuery]);
+
+  const sortedClients = useMemo(() => {
+    return sortClients(filteredClients, sortConfig);
+  }, [filteredClients, sortConfig]);
 
   return (
     <div className="space-y-3.5 w-full select-none pb-12">
@@ -232,7 +278,7 @@ export function ClientsPage() {
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
             onOpenCreateExistingModal={() => setIsCreateExistingModalOpen(true)}
             isOwnOnly={isOwnOnly}
-            totalClientsCount={clients.length}
+            totalClientsCount={nonLostClientsCount}
           />
 
           <ClientDirectoryStats
@@ -245,26 +291,30 @@ export function ClientsPage() {
             directoryFilter={directoryFilter}
             onFilterChange={setDirectoryFilter}
             counts={{
-              all: clients.filter((c) => c.status !== 'closed_lost').length,
-              active_job: clients.filter((c) => c.status === 'active_job').length,
-              completed: clients.filter((c) => c.status === 'completed').length,
-              closed_lost: clients.filter((c) => c.status === 'closed_lost').length,
+              all: nonLostClientsCount,
+              active_job: activeJobsCount,
+              completed: completedJobsCount,
+              closed_lost: lostClientsCount,
             }}
             directoryDisplayMode={directoryDisplayMode}
             onDisplayModeChange={setDirectoryDisplayMode}
+            sortConfig={sortConfig}
+            onSortChange={handleSortChange}
           />
 
           {directoryDisplayMode === 'cards' ? (
             <ClientDirectoryCards
-              clients={filteredClients}
+              clients={sortedClients}
               onSelectClient={handleOpenClientProfile}
               onEditContact={handleEditContact}
             />
           ) : (
             <ClientDirectoryTable
-              clients={filteredClients}
+              clients={sortedClients}
               onSelectClient={handleOpenClientProfile}
               onEditContact={handleEditContact}
+              sortConfig={sortConfig}
+              onSortChange={handleSortChange}
             />
           )}
         </div>

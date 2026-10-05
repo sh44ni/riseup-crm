@@ -381,6 +381,7 @@ async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db), user
             c.client_category,
             c.status as client_status,
             c.total_jobs_count,
+            c.notes as client_notes,
             CASE 
                 WHEN l.status = 'lost' OR c.client_category = 'lost_lead' OR l.lost_reason IS NOT NULL THEN 'lost_lead'
                 WHEN c.client_category = 'existing_client' OR c.status IN ('completed', 'repeat') OR COALESCE(c.total_jobs_count, 0) > 1 THEN 'existing_client'
@@ -429,6 +430,11 @@ async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db), user
         raise HTTPException(status_code=403, detail="Access denied: You do not have permission to view this lead.")
 
     res_dict = dict(row)
+    # Prefer client record notes as source of truth if available, otherwise lead notes
+    resolved_notes = row.get("client_notes") or row.get("notes") or ""
+    res_dict["notes"] = resolved_notes
+    res_dict["client_notes"] = row.get("client_notes") or ""
+
     # Resolve contract_value from jobs or contracts.contract_data
     contract_val = float(res_dict.get("job_contract_value") or 0.0)
     if contract_val <= 0 and res_dict.get("contract_data"):
@@ -547,14 +553,15 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
     has_address_update = any(k in body for k in ["address", "city", "zip"])
 
     # If lead does not have a linked client, find or create one so Client 360 is the source of truth
-    if not cid and has_contact_update:
+    if not cid and (has_contact_update or "notes" in body):
         client_data = {
-            "fullName": body.get("full_name") or target.get("full_name"),
+            "fullName": body.get("full_name") or target.get("full_name") or "Lead Homeowner",
             "phone": body.get("phone") or target.get("phone"),
             "email": body.get("email") or target.get("email"),
             "address": body.get("address") or target.get("address"),
             "city": body.get("city") or target.get("city") or None,
             "zip": body.get("zip") or target.get("zip"),
+            "notes": body.get("notes") or target.get("notes"),
             "leadSource": "manual",
             "sourceType": "manual",
         }
@@ -601,7 +608,7 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
             WHERE id = :id
             RETURNING id, full_name, phone, email, address, city, zip,
                       status, pipeline_stage, client_id, roof_sqf, roof_squares,
-                      estimated_value, updated_at"""
+                      estimated_value, notes, updated_at"""
         updated = (await db.execute(text(sql), params)).mappings().first()
 
         
@@ -611,12 +618,12 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
             # Sync contact info & address to clients table without overwriting valid data with blanks
             client_updates = []
             c_params = {"cid": cid}
-            for cf in ["full_name", "email", "phone", "address", "city", "zip"]:
+            for cf in ["full_name", "email", "phone", "address", "city", "zip", "notes"]:
                 if cf in body:
                     val = body[cf]
                     if isinstance(val, str):
                         val = val.strip() or None
-                    if val is not None:
+                    if val is not None or cf == "notes":
                         client_updates.append(f"{cf} = :{cf}")
                         c_params[cf] = val
                         if cf == "phone":

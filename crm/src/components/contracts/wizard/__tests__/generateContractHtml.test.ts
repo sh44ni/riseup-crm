@@ -13,10 +13,13 @@ const completeContractData: ContractStudioData = {
   zip: '92008',
   contractorName: 'Rise Up Roofing & Construction, Inc.',
   contractorTitle: 'Licensed General Roofing Contractor',
-  contractorLicense: '#1096492',
+  contractorLicense: '1096492',
   salespersonName: 'Carlos Rivera',
   contractDate: 'October 15, 2026',
   contractDateShort: '10/15/2026',
+  contractTitle: 'HOME IMPROVEMENT CONTRACT',
+  preparedByName: 'Edith Guerrero',
+  preparedByTitle: 'Project Manager',
   approxStartDate: 'November 1, 2026',
   substantialCommencementDate: 'November 4, 2026',
   approxCompletionDate: 'November 10, 2026',
@@ -55,7 +58,7 @@ const completeContractData: ContractStudioData = {
 };
 
 describe('generateContractHtml', () => {
-  it('generates complete multi-page contract HTML containing real client and scope data', () => {
+  it('generates complete 7-page contract HTML containing real client and scope data', () => {
     const html = generateContractHtml(completeContractData, 'all');
 
     expect(html).toContain('Jane Smith');
@@ -69,14 +72,54 @@ describe('generateContractHtml', () => {
     expect(html).toContain('$11,000');
     expect(html).toContain('$12,500');
     expect(html).toContain('notices@riseuprac.com');
+
+    // Verify all continuation page numbers (Pages 2 through 7 of 7)
+    expect(html).toContain('Page 2 of 7');
+    expect(html).toContain('Page 3 of 7');
+    expect(html).toContain('Page 4 of 7');
+    expect(html).toContain('Page 5 of 7');
+    expect(html).toContain('Page 6 of 7');
+    expect(html).toContain('Page 7 of 7');
   });
 
-  it('matches HTML snapshot structure for complete contract', () => {
+  it('renders Page 1 Cover cleanly with title, status badge, and prepared by/for fields', () => {
     const html = generateContractHtml(completeContractData, 1);
-    // Verifies Page 1 header and summary section
-    expect(html).toContain('Page 1 of 6');
-    expect(html).toContain('HOME IMPROVEMENT CONTRACT');
+    expect(html).toContain('section class="page cover"');
     expect(html).toContain('Jane Smith');
+    expect(html).toContain('Edith Guerrero');
+    expect(html).toContain('CONTRACT DATE');
+    expect(html).toContain('October 15, 2026');
+    expect(html).toContain('cover-status-badge draft');
+    expect(html).toContain('DRAFT');
+
+    // Test partially executed
+    const partiallyHtml = generateContractHtml({ ...completeContractData, isSigned: true }, 1);
+    expect(partiallyHtml).toContain('cover-status-badge partially-executed');
+    expect(partiallyHtml).toContain('PARTIALLY EXECUTED');
+
+    // Test fully executed
+    const fullyHtml = generateContractHtml({ ...completeContractData, isSigned: true, isCounterSigned: true }, 1);
+    expect(fullyHtml).toContain('cover-status-badge fully-executed');
+    expect(fullyHtml).toContain('FULLY EXECUTED');
+  });
+
+  it('renders Page 2 Scope with Page 2 of 7 footer', () => {
+    const html = generateContractHtml(completeContractData, 2);
+    expect(html).toContain('Page 2 of 7');
+    expect(html).toContain('AGREEMENT');
+    expect(html).toContain('Premium Architectural Shingle Roof Replacement');
+  });
+
+  it('renders Page 6 Three-Day and Page 7 Five-Day Cancellation Notices', () => {
+    const p6 = generateContractHtml(completeContractData, 6);
+    expect(p6).toContain('Page 6 of 7');
+    expect(p6).toContain('Notice of the Three-day Right to Cancel');
+    expect(p6).toContain('EXHIBIT A • NOTICE OF CANCELLATION (THREE DAYS)');
+
+    const p7 = generateContractHtml(completeContractData, 7);
+    expect(p7).toContain('Page 7 of 7');
+    expect(p7).toContain('Notice of the Five-day Right to Cancel');
+    expect(p7).toContain('EXHIBIT A (2) • NOTICE OF CANCELLATION (FIVE DAYS)');
   });
 
   it('throws validation error when passed empty data instead of demo defaults', () => {

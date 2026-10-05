@@ -1,7 +1,7 @@
 import React from 'react';
 import { Users, Building2, ShieldCheck, Flame } from 'lucide-react';
 import { UniversalStatCard } from '@/components/common/UniversalStatCard';
-import { Client360Record } from '@/types/client360Types';
+import { Client360Record, isClientLost } from '@/types/client360Types';
 import { ClientSummary } from '@/api/clientsApi';
 import { DashboardStats } from '@/api/dashboardApi';
 
@@ -16,11 +16,11 @@ export function ClientDirectoryStats({
   summary,
   stats,
 }: ClientDirectoryStatsProps) {
-  const activeCount = summary?.activeProjects ?? clients.filter((c) => c.status === 'active_job').length;
-  const completedCount = summary?.existingClientsCount ?? clients.filter((c) => c.status === 'completed').length;
-  const lostCount = summary?.lostLeadsCount ?? clients.filter((c) => c.status === 'closed_lost').length;
-  const totalCount = summary?.totalClients ?? clients.length;
-  const denominator = summary?.totalClients || clients.length || 1;
+  const activeCount = summary?.activeProjects ?? clients.filter((c) => c.status === 'active_job' && !isClientLost(c)).length;
+  const completedCount = summary?.existingClientsCount ?? clients.filter((c) => c.status === 'completed' && !isClientLost(c)).length;
+  const lostCount = summary?.lostLeadsCount ?? clients.filter((c) => isClientLost(c)).length;
+  const totalCount = summary?.totalClients ?? clients.filter((c) => !isClientLost(c)).length;
+  const denominator = summary?.totalClients || clients.filter((c) => !isClientLost(c)).length || 1;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

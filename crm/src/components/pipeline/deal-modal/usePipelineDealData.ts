@@ -41,21 +41,62 @@ export function usePipelineDealData(
     setIsLoadingDetails(true);
 
     try {
+      // 1. Fetch lead details
       const leadRes = await api.getLead(dealId);
-      if (leadRes?.lead) {
-        setLeadDetail(leadRes.lead);
-        if (leadRes.lead.notes) {
-          setNotes(leadRes.lead.notes);
-        } else if (deal?.notes) {
-          setNotes(deal.notes);
-        } else {
-          setNotes('');
+      const lead = leadRes?.lead;
+      if (lead) {
+        setLeadDetail(lead);
+
+        // Resolve client ID from lead or deal
+        const resolvedClientId =
+          lead.client_id || (deal as any)?.clientId || (deal as any)?.client_id;
+
+        let clientNotes: string | null = null;
+        if (resolvedClientId) {
+          try {
+            const clientRes = await api.getClient(resolvedClientId);
+            if (clientRes?.client?.notes) {
+              clientNotes = clientRes.client.notes;
+            }
+          } catch {
+            // Client fetch error, fallback to lead notes
+          }
         }
-      } else if (deal?.notes) {
-        setNotes(deal.notes);
+
+        // Prioritize client record notes (source of truth), then lead notes, then deal notes
+        const finalNotes = clientNotes || lead.notes || (deal as any)?.notes || '';
+        setNotes(finalNotes);
+      } else {
+        // If not found as lead, try as client record directly
+        try {
+          const clientRes = await api.getClient(dealId);
+          if (clientRes?.client) {
+            setNotes(clientRes.client.notes || (deal as any)?.notes || '');
+          } else if ((deal as any)?.notes) {
+            setNotes((deal as any).notes);
+          }
+        } catch {
+          if ((deal as any)?.notes) setNotes((deal as any).notes);
+        }
       }
     } catch {
-      if (deal?.notes) setNotes(deal.notes);
+      // If getLead failed, attempt fetching client record
+      const resolvedClientId =
+        (deal as any)?.clientId || (deal as any)?.client_id || dealId;
+      if (resolvedClientId) {
+        try {
+          const clientRes = await api.getClient(resolvedClientId);
+          if (clientRes?.client?.notes) {
+            setNotes(clientRes.client.notes);
+          } else if ((deal as any)?.notes) {
+            setNotes((deal as any).notes);
+          }
+        } catch {
+          if ((deal as any)?.notes) setNotes((deal as any).notes);
+        }
+      } else if ((deal as any)?.notes) {
+        setNotes((deal as any).notes);
+      }
     }
 
     try {
@@ -68,7 +109,7 @@ export function usePipelineDealData(
     } finally {
       setIsLoadingDetails(false);
     }
-  }, [deal?.notes]);
+  }, [deal]);
 
   useEffect(() => {
     if (isOpen && deal?.id) {
@@ -225,6 +266,15 @@ export function usePipelineDealData(
       const updatedNotes = notes ? `${notes}\n\n${serialized}` : serialized;
       setNotes(updatedNotes);
       await api.updateLead(deal.id, { notes: updatedNotes });
+
+      const resolvedClientId =
+        leadDetail?.client_id || (deal as any)?.clientId || (deal as any)?.client_id;
+      if (resolvedClientId) {
+        try {
+          await api.updateClient(resolvedClientId, { notes: updatedNotes });
+        } catch {}
+      }
+
       await fetchLeadData(deal.id);
       toast.success('Touchpoint logged');
     } catch {
@@ -234,20 +284,135 @@ export function usePipelineDealData(
 
   const handleAddNote = async (serializedNote: string, plainContent?: string) => {
     const updated = notes ? `${notes}\n\n${serializedNote}` : serializedNote;
-    setNotes(updated);
-    if (deal?.id) {
-      try {
-        await api.updateLead(deal.id, { notes: updated });
-        await api.addLeadActivity(deal.id, {
-          title: 'Estimator Note',
-          description: plainContent || serializedNote,
-          activityType: 'note',
-        });
-        await fetchLeadData(deal.id);
-        toast.success('Note added');
-      } catch {
-        toast.error('Failed to sync note');
+    const leadId = deal?.id;
+    const clientId =
+      leadDetail?.client_id || (deal as any)?.clientId || (deal as any)?.client_id;
+
+    if (!leadId && !clientId) {
+      toast.error('No record ID found to save note');
+      throw new Error('No record ID found to save note');
+    }
+
+    try {
+      let saved = false;
+
+      // 1. Save directly to client record if client_id is available
+      if (clientId) {
+        try {
+          await api.updateClient(clientId, { notes: updated });
+          saved = true;
+        } catch (clientErr) {
+          console.warn('Failed to update client directly, saving via lead:', clientErr);
+        }
       }
+
+      // 2. Save to lead record if leadId is available
+      if (leadId) {
+        const leadRes = await api.updateLead(leadId, { notes: updated });
+        saved = true;
+
+        // If lead had a client_id returned or discovered, update client record too
+        const returnedCid = leadRes?.lead?.client_id || clientId;
+        if (returnedCid && !clientId) {
+          try {
+            await api.updateClient(returnedCid, { notes: updated });
+          } catch {}
+        }
+
+        try {
+          await api.addLeadActivity(leadId, {
+            title: 'Field Note Added',
+            description: plainContent || serializedNote,
+            activityType: 'note',
+          });
+        } catch {}
+      }
+
+      if (!saved) {
+        throw new Error('Failed to save field note to client or lead record');
+      }
+
+      // Update state and notify parent views
+      setNotes(updated);
+      if (onUpdateDeal && deal) {
+        onUpdateDeal({ ...deal, notes: updated });
+      }
+
+      // Invalidate relevant react-query caches
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipeline.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.all() });
+
+      await fetchLeadData(leadId || clientId!);
+      toast.success('Field note saved to client record');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save field note to client record';
+      toast.error(msg);
+      throw err; // Re-throw so ProfileNotesFeed can roll back optimistic changes
+    }
+  };
+
+  const handleEditNote = async (
+    _noteId: string,
+    updatedAllNotes: string,
+    _editedContent?: string
+  ) => {
+    const leadId = deal?.id;
+    const clientId =
+      leadDetail?.client_id || (deal as any)?.clientId || (deal as any)?.client_id;
+
+    if (!leadId && !clientId) {
+      toast.error('No record ID found to update note');
+      throw new Error('No record ID found to update note');
+    }
+
+    try {
+      let saved = false;
+
+      // 1. Update client record
+      if (clientId) {
+        try {
+          await api.updateClient(clientId, { notes: updatedAllNotes });
+          saved = true;
+        } catch (clientErr) {
+          console.warn('Failed to update client directly, saving via lead:', clientErr);
+        }
+      }
+
+      // 2. Update lead record
+      if (leadId) {
+        const leadRes = await api.updateLead(leadId, { notes: updatedAllNotes });
+        saved = true;
+
+        const returnedCid = leadRes?.lead?.client_id || clientId;
+        if (returnedCid && !clientId) {
+          try {
+            await api.updateClient(returnedCid, { notes: updatedAllNotes });
+          } catch {}
+        }
+      }
+
+      if (!saved) {
+        throw new Error('Failed to update field note on client or lead record');
+      }
+
+      // Update state and notify parent views
+      setNotes(updatedAllNotes);
+      if (onUpdateDeal && deal) {
+        onUpdateDeal({ ...deal, notes: updatedAllNotes });
+      }
+
+      // Invalidate relevant react-query caches
+      queryClient.invalidateQueries({ queryKey: queryKeys.pipeline.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.all() });
+
+      await fetchLeadData(leadId || clientId!);
+      toast.success('Field note updated on client record');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update field note';
+      toast.error(msg);
+      throw err; // Re-throw so ProfileNotesFeed can roll back
     }
   };
 
@@ -266,5 +431,6 @@ export function usePipelineDealData(
     handleCancelAppointment,
     handleLogTouchpoint,
     handleAddNote,
+    handleEditNote,
   };
 }

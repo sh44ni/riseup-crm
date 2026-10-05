@@ -1,5 +1,18 @@
-import React from 'react';
-import { Edit, ExternalLink, Download, Loader2, PenTool, RotateCcw, Archive, Trash2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Edit,
+  ExternalLink,
+  Download,
+  Loader2,
+  PenTool,
+  RotateCcw,
+  Archive,
+  Trash2,
+  ChevronDown,
+  FileText,
+  CheckCircle2,
+  ShieldCheck,
+} from 'lucide-react';
 import { ContractRow } from '@/api/contractApi';
 import { ContractStatusBadge } from './ContractStatusBadge';
 
@@ -8,7 +21,11 @@ interface ContractTableRowProps {
   downloadingId: number | null;
   canCounterSign: boolean;
   onOpenStudio: (id: number) => void;
-  onDownloadPdf: (e: React.MouseEvent, c: ContractRow) => void;
+  onDownloadPdf: (
+    e: React.MouseEvent,
+    c: ContractRow,
+    version?: 'draft' | 'partially_executed' | 'fully_executed'
+  ) => void;
   onCounterSign: (c: ContractRow) => void;
   onToggleArchive: (c: ContractRow) => void;
   onDeleteDraft: (c: ContractRow) => void;
@@ -24,6 +41,23 @@ export function ContractTableRow({
   onToggleArchive,
   onDeleteDraft,
 }: ContractTableRowProps) {
+  const isPartiallyExecuted = c.status === 'client_signed' || Boolean(c.client_signed_at);
+  const isFullyExecuted = c.status === 'signed' || Boolean(c.counter_signed_at);
+  const hasMultipleVersions = isPartiallyExecuted || isFullyExecuted;
+
+  const [showVersionMenu, setShowVersionMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showVersionMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowVersionMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showVersionMenu]);
   return (
     <tr
       onClick={() => onOpenStudio(c.id)}
@@ -97,36 +131,122 @@ export function ContractTableRow({
             <ExternalLink size={13} />
           </a>
 
-          <button
-            type="button"
-            onClick={(e) => onDownloadPdf(e, c)}
-            disabled={downloadingId === c.id}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
-              c.status === 'signed'
-                ? 'bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300'
-                : c.status === 'client_signed'
-                ? 'bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-300'
-                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
-            }`}
-            title={`Download ${c.status === 'signed' ? 'Fully Executed' : c.status === 'client_signed' ? 'Partially Executed' : ''} PDF`}
-          >
-            {downloadingId === c.id ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Download size={12} />
+          {/* DOWNLOAD BUTTON WITH VERSION SELECTION DROPDOWN */}
+          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!hasMultipleVersions) {
+                  // If contract is just draft, download straight away!
+                  onDownloadPdf(e, c, 'draft');
+                } else {
+                  // When partially signed or fully executed, show versions dropdown
+                  setShowVersionMenu((prev) => !prev);
+                }
+              }}
+              disabled={downloadingId === c.id}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                c.status === 'signed'
+                  ? 'bg-emerald-100 dark:bg-emerald-950/60 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300'
+                  : c.status === 'client_signed'
+                  ? 'bg-blue-100 dark:bg-blue-950/60 hover:bg-blue-200 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-300'
+                  : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+              }`}
+              title={
+                hasMultipleVersions
+                  ? 'Choose PDF Version to Download'
+                  : 'Download Draft Contract PDF'
+              }
+            >
+              {downloadingId === c.id ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Download size={12} />
+              )}
+              <span>
+                {downloadingId === c.id
+                  ? 'Downloading…'
+                  : hasMultipleVersions
+                  ? 'Download'
+                  : 'Draft PDF'}
+              </span>
+              {hasMultipleVersions && (
+                <ChevronDown
+                  size={11}
+                  className={`transition-transform duration-150 ${showVersionMenu ? 'rotate-180' : ''}`}
+                />
+              )}
+            </button>
+
+            {/* VERSION SELECTION POPUP MENU */}
+            {showVersionMenu && (
+              <div
+                ref={menuRef}
+                className="absolute right-0 top-full mt-1.5 w-64 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl p-1.5 space-y-1 text-left animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="px-2.5 py-1.5 border-b border-slate-100 dark:border-white/5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Choose PDF Version
+                  </div>
+                </div>
+
+                {/* 1. DRAFT */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setShowVersionMenu(false);
+                    onDownloadPdf(e, c, 'draft');
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer text-left"
+                >
+                  <FileText size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs font-bold text-slate-800 dark:text-slate-100">Draft (Original)</div>
+                    <div className="text-[10.5px] text-slate-400">Clean, unsigned agreement</div>
+                  </div>
+                </button>
+
+                {/* 2. PARTIALLY EXECUTED */}
+                {isPartiallyExecuted && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setShowVersionMenu(false);
+                      onDownloadPdf(e, c, 'partially_executed');
+                    }}
+                    className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/50 text-blue-900 dark:text-blue-200 transition-colors cursor-pointer text-left"
+                  >
+                    <CheckCircle2 size={15} className="text-[#1878B8] shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100">Partially Executed</div>
+                      <div className="text-[10.5px] text-slate-400">
+                        Client-signed {c.client_signed_at ? `(${new Date(c.client_signed_at).toLocaleDateString()})` : ''}
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* 3. FULLY EXECUTED */}
+                {isFullyExecuted && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setShowVersionMenu(false);
+                      onDownloadPdf(e, c, 'fully_executed');
+                    }}
+                    className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-900 dark:text-emerald-200 transition-colors cursor-pointer text-left"
+                  >
+                    <ShieldCheck size={15} className="text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100">Fully Executed</div>
+                      <div className="text-[10.5px] text-slate-400">Counter-signed &amp; finalized</div>
+                    </div>
+                  </button>
+                )}
+              </div>
             )}
-            <span>
-              {downloadingId === c.id
-                ? 'Downloading…'
-                : c.status === 'signed'
-                ? 'Download'
-                : c.status === 'client_signed'
-                ? 'Download'
-                : c.status === 'draft'
-                ? 'Draft PDF'
-                : 'Download'}
-            </span>
-          </button>
+          </div>
 
           {c.status === 'client_signed' && !c.is_archived && canCounterSign && (
             <button

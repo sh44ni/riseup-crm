@@ -6,6 +6,22 @@ import type {
 import {
   DEFAULT_CONTRACT_SECTIONS,
   DEFAULT_CONTRACT_PAYMENTS,
+  DEFAULT_LICENSING_CLAUSE,
+  DEFAULT_CHANGE_ORDER_CLAUSE,
+  DEFAULT_PAYMENT_TERMS_TEXT,
+  DEFAULT_REFUND_POLICY_TEXT,
+  DEFAULT_LIABILITY_INSURANCE_TEXT,
+  DEFAULT_WORKERS_COMP_TEXT,
+  DEFAULT_MECHANICS_LIEN_WARNING_TEXT,
+  DEFAULT_CSLB_DISCLOSURE_TEXT,
+  DEFAULT_REPRESENTATIONS_TEXT,
+  DEFAULT_GENERAL_PROVISIONS_TEXT,
+  DEFAULT_TERM_TERMINATION_TEXT,
+  DEFAULT_BOND_TEXT,
+  DEFAULT_THREE_DAY_NOTICE_TEXT,
+  DEFAULT_FIVE_DAY_NOTICE_TEXT,
+  DEFAULT_JOBSITE_STANDARDS_TEXT,
+  DEFAULT_DECKING_ALLOWANCE_TEXT,
 } from '@/types/contractStudioTypes';
 import { parseMoney } from '@/shared/lib/money';
 
@@ -21,8 +37,39 @@ export interface WizardPrefill {
   value?: number;
 }
 
+export interface ClientValidationResult {
+  isValid: boolean;
+  missingFields: string[];
+  errorMessage?: string;
+}
+
+export function validateClientProfileForContract(client: {
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}): ClientValidationResult {
+  const missing: string[] = [];
+  if (!client.address || !client.address.trim()) missing.push('address');
+  if (!client.phone || !client.phone.trim()) missing.push('phone number');
+  if (!client.email || !client.email.trim()) missing.push('email');
+
+  if (missing.length > 0) {
+    return {
+      isValid: false,
+      missingFields: missing,
+      errorMessage: `Please add the ${missing.join(', ')} via Client 360 before generating a contract.`,
+    };
+  }
+
+  return { isValid: true, missingFields: [] };
+}
+
 export const DEFAULT_CONTRACT: ContractStudioData = {
   status: 'draft',
+  contractTitle: 'HOME IMPROVEMENT CONTRACT',
+  propertyPhotoUrl: '',
+  preparedByName: '',
+  preparedByTitle: 'Project Manager',
   clientName: '',
   clientPhone: '',
   clientEmail: '',
@@ -30,7 +77,7 @@ export const DEFAULT_CONTRACT: ContractStudioData = {
   city: '',
   state: 'CA',
   zip: '',
-  contractorName: 'Rise Up Roofing & Construction, Inc.',
+  contractorName: 'Rise Up Roofing and Construction, Inc.',
   contractorTitle: 'Licensed General Contractor',
   contractorLicense: '1096492',
   salespersonName: '',
@@ -48,16 +95,47 @@ export const DEFAULT_CONTRACT: ContractStudioData = {
   financeCharge: '0.00',
   paymentSchedule: DEFAULT_CONTRACT_PAYMENTS,
   cancellationDeadlineDays: 3,
-  cancellationEmail: 'info@riseuprac.com',
-  insuranceCarrier: 'State Compensation Insurance Fund',
-  insurancePhone: '(888) 782-8338',
-  workersCompCarrier: 'State Compensation Insurance Fund',
-  workersCompPhone: '(888) 782-8338',
+  cancellationEmail: 'accountant@riseuprac.com',
+  insuranceCarrier: 'PACIFIC UNITED INSURANCE SERVICES',
+  insurancePhone: '(619) 274-8144',
+  workersCompCarrier: 'PACIFIC UNITED INSURANCE SERVICES',
+  workersCompPhone: '(619) 274-8144',
+  licensingClause: DEFAULT_LICENSING_CLAUSE,
+  changeOrderClause: DEFAULT_CHANGE_ORDER_CLAUSE,
+  paymentTermsText: DEFAULT_PAYMENT_TERMS_TEXT,
+  refundPolicyText: DEFAULT_REFUND_POLICY_TEXT,
+  liabilityInsuranceText: DEFAULT_LIABILITY_INSURANCE_TEXT,
+  workersCompText: DEFAULT_WORKERS_COMP_TEXT,
+  mechanicsLienWarningText: DEFAULT_MECHANICS_LIEN_WARNING_TEXT,
+  cslbDisclosureText: DEFAULT_CSLB_DISCLOSURE_TEXT,
+  representationsText: DEFAULT_REPRESENTATIONS_TEXT,
+  generalProvisionsText: DEFAULT_GENERAL_PROVISIONS_TEXT,
+  termTerminationText: DEFAULT_TERM_TERMINATION_TEXT,
+  bondText: DEFAULT_BOND_TEXT,
+  threeDayNoticeText: DEFAULT_THREE_DAY_NOTICE_TEXT,
+  fiveDayNoticeText: DEFAULT_FIVE_DAY_NOTICE_TEXT,
+  jobsiteStandardsText: DEFAULT_JOBSITE_STANDARDS_TEXT,
+  deckingAllowanceText: DEFAULT_DECKING_ALLOWANCE_TEXT,
   isSigned: false,
   clientInitials: '',
   clientSignatureName: '',
   contractorSignatureName: '',
 };
+
+export function cleanAddressString(addr: string): string {
+  if (!addr) return '';
+  const parts = addr.split(',').map((p) => p.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (seen.has(lower)) continue;
+    if (lower === 'ca' && deduped.some((d) => /\bca\b/i.test(d))) continue;
+    seen.add(lower);
+    deduped.push(part);
+  }
+  return deduped.join(', ');
+}
 
 export function parsePrice(strOrNum: unknown, defaultVal = 0): number {
   if (typeof strOrNum === 'number') return isNaN(strOrNum) ? defaultVal : strOrNum;
@@ -65,7 +143,7 @@ export function parsePrice(strOrNum: unknown, defaultVal = 0): number {
   return parseMoney(String(strOrNum)) || defaultVal;
 }
 
-export function getContractDataPayload(data: ContractStudioData) {
+export function getContractDataPayload(data: ContractStudioData, stepOverride?: number) {
   const rawAddr = (data.projectAddress || '').trim();
   const rawCity = (data.city || '').trim();
   const rawState = (data.state || 'CA').trim();
@@ -77,7 +155,7 @@ export function getContractDataPayload(data: ContractStudioData) {
     if (rawCity && !projectAddress.toLowerCase().includes(rawCity.toLowerCase())) {
       projectAddress += `, ${rawCity}`;
     }
-    if (rawState && !projectAddress.includes(rawState)) {
+    if (rawState && !new RegExp(`\\b${rawState}\\b`, 'i').test(projectAddress)) {
       projectAddress += `, ${rawState}`;
     }
     if (rawZip && !projectAddress.includes(rawZip)) {
@@ -86,6 +164,7 @@ export function getContractDataPayload(data: ContractStudioData) {
   } else if (rawCity || rawZip) {
     projectAddress = [rawCity, rawState, rawZip].filter(Boolean).join(' ');
   }
+  projectAddress = cleanAddressString(projectAddress);
 
   const price = data.contractPrice || 0;
   const downpayment = data.downpayment || 0;
@@ -93,12 +172,17 @@ export function getContractDataPayload(data: ContractStudioData) {
   return {
     project_address: projectAddress,
     client_name: data.clientName || '',
-    contractor_name: data.contractorName || 'Rise Up Roofing & Construction, Inc.',
+    contract_title: data.contractTitle || 'HOME IMPROVEMENT CONTRACT',
+    property_photo_url: data.propertyPhotoUrl || '',
+    prepared_by_name: data.preparedByName || '',
+    prepared_by_title: data.preparedByTitle || 'Project Manager',
+    contractor_name: data.contractorName || 'Rise Up Roofing and Construction, Inc.',
     contractor_title: data.contractorTitle || 'Licensed General Contractor',
     salesperson_name: data.salespersonName || '',
     contract_date: data.contractDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     contract_date_short: data.contractDateShort || '',
     scope_title: data.scopeTitle || 'Complete Roofing System Installation',
+    scope_intro: data.scopeIntro || 'Rise Up Roofing & Construction, Inc. agrees to furnish all materials, equipment, and labor for the full project scope:',
     scope_sections: (data.scopeSections || []).map((s) => ({ heading: s.heading, text: s.text })),
     start_date: data.approxStartDate || 'Within 2–3 weeks of permit issuance',
     commencement_date: data.substantialCommencementDate || 'Within 3 days of material delivery',
@@ -115,10 +199,31 @@ export function getContractDataPayload(data: ContractStudioData) {
     license_number: data.contractorLicense || '1096492',
     cancellation_deadline: 'three business days from signing',
     client_initials: data.clientInitials || '',
-    insurance_carrier: data.insuranceCarrier || 'State Compensation Insurance Fund',
-    insurance_phone: data.insurancePhone || '(888) 782-8338',
-    workers_comp_carrier: data.workersCompCarrier || 'State Compensation Insurance Fund',
-    cancellation_email: data.cancellationEmail || 'info@riseuprac.com',
+    insurance_carrier: data.insuranceCarrier || 'PACIFIC UNITED INSURANCE SERVICES',
+    insurance_phone: data.insurancePhone || '(619) 274-8144',
+    workers_comp_carrier: data.workersCompCarrier || 'PACIFIC UNITED INSURANCE SERVICES',
+    cancellation_email: data.cancellationEmail || 'accountant@riseuprac.com',
+    licensing_clause: data.licensingClause || DEFAULT_LICENSING_CLAUSE,
+    change_order_clause: data.changeOrderClause || DEFAULT_CHANGE_ORDER_CLAUSE,
+    payment_terms_text: data.paymentTermsText || DEFAULT_PAYMENT_TERMS_TEXT,
+    refund_policy_text: data.refundPolicyText || DEFAULT_REFUND_POLICY_TEXT,
+    liability_insurance_text: data.liabilityInsuranceText || DEFAULT_LIABILITY_INSURANCE_TEXT,
+    workers_comp_text: data.workersCompText || DEFAULT_WORKERS_COMP_TEXT,
+    mechanics_lien_warning_text: data.mechanicsLienWarningText || DEFAULT_MECHANICS_LIEN_WARNING_TEXT,
+    cslb_disclosure_text: data.cslbDisclosureText || DEFAULT_CSLB_DISCLOSURE_TEXT,
+    representations_text: data.representationsText || DEFAULT_REPRESENTATIONS_TEXT,
+    general_provisions_text: data.generalProvisionsText || DEFAULT_GENERAL_PROVISIONS_TEXT,
+    term_termination_text: data.termTerminationText || DEFAULT_TERM_TERMINATION_TEXT,
+    bond_text: data.bondText || DEFAULT_BOND_TEXT,
+    three_day_notice_text: data.threeDayNoticeText || DEFAULT_THREE_DAY_NOTICE_TEXT,
+    five_day_notice_text: data.fiveDayNoticeText || DEFAULT_FIVE_DAY_NOTICE_TEXT,
+    jobsite_standards_text: data.jobsiteStandardsText || DEFAULT_JOBSITE_STANDARDS_TEXT,
+    decking_allowance_text: data.deckingAllowanceText || DEFAULT_DECKING_ALLOWANCE_TEXT,
+    is_representative_signatory: Boolean(data.isRepresentativeSignatory),
+    representative_name: data.representativeName || data.preparedByName || data.salespersonName || '',
+    representative_title: data.representativeTitle || data.preparedByTitle || 'Project Manager',
+    wizard_step: stepOverride !== undefined ? stepOverride : (data.wizardStep ?? 0),
+    wizardStep: stepOverride !== undefined ? stepOverride : (data.wizardStep ?? 0),
   };
 }
 
@@ -144,13 +249,29 @@ export function restoreFromContractData(
     clientId: contractRow.client_id ? String(contractRow.client_id) : prev.clientId,
   };
 
+  if (data.wizard_step !== undefined || data.wizardStep !== undefined) {
+    const ws = Number(data.wizard_step !== undefined ? data.wizard_step : data.wizardStep);
+    if (!isNaN(ws) && ws >= 0 && ws < 8) {
+      updates.wizardStep = ws;
+    }
+  }
+
+  if (data.contract_title) updates.contractTitle = String(data.contract_title);
+  if (data.property_photo_url) updates.propertyPhotoUrl = String(data.property_photo_url);
+  if (data.prepared_by_name) updates.preparedByName = String(data.prepared_by_name);
+  if (data.prepared_by_title) updates.preparedByTitle = String(data.prepared_by_title);
+  if (data.is_representative_signatory !== undefined) {
+    updates.isRepresentativeSignatory = Boolean(data.is_representative_signatory);
+  }
+  if (data.representative_name) updates.representativeName = String(data.representative_name);
+  if (data.representative_title) updates.representativeTitle = String(data.representative_title);
   if (data.client_name || contractRow.customer_name) {
     updates.clientName = String(data.client_name || contractRow.customer_name);
   }
   if (contractRow.customer_phone) updates.clientPhone = String(contractRow.customer_phone);
   if (contractRow.customer_email) updates.clientEmail = String(contractRow.customer_email);
   if (data.project_address || contractRow.customer_address) {
-    updates.projectAddress = String(data.project_address || contractRow.customer_address);
+    updates.projectAddress = cleanAddressString(String(data.project_address || contractRow.customer_address));
   }
   if (contractRow.customer_city) updates.city = String(contractRow.customer_city);
   if (data.contractor_name) updates.contractorName = String(data.contractor_name);
@@ -161,6 +282,7 @@ export function restoreFromContractData(
   if (data.contract_date) updates.contractDate = String(data.contract_date);
   if (data.contract_date_short) updates.contractDateShort = String(data.contract_date_short);
   if (data.scope_title) updates.scopeTitle = String(data.scope_title);
+  if (data.scope_intro) updates.scopeIntro = String(data.scope_intro);
   if (Array.isArray(data.scope_sections) && data.scope_sections.length > 0) {
     updates.scopeSections = data.scope_sections.map((s: Record<string, unknown>, i: number) => ({
       id: String(i + 1),
@@ -192,6 +314,23 @@ export function restoreFromContractData(
   if (data.cancellation_email) updates.cancellationEmail = String(data.cancellation_email);
   if (contractRow.signing_token) updates.signingToken = String(contractRow.signing_token);
 
+  if (data.licensing_clause) updates.licensingClause = String(data.licensing_clause);
+  if (data.change_order_clause) updates.changeOrderClause = String(data.change_order_clause);
+  if (data.payment_terms_text) updates.paymentTermsText = String(data.payment_terms_text);
+  if (data.refund_policy_text) updates.refundPolicyText = String(data.refund_policy_text);
+  if (data.liability_insurance_text) updates.liabilityInsuranceText = String(data.liability_insurance_text);
+  if (data.workers_comp_text) updates.workersCompText = String(data.workers_comp_text);
+  if (data.mechanics_lien_warning_text) updates.mechanicsLienWarningText = String(data.mechanics_lien_warning_text);
+  if (data.cslb_disclosure_text) updates.cslbDisclosureText = String(data.cslb_disclosure_text);
+  if (data.representations_text) updates.representationsText = String(data.representations_text);
+  if (data.general_provisions_text) updates.generalProvisionsText = String(data.general_provisions_text);
+  if (data.term_termination_text) updates.termTerminationText = String(data.term_termination_text);
+  if (data.bond_text) updates.bondText = String(data.bond_text);
+  if (data.three_day_notice_text) updates.threeDayNoticeText = String(data.three_day_notice_text);
+  if (data.five_day_notice_text) updates.fiveDayNoticeText = String(data.five_day_notice_text);
+  if (data.jobsite_standards_text) updates.jobsiteStandardsText = String(data.jobsite_standards_text);
+  if (data.decking_allowance_text) updates.deckingAllowanceText = String(data.decking_allowance_text);
+
   return updates;
 }
 
@@ -199,6 +338,8 @@ export function computeInitialContractData(prefill?: WizardPrefill, userName?: s
   const base: ContractStudioData = {
     ...DEFAULT_CONTRACT,
     salespersonName: userName || DEFAULT_CONTRACT.salespersonName,
+    preparedByName: userName || 'Rise Up Representative',
+    preparedByTitle: 'Project Manager',
   };
   if (!prefill || (!prefill.clientName && !prefill.leadId && !prefill.address)) {
     return base;
@@ -231,6 +372,7 @@ export function computeInitialContractData(prefill?: WizardPrefill, userName?: s
     contractPrice: val,
     downpayment: dp,
     salespersonName: userName || base.salespersonName,
+    preparedByName: userName || base.preparedByName,
     paymentSchedule: paymentSchedule.length > 0 ? paymentSchedule : base.paymentSchedule,
   };
 }

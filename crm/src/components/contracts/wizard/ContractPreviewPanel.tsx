@@ -11,9 +11,9 @@ interface ContractPreviewPanelProps {
   lastSaved: Date | null;
 }
 
-// Letter Page dimensions at 96 DPI: 8.5in x 11in ≈ 816px x 1056px
-const PAGE_WIDTH_PX = 816;
-const PAGE_HEIGHT_PX = 1056;
+// A4 Page dimensions at 96 DPI: 210mm x 297mm ≈ 794px x 1122px (matching final-contract-template.html)
+const PAGE_WIDTH_PX = 794;
+const PAGE_HEIGHT_PX = 1122;
 const TOTAL_PAGES = TOTAL_CONTRACT_PAGES;
 
 export function ContractPreviewPanel({

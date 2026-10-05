@@ -31,7 +31,7 @@ export interface DashboardDealCardProps {
   getServiceBadgeClass: (color?: string) => string;
 }
 
-export function DashboardDealCard({
+function DashboardDealCardComponent({
   card,
   col,
   canAdvanceStage,
@@ -143,4 +143,46 @@ export function DashboardDealCard({
   );
 }
 
+function areDashboardDealCardPropsEqual(
+  prev: DashboardDealCardProps,
+  next: DashboardDealCardProps
+): boolean {
+  if (prev.card.id !== next.card.id) return false;
+  if (prev.card.name !== next.card.name) return false;
+  if (prev.card.value !== next.card.value) return false;
+  if (prev.card.contractValue !== next.card.contractValue) return false;
+  if (prev.card.estimateTotal !== next.card.estimateTotal) return false;
+  if (prev.card.estimatedValue !== next.card.estimatedValue) return false;
+  if (prev.card.isFollowupOverdue !== next.card.isFollowupOverdue) return false;
+  if (prev.card.hoursUntilAutoMove !== next.card.hoursUntilAutoMove) return false;
+  if (prev.card.followupHoursRemaining !== next.card.followupHoursRemaining) return false;
+  if (prev.card.followupDaysRemaining !== next.card.followupDaysRemaining) return false;
+  if (prev.card.siteVisitScheduledAt !== next.card.siteVisitScheduledAt) return false;
+  if (prev.card.address !== next.card.address) return false;
+  if (prev.card.location !== next.card.location) return false;
+  if (prev.card.city !== next.card.city) return false;
+  if (prev.card.service !== next.card.service) return false;
+  if (prev.card.serviceColor !== next.card.serviceColor) return false;
+  if (prev.card.roofSqf !== next.card.roofSqf) return false;
+  if (prev.card.assignedToUserId !== next.card.assignedToUserId) return false;
+  if (prev.card.assignedToName !== next.card.assignedToName) return false;
+  if (prev.card.leadSource !== next.card.leadSource) return false;
+  if (prev.editingAddressCardId !== next.editingAddressCardId) return false;
+  if (prev.canAdvanceStage !== next.canAdvanceStage) return false;
+  if (prev.canViewFinances !== next.canViewFinances) return false;
+  if (prev.canClaimLead !== next.canClaimLead) return false;
+  if (prev.canReassignLead !== next.canReassignLead) return false;
+  if (prev.isDark !== next.isDark) return false;
+  if (prev.col.id !== next.col.id) return false;
+  if (prev.col.accentColor !== next.col.accentColor) return false;
+  if (prev.isSavingAddress !== next.isSavingAddress) return false;
+  if (prev.editingAddressCardId === prev.card.id) {
+    if (prev.addressFormStreet !== next.addressFormStreet) return false;
+    if (prev.addressFormCity !== next.addressFormCity) return false;
+    if (prev.addressFormZip !== next.addressFormZip) return false;
+  }
+  return true;
+}
+
+export const DashboardDealCard = React.memo(DashboardDealCardComponent, areDashboardDealCardPropsEqual);
 export default DashboardDealCard;

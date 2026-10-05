@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { ColumnData, DealCard } from './dashboardTypes';
@@ -83,6 +83,37 @@ export function DashboardKanbanSection({
 }: DashboardKanbanSectionProps) {
   const navigate = useNavigate();
 
+  // Memoize filtered and sorted cards per column to prevent expensive recalculations during drags
+  const cardsByColId = useMemo(() => {
+    const map = new Map<string, DealCard[]>();
+    const searchLower = pipelineSearch.trim().toLowerCase();
+
+    for (const col of filteredColumns) {
+      let cards = col.cards;
+      if (searchLower) {
+        cards = cards.filter(
+          (c) =>
+            c.name.toLowerCase().includes(searchLower) ||
+            c.location.toLowerCase().includes(searchLower) ||
+            c.service.toLowerCase().includes(searchLower)
+        );
+      }
+
+      if (col.id === 'follow_up') {
+        cards = [...cards].sort((a, b) => {
+          if (a.isFollowupOverdue && !b.isFollowupOverdue) return -1;
+          if (!a.isFollowupOverdue && b.isFollowupOverdue) return 1;
+          const remA = a.followupDaysRemaining ?? 7;
+          const remB = b.followupDaysRemaining ?? 7;
+          return remA - remB;
+        });
+      }
+
+      map.set(col.id, cards);
+    }
+    return map;
+  }, [filteredColumns, pipelineSearch]);
+
   if (pipelineLoading) {
     return (
       <div className="grid grid-cols-7 gap-2 items-stretch pb-0.5 w-full flex-1 min-h-0">
@@ -105,6 +136,7 @@ export function DashboardKanbanSection({
       </div>
     );
   }
+
   if (viewMode === 'calendar') {
     return (
       <div className="flex-1 min-h-0 overflow-auto" data-testid="dashboard-calendar-view">
@@ -124,40 +156,23 @@ export function DashboardKanbanSection({
       className="grid grid-cols-7 gap-2 items-stretch overflow-hidden pb-0.5 w-full flex-1 min-h-0"
     >
       {filteredColumns.map((col) => {
-        const rawFilteredCards = pipelineSearch
-          ? col.cards.filter(
-              (c) =>
-                c.name.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
-                c.location.toLowerCase().includes(pipelineSearch.toLowerCase()) ||
-                c.service.toLowerCase().includes(pipelineSearch.toLowerCase())
-            )
-          : col.cards;
-
-        const filteredCards =
-          col.id === 'follow_up'
-            ? [...rawFilteredCards].sort((a, b) => {
-                if (a.isFollowupOverdue && !b.isFollowupOverdue) return -1;
-                if (!a.isFollowupOverdue && b.isFollowupOverdue) return 1;
-                const remA = a.followupDaysRemaining ?? 7;
-                const remB = b.followupDaysRemaining ?? 7;
-                return remA - remB;
-              })
-            : rawFilteredCards;
+        const filteredCards = cardsByColId.get(col.id) || [];
 
         return (
           <div
             key={col.id}
-            className="liquid-column-channel rounded-2xl p-1.5 flex flex-col min-w-0 min-h-0 max-h-full overflow-hidden transition-all duration-200 h-full border border-slate-200/70 dark:border-white/10"
+            className="liquid-column-channel rounded-2xl p-1.5 flex flex-col min-w-0 min-h-0 max-h-full overflow-hidden transition-all duration-200 h-full"
             style={{
               backgroundColor: isDark ? 'rgba(10, 16, 28, 0.65)' : col.bgColor,
+              border: `1.5px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : col.borderColor}`,
               boxShadow:
                 dragOverColId === col.id
                   ? `0 0 0 2.5px ${col.accentColor}, inset 0 1.5px 1px 0 rgba(255,255,255,${
-                      isDark ? '0.12' : '0.75'
-                    }), 0 4px 24px -2px ${col.accentColor}33`
+                      isDark ? '0.12' : '0.85'
+                    }), 0 8px 32px -2px ${col.accentColor}35`
                   : isDark
                   ? `0 0 0 1px rgba(255,255,255,0.06), inset 0 1px 1px 0 rgba(255,255,255,0.04), 0 4px 16px -2px rgba(0,0,0,0.35)`
-                  : `0 0 0 1.5px ${col.borderColor}, inset 0 1.5px 1px 0 rgba(255,255,255,0.75), 0 4px 16px -2px rgba(15,23,42,0.04)`,
+                  : `inset 0 1.5px 1px 0 rgba(255,255,255,0.95), 0 4px 16px -2px rgba(15,23,42,0.04)`,
               transform: dragOverColId === col.id ? 'scale(1.012)' : 'scale(1)',
             }}
             onDragOver={(e) => onDragOver(e, col.id)}
@@ -238,3 +253,5 @@ export function DashboardKanbanSection({
     </div>
   );
 }
+
+export default DashboardKanbanSection;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ContractStudioData, ContractPaymentRow } from '@/types/contractStudioTypes';
-import { CreditCard, Plus, Trash2, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { CreditCard, Plus, Trash2, CheckCircle2, AlertTriangle, RefreshCw, FileText, Info } from 'lucide-react';
 
 interface StepProps {
   data: ContractStudioData;
@@ -27,6 +27,24 @@ export function ContractPaymentScheduleStep({ data, onDataChange }: StepProps) {
     onDataChange({ paymentSchedule: updated });
   };
 
+  const handleAddMilestone = () => {
+    const newRow: ContractPaymentRow = {
+      id: String(paymentRows.length + 1),
+      number: `${paymentRows.length + 1}.`,
+      description: 'Additional Milestone Phase',
+      amount: 0,
+    };
+    onDataChange({ paymentSchedule: [...paymentRows, newRow] });
+  };
+
+  const handleRemoveMilestone = (index: number) => {
+    const filtered = paymentRows.filter((_, i) => i !== index).map((row, i) => ({
+      ...row,
+      number: `${i + 1}.`,
+    }));
+    onDataChange({ paymentSchedule: filtered });
+  };
+
   const handleAutoSplit = () => {
     const dp = Math.min(1000, Math.round(contractTotal * 0.1));
     const rem = Math.max(0, contractTotal - dp);
@@ -46,19 +64,23 @@ export function ContractPaymentScheduleStep({ data, onDataChange }: StepProps) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header & Balance indicator */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <CreditCard size={16} className="text-[#1a5ba5]" /> Progress Payment Milestones
-        </h3>
+        <div>
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <CreditCard size={16} className="text-[#1a5ba5]" /> Progress Payment Milestones
+          </h3>
+          <p className="text-[11px] text-slate-400">
+            Total milestone payments must sum exactly to the contract total.
+          </p>
+        </div>
 
         <div className="flex items-center gap-2">
           {isBalanced ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <CheckCircle2 size={12} className="text-emerald-600" />
-              100% Balanced ($
-              {contractTotal.toLocaleString()})
+              Balanced (${contractTotal.toLocaleString()})
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -70,7 +92,7 @@ export function ContractPaymentScheduleStep({ data, onDataChange }: StepProps) {
           <button
             type="button"
             onClick={handleAutoSplit}
-            className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#1a5ba5] hover:bg-sky-50 border border-sky-200 transition-colors flex items-center gap-1"
+            className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#1a5ba5] hover:bg-sky-50 border border-sky-200 transition-colors flex items-center gap-1 cursor-pointer"
             title="Auto-distribute milestones evenly"
           >
             <RefreshCw size={11} /> Auto-Split
@@ -85,7 +107,7 @@ export function ContractPaymentScheduleStep({ data, onDataChange }: StepProps) {
             key={row.id || idx}
             className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-3"
           >
-            <div className="w-6 h-6 rounded-full bg-[#091b36] text-white flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-6 h-6 rounded-full bg-[#0b1a33] text-white flex items-center justify-center text-xs font-bold shrink-0">
               {idx + 1}
             </div>
 
@@ -99,26 +121,78 @@ export function ContractPaymentScheduleStep({ data, onDataChange }: StepProps) {
               />
             </div>
 
-            <div className="w-32 relative shrink-0">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-xs font-bold text-slate-500">$</span>
               <input
                 type="text"
-                value={row.amount || ''}
+                value={row.amount ? Number(row.amount).toLocaleString() : ''}
                 onChange={(e) => handleRowAmountChange(idx, e.target.value)}
-                className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 text-right focus:outline-none focus:border-[#1a5ba5]"
+                className="w-24 text-xs font-bold text-slate-900 bg-white border border-slate-200 rounded-lg px-2 py-1 text-right focus:outline-none focus:border-[#1a5ba5]"
+                placeholder="0"
               />
             </div>
+
+            {paymentRows.length > 1 && (
+              <button
+                type="button"
+                onClick={() => handleRemoveMilestone(idx)}
+                className="text-slate-400 hover:text-red-500 p-1 transition-colors cursor-pointer"
+                title="Remove milestone"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         ))}
+
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={handleAddMilestone}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <Plus size={13} /> Add Milestone Phase
+          </button>
+        </div>
       </div>
 
-      {/* Statutory Payment Terms Note */}
-      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1.5">
-        <div className="font-bold text-slate-800">California Statutory Payment Terms:</div>
-        <p className="text-[11px] leading-relaxed text-slate-500">
-          Invoices are payable upon milestone completion. Unconditional statutory lien releases (pursuant to California
-          Civil Code §§ 8400 &amp; 8404) will be provided for all completed and paid progress stages.
-        </p>
+      {/* Note about Client Initial */}
+      <div className="flex items-start gap-2 p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800">
+        <Info size={15} className="text-sky-600 mt-0.5 shrink-0" />
+        <span>
+          <b>Client Initials:</b> The milestone initial box on Page 3 stays empty in the draft and will be filled automatically when the client initials via the client signing portal.
+        </span>
+      </div>
+
+      {/* Payment Terms & Refund Policy Text */}
+      <div className="space-y-4 border-t border-slate-100 pt-4">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <FileText size={15} className="text-[#1a5ba5]" /> Payment Terms &amp; Refund Policy Clauses
+        </h3>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+            Payment Terms, Invoicing Provisions &amp; Liens Release
+          </label>
+          <textarea
+            rows={3}
+            value={data.paymentTermsText}
+            onChange={(e) => onDataChange({ paymentTermsText: e.target.value })}
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1a5ba5] transition-colors leading-relaxed"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+            Refund Policy: 1.6.2(a) No Refunds Clause
+          </label>
+          <textarea
+            rows={2}
+            value={data.refundPolicyText}
+            onChange={(e) => onDataChange({ refundPolicyText: e.target.value })}
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1a5ba5] transition-colors leading-relaxed"
+          />
+        </div>
       </div>
     </div>
   );

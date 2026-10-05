@@ -158,4 +158,32 @@ export interface Client360Record {
   tasks: ClientTask[];
   timeline: TimelineEvent[];
   quotes: ClientQuote[];
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  totalRevenue?: number;
+}
+
+export function isClientLost(client: Client360Record): boolean {
+  return (
+    client.status === 'closed_lost' ||
+    Boolean(client.lossPostMortem) ||
+    Boolean(client.statusLabel && client.statusLabel.toLowerCase().includes('lost'))
+  );
+}
+
+export type ClientSortField =
+  | 'name'
+  | 'status'
+  | 'assignedRep'
+  | 'createdAt'
+  | 'revenue'
+  | 'city'
+  | 'roofArea';
+
+export type SortDirection = 'asc' | 'desc';
+
+export interface ClientSortConfig {
+  field: ClientSortField;
+  direction: SortDirection;
 }

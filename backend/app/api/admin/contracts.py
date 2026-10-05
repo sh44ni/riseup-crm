@@ -13,7 +13,7 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +36,7 @@ router = APIRouter(prefix="/contracts", tags=["Admin Contracts"], dependencies=[
 
 class BuildContractRequest(BaseModel):
     lead_id: Optional[int] = None
+    client_id: Optional[int] = None
     contract_id: Optional[int] = None
     estimate_id: Optional[int] = None
     contract_data: Dict[str, Any]  # All Jinja2 template fields
@@ -219,17 +220,17 @@ async def build_contract(
     """
     # 1. Resolve lead and client information if provided
     lead_row = None
-    client_id = None
+    client_id = payload.client_id
     if payload.lead_id:
         lead_res = await db.execute(
             text("SELECT id, client_id, pipeline_stage FROM leads WHERE id = :id"),
             {"id": payload.lead_id},
         )
         lead_row = lead_res.first()
-        if lead_row:
+        if lead_row and lead_row.client_id:
             client_id = lead_row.client_id
 
-    # 2. Check if an existing contract was passed to update, or if an active draft exists for this lead
+    # 2. Check if an existing contract was passed to update, or if an active draft exists for this lead / client
     existing_contract = None
     if payload.contract_id:
         c_res = await db.execute(
@@ -237,10 +238,23 @@ async def build_contract(
             {"id": payload.contract_id},
         )
         existing_contract = c_res.mappings().first()
-    elif payload.lead_id:
+    elif payload.lead_id or client_id:
+        conditions = []
+        c_params = {}
+        if payload.lead_id:
+            conditions.append("c.lead_id = :lid")
+            c_params["lid"] = payload.lead_id
+        if client_id:
+            conditions.append("c.client_id = :cid")
+            c_params["cid"] = client_id
         c_res = await db.execute(
-            text("SELECT * FROM contracts WHERE lead_id = :lead_id AND status = 'draft' AND is_archived = false ORDER BY updated_at DESC LIMIT 1"),
-            {"lead_id": payload.lead_id},
+            text(f"""
+                SELECT c.* FROM contracts c
+                WHERE ({" OR ".join(conditions)})
+                  AND c.status = 'draft' AND c.is_archived = false
+                ORDER BY c.updated_at DESC LIMIT 1
+            """),
+            c_params,
         )
         existing_contract = c_res.mappings().first()
 
@@ -261,19 +275,23 @@ async def build_contract(
                 UPDATE contracts
                 SET contract_data = :contract_data,
                     signing_token = :signing_token,
+                    client_id = COALESCE(:client_id, client_id),
+                    lead_id = COALESCE(:lead_id, lead_id),
                     updated_at = NOW()
                 WHERE id = :id
             """),
             {
                 "contract_data": json.dumps(contract_data),
                 "signing_token": signing_token,
+                "client_id": client_id,
+                "lead_id": payload.lead_id,
                 "id": contract_id,
             },
         )
         await db.commit()
     else:
         # 3. Generate contract number
-        lead_num = payload.lead_id or 1
+        lead_num = payload.lead_id or client_id or 1
         contract_number = f"RU-{datetime.now(timezone.utc).year}-{lead_num:05d}"
 
         # 4. Check for existing contract with the same number to ensure uniqueness
@@ -312,6 +330,30 @@ async def build_contract(
             },
         )
         contract_id = result.scalar()
+        await db.commit()
+
+    # Enforce strictly 1 active draft per lead / client: archive any other stale drafts
+    cleanup_params = {"current_id": contract_id}
+    cleanup_conds = []
+    if payload.lead_id:
+        cleanup_conds.append("lead_id = :lid")
+        cleanup_params["lid"] = payload.lead_id
+    if client_id:
+        cleanup_conds.append("client_id = :cid")
+        cleanup_params["cid"] = client_id
+
+    if cleanup_conds:
+        await db.execute(
+            text(f"""
+                UPDATE contracts
+                SET is_archived = true, updated_at = NOW()
+                WHERE id != :current_id
+                  AND ({" OR ".join(cleanup_conds)})
+                  AND status = 'draft'
+                  AND is_archived = false
+            """),
+            cleanup_params,
+        )
         await db.commit()
 
     # 7. Generate and save empty PDF
@@ -432,12 +474,24 @@ async def send_contract(
 
     # Build canonical project address: prefer client 360 record over lead record
     def _build_addr(row: dict, addr_key: str = "address", city_key: str = "city", zip_key: str = "zip") -> str:
-        parts = [
-            (row.get(addr_key) or "").strip(),
-            (row.get(city_key) or "").strip(),
-            (row.get(zip_key) or row.get("zip") or row.get("zip_code") or "").strip(),
-        ]
-        return ", ".join(p for p in parts if p)
+        addr = (row.get(addr_key) or "").strip()
+        city = (row.get(city_key) or "").strip()
+        zip_val = (row.get(zip_key) or row.get("zip") or row.get("zip_code") or "").strip()
+        parts = [p.strip() for p in addr.split(",") if p.strip()]
+        if city and city.lower() not in addr.lower():
+            parts.append(city)
+        if zip_val and zip_val not in addr:
+            parts.append(zip_val)
+        seen = set()
+        deduped = []
+        for p in parts:
+            low = p.lower()
+            if low not in seen:
+                if low == "ca" and any("ca" in d.lower().split() for d in deduped):
+                    continue
+                seen.add(low)
+                deduped.append(p)
+        return ", ".join(deduped)
 
     canonical_address = ""
     if client_row:
@@ -634,33 +688,35 @@ async def send_contract_sms(
 @router.get("/{contract_id}/preview")
 async def preview_contract(
     contract_id: int,
+    version: Optional[str] = Query(None, description="Optional version to download: draft, partially_executed, fully_executed"),
     current_user=Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Return a redirect to the stored PDF file for browser-based preview.
-    If no PDF is stored, returns 404.
+    Return a redirect to the stored PDF file for browser-based preview or version-specific download.
+    Supports versions: 'draft', 'partially_executed', 'fully_executed'.
     """
     contract_res = await db.execute(
-        text("SELECT id, contract_number, status, signed_pdf_url FROM contracts WHERE id = :id"),
+        text("""
+            SELECT id, contract_number, status, signed_pdf_url, contract_data,
+                   client_initials, signature_name, signature_data, signature_type,
+                   client_signed_at, counter_signed_at, counter_signed_by
+            FROM contracts
+            WHERE id = :id
+        """),
         {"id": contract_id},
     )
     contract = contract_res.mappings().first()
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
 
-    from app.services.contract_pdf_generator import STATIC_UPLOADS_CONTRACTS_DIR
+    from app.services.contract_pdf_generator import (
+        STATIC_UPLOADS_CONTRACTS_DIR,
+        generate_contract_pdf,
+        save_contract_pdf,
+    )
 
-    # If the contract has a signed_pdf_url and the file exists, redirect directly
-    signed_url = contract.get("signed_pdf_url")
-    if signed_url:
-        fname = os.path.basename(signed_url)
-        fpath = os.path.join(STATIC_UPLOADS_CONTRACTS_DIR, fname)
-        if os.path.exists(fpath):
-            return RedirectResponse(url=signed_url, status_code=302)
-
-    # Locate the most recent PDF for this contract in the uploads dir
-    contract_number = (contract["contract_number"] or str(contract_id)).replace("/", "_").replace(" ", "_")
+    contract_number = (contract["contract_number"] or str(contract_id)).replace("/", "_").replace("\\", "_").replace(" ", "_")
     prefix = f"Contract_{contract_number}_"
 
     try:
@@ -671,24 +727,119 @@ async def preview_contract(
     except FileNotFoundError:
         files = []
 
-    if not files:
-        raise HTTPException(
-            status_code=404,
-            detail="PDF not yet generated for this contract. Use /build first.",
+    raw_c_data = contract.get("contract_data")
+    if isinstance(raw_c_data, str):
+        try:
+            base_c_data = json.loads(raw_c_data)
+        except Exception:
+            base_c_data = {}
+    elif isinstance(raw_c_data, dict):
+        base_c_data = dict(raw_c_data)
+    else:
+        base_c_data = {}
+
+    if not base_c_data.get("contract_number"):
+        base_c_data["contract_number"] = contract["contract_number"]
+
+    # 1. SPECIFIC VERSION: DRAFT
+    if version == "draft":
+        draft_files = [f for f in files if "_unsigned_" in f]
+        if draft_files:
+            draft_files.sort(
+                key=lambda f: os.path.getmtime(os.path.join(STATIC_UPLOADS_CONTRACTS_DIR, f)),
+                reverse=True,
+            )
+            return RedirectResponse(url=f"/static/uploads/contracts/{draft_files[0]}", status_code=302)
+
+        c_data = dict(base_c_data)
+        c_data["is_signed"] = False
+        c_data["signed_at"] = ""
+        c_data["client_initials"] = ""
+        c_data["client_signature_name"] = ""
+        c_data["client_signature_data"] = ""
+        c_data["is_counter_signed"] = False
+        c_data["counter_signed_at"] = ""
+        c_data["contractor_signature_name"] = ""
+        c_data["contractor_signature_data"] = ""
+        c_data["status"] = "draft"
+        pdf_bytes = await generate_contract_pdf(c_data)
+        pdf_url = await save_contract_pdf(c_data, contract_id, pdf_bytes=pdf_bytes)
+        return RedirectResponse(url=pdf_url, status_code=302)
+
+    # 2. SPECIFIC VERSION: PARTIALLY EXECUTED (Client signed only)
+    if version == "partially_executed":
+        c_data = dict(base_c_data)
+        c_data["is_signed"] = True
+        if contract.get("client_initials"):
+            c_data["client_initials"] = contract.get("client_initials")
+        if contract.get("signature_name"):
+            c_data["client_signature_name"] = contract.get("signature_name")
+        if contract.get("signature_data"):
+            c_data["client_signature_data"] = contract.get("signature_data")
+        if contract.get("signature_type"):
+            c_data["client_signature_type"] = contract.get("signature_type")
+        if contract.get("client_signed_at"):
+            cs_date = contract.get("client_signed_at")
+            c_data["signed_at"] = cs_date.strftime("%B %d, %Y") if isinstance(cs_date, datetime) else str(cs_date)
+        c_data["is_counter_signed"] = False
+        c_data["counter_signed_at"] = ""
+        c_data["contractor_signature_name"] = ""
+        c_data["contractor_signature_data"] = ""
+        c_data["status"] = "client_signed"
+        pdf_bytes = await generate_contract_pdf(c_data)
+        pdf_url = await save_contract_pdf(c_data, contract_id, pdf_bytes=pdf_bytes)
+        return RedirectResponse(url=pdf_url, status_code=302)
+
+    # 3. SPECIFIC VERSION: FULLY EXECUTED (Both parties signed)
+    if version == "fully_executed":
+        signed_url = contract.get("signed_pdf_url")
+        if signed_url:
+            fname = os.path.basename(signed_url)
+            fpath = os.path.join(STATIC_UPLOADS_CONTRACTS_DIR, fname)
+            if os.path.exists(fpath):
+                return RedirectResponse(url=signed_url, status_code=302)
+
+        c_data = dict(base_c_data)
+        c_data["is_signed"] = True
+        c_data["is_counter_signed"] = True
+        if contract.get("client_initials"):
+            c_data["client_initials"] = contract.get("client_initials")
+        if contract.get("signature_name"):
+            c_data["client_signature_name"] = contract.get("signature_name")
+        if contract.get("signature_data"):
+            c_data["client_signature_data"] = contract.get("signature_data")
+        if contract.get("signature_type"):
+            c_data["client_signature_type"] = contract.get("signature_type")
+        if contract.get("counter_signed_at"):
+            c_date = contract.get("counter_signed_at")
+            c_data["counter_signed_at"] = c_date.strftime("%B %d, %Y") if isinstance(c_date, datetime) else str(c_date)
+        c_data["status"] = "signed"
+        pdf_bytes = await generate_contract_pdf(c_data)
+        pdf_url = await save_contract_pdf(c_data, contract_id, pdf_bytes=pdf_bytes)
+        return RedirectResponse(url=pdf_url, status_code=302)
+
+    # 4. DEFAULT: Latest / current status version
+    signed_url = contract.get("signed_pdf_url")
+    if signed_url:
+        fname = os.path.basename(signed_url)
+        fpath = os.path.join(STATIC_UPLOADS_CONTRACTS_DIR, fname)
+        if os.path.exists(fpath):
+            return RedirectResponse(url=signed_url, status_code=302)
+
+    if files:
+        if contract.get("status") in ("signed", "client_signed"):
+            signed_files = [f for f in files if "_signed_" in f]
+            if signed_files:
+                files = signed_files
+        files.sort(
+            key=lambda f: os.path.getmtime(os.path.join(STATIC_UPLOADS_CONTRACTS_DIR, f)),
+            reverse=True,
         )
+        return RedirectResponse(url=f"/static/uploads/contracts/{files[0]}", status_code=302)
 
-    # If contract is signed or client_signed, prefer signed files
-    if contract.get("status") in ("signed", "client_signed"):
-        signed_files = [f for f in files if "_signed_" in f]
-        if signed_files:
-            files = signed_files
-
-    # Return the most recently modified file (by mtime, NOT alphabetical!)
-    files.sort(
-        key=lambda f: os.path.getmtime(os.path.join(STATIC_UPLOADS_CONTRACTS_DIR, f)),
-        reverse=True,
-    )
-    pdf_url = f"/static/uploads/contracts/{files[0]}"
+    # If no file exists yet on disk, render on the fly from contract data
+    pdf_bytes = await generate_contract_pdf(base_c_data)
+    pdf_url = await save_contract_pdf(base_c_data, contract_id, pdf_bytes=pdf_bytes)
     return RedirectResponse(url=pdf_url, status_code=302)
 
 
@@ -738,9 +889,10 @@ async def get_draft_by_lead(
 ) -> Dict[str, Any]:
     """
     Return the single active unarchived draft contract for a lead, if one exists.
+    Also checks contracts associated with the lead's client_id.
     """
     lead_res = await db.execute(
-        text("SELECT id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :lead_id"),
+        text("SELECT id, client_id, created_by_user_id, assigned_to_user_id FROM leads WHERE id = :lead_id"),
         {"lead_id": lead_id},
     )
     lead_row = lead_res.mappings().first()
@@ -753,17 +905,30 @@ async def get_draft_by_lead(
         ):
             raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this lead's contracts")
 
+    client_id = lead_row.get("client_id") if lead_row else None
+
+    conditions = ["c.lead_id = :lead_id"]
+    params = {"lead_id": lead_id}
+    if client_id:
+        conditions.append("c.client_id = :client_id")
+        params["client_id"] = client_id
+
     res = await db.execute(
-        text("""
-            SELECT id, lead_id, estimate_id, client_id, contract_number,
-                   status, signing_token, contract_data, is_archived,
-                   created_at, updated_at
-            FROM contracts
-            WHERE lead_id = :lead_id AND status = 'draft' AND is_archived = false
-            ORDER BY updated_at DESC
+        text(f"""
+            SELECT c.id, c.lead_id, c.estimate_id, c.client_id, c.contract_number,
+                   c.status, c.signing_token, c.contract_data, c.is_archived,
+                   c.created_at, c.updated_at,
+                   l.full_name AS customer_name, l.phone AS customer_phone, l.email AS customer_email,
+                   l.address AS customer_address, l.city AS customer_city, l.service_type,
+                   l.estimated_value, l.assigned_to, l.pipeline_stage
+            FROM contracts c
+            LEFT JOIN leads l ON c.lead_id = l.id
+            WHERE ({" OR ".join(conditions)})
+              AND c.status = 'draft' AND c.is_archived = false
+            ORDER BY c.updated_at DESC
             LIMIT 1
         """),
-        {"lead_id": lead_id},
+        params,
     )
     row = res.mappings().first()
     if not row:
@@ -772,10 +937,133 @@ async def get_draft_by_lead(
     c_dict = dict(row)
     if not has_permission(current_user, "contracts.edit"):
         c_dict.pop("signing_token", None)
+
+    raw_cd = c_dict.get("contract_data")
+    if isinstance(raw_cd, str):
+        try:
+            c_dict["contract_data"] = json.loads(raw_cd)
+        except Exception:
+            c_dict["contract_data"] = {}
+    elif raw_cd is None:
+        c_dict["contract_data"] = {}
+
     for k, v in c_dict.items():
         if isinstance(v, datetime):
             c_dict[k] = v.isoformat()
     return {"exists": True, "contract": c_dict}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admin/contracts/draft-by-client/{client_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/draft-by-client/{client_id}")
+async def get_draft_by_client(
+    client_id: int,
+    current_user=Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Return the single active unarchived draft contract for a client, if one exists.
+    Checks contracts with matching client_id OR matching lead that belongs to this client.
+    """
+    res = await db.execute(
+        text("""
+            SELECT c.id, c.lead_id, c.estimate_id, c.client_id, c.contract_number,
+                   c.status, c.signing_token, c.contract_data, c.is_archived,
+                   c.created_at, c.updated_at,
+                   l.full_name AS customer_name, l.phone AS customer_phone, l.email AS customer_email,
+                   l.address AS customer_address, l.city AS customer_city, l.service_type,
+                   l.estimated_value, l.assigned_to, l.pipeline_stage
+            FROM contracts c
+            LEFT JOIN leads l ON c.lead_id = l.id
+            WHERE (c.client_id = :client_id OR l.client_id = :client_id)
+              AND c.status = 'draft' AND c.is_archived = false
+            ORDER BY c.updated_at DESC
+            LIMIT 1
+        """),
+        {"client_id": client_id},
+    )
+    row = res.mappings().first()
+    if not row:
+        return {"exists": False, "contract": None}
+
+    c_dict = dict(row)
+    if not has_permission(current_user, "contracts.edit"):
+        c_dict.pop("signing_token", None)
+
+    raw_cd = c_dict.get("contract_data")
+    if isinstance(raw_cd, str):
+        try:
+            c_dict["contract_data"] = json.loads(raw_cd)
+        except Exception:
+            c_dict["contract_data"] = {}
+    elif raw_cd is None:
+        c_dict["contract_data"] = {}
+
+    for k, v in c_dict.items():
+        if isinstance(v, datetime):
+            c_dict[k] = v.isoformat()
+    return {"exists": True, "contract": c_dict}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admin/contracts/{contract_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/{contract_id}")
+async def get_contract_by_id(
+    contract_id: int,
+    current_user=Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Return a single contract record including parsed contract_data.
+    """
+    res = await db.execute(
+        text("""
+            SELECT c.id, c.contract_number,
+                   CASE
+                       WHEN c.counter_signed_at IS NOT NULL THEN 'signed'
+                       WHEN c.client_signed_at IS NOT NULL THEN 'client_signed'
+                       ELSE c.status
+                   END AS status,
+                   c.is_archived, c.client_signed_at, c.counter_signed_at,
+                   c.signed_pdf_url, c.client_initials, c.signature_name,
+                   c.signature_data, c.signature_type,
+                   c.created_at, c.updated_at, c.lead_id, c.client_id, c.estimate_id, c.job_id,
+                   c.signing_token, c.contract_data,
+                   l.full_name AS customer_name, l.phone AS customer_phone, l.email AS customer_email,
+                   l.address AS customer_address, l.city AS customer_city, l.service_type,
+                   l.estimated_value, l.assigned_to, l.pipeline_stage
+            FROM contracts c
+            LEFT JOIN leads l ON (c.lead_id = l.id OR (c.lead_id IS NULL AND c.client_id IS NOT NULL AND c.client_id = l.client_id))
+            WHERE c.id = :id
+        """),
+        {"id": contract_id},
+    )
+    row = res.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
+
+    c_dict = dict(row)
+    if not has_permission(current_user, "contracts.edit"):
+        c_dict.pop("signing_token", None)
+
+    raw_cd = c_dict.get("contract_data")
+    if isinstance(raw_cd, str):
+        try:
+            c_dict["contract_data"] = json.loads(raw_cd)
+        except Exception:
+            c_dict["contract_data"] = {}
+    elif raw_cd is None:
+        c_dict["contract_data"] = {}
+
+    for k, v in c_dict.items():
+        if isinstance(v, datetime):
+            c_dict[k] = v.isoformat()
+
+    return {"contract": c_dict}
 
 
 # ---------------------------------------------------------------------------

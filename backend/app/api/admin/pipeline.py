@@ -314,7 +314,7 @@ async def get_sales_pipeline(
             COALESCE(c.zip, l.zip) as zip,
             l.service_type,
             l.lead_source, l.lead_source_detail, COALESCE(l.lead_score, 0) as lead_score,
-            COALESCE(l.priority, 'cool') as priority, l.status, l.notes,
+            COALESCE(l.priority, 'cool') as priority, l.status, COALESCE(c.notes, l.notes) as notes, c.notes as client_notes,
             COALESCE(l.pipeline_stage, 'stage_1_lead_gen') as pipeline_stage,
             COALESCE(l.stage_entered_at, l.created_at) as stage_entered_at,
             l.initial_contacted_at, l.site_visit_scheduled_at, l.site_visit_completed_at,
@@ -1021,7 +1021,7 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
         UPDATE leads
         SET {', '.join(updates)}
         WHERE id = :id
-        RETURNING id, full_name, pipeline_stage, status, notes, lost_reason, estimated_value, assigned_to_user_id
+        RETURNING id, full_name, pipeline_stage, status, notes, lost_reason, estimated_value, assigned_to_user_id, client_id
     """)
     res = (await db.execute(sql, params)).mappings().first()
     if not res:
@@ -1039,6 +1039,23 @@ async def _process_stage_update(lead_id: int, request: Request, db: AsyncSession
             """), {"lid": int(lead_id)})
         except Exception as e:
             logger.error(f"Linked job completion update note: {e}")
+
+    # If moving to closed_lost, also sync linked client record
+    if new_stage == "closed_lost" and res.get("client_id"):
+        try:
+            await db.execute(text("""
+                UPDATE clients
+                SET client_category = 'lost_lead',
+                    status = 'closed_lost',
+                    lost_reason = COALESCE(:reason, lost_reason),
+                    updated_at = NOW()
+                WHERE id = :cid
+            """), {
+                "reason": str(loss_reason) if loss_reason else "Lost Opportunity",
+                "cid": int(res["client_id"])
+            })
+        except Exception as e:
+            logger.error(f"Linked client closed_lost update note: {e}")
 
     # Insert into activities table (Permanent historical timeline)
     try:
