@@ -60,7 +60,7 @@ const NAV_SECTIONS: NavSection[] = [
       { name: 'Estimates', path: '/estimates', icon: Calculator, permission: 'estimates.view' },
       { name: 'Contracts', path: '/contracts', icon: FileText, permission: 'estimates.view' },
       { name: 'Calendar', path: '/calendar', icon: Calendar, permission: 'calendar.view' },
-      { name: 'Tasks', path: '/tasks', icon: CheckSquare, permission: 'calendar.view' },
+      { name: 'Tasks', path: '/tasks', icon: CheckSquare, permission: 'tasks.view' },
     ],
   },
   {

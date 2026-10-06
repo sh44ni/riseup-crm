@@ -54,6 +54,11 @@ MODULE_CONFIG_MAP = {
         "scoped": True,
         "manage_keys": ["calendar.create_event", "calendar.view_others"]
     },
+    "tasks": {
+        "view_key": "tasks.view",
+        "scoped": True,
+        "manage_keys": ["tasks.create", "tasks.edit", "tasks.delete"]
+    },
     "inspections": {
         "view_key": "inspections.view",
         "scoped": False,

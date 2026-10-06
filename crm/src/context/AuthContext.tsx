@@ -151,7 +151,16 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
 
       // Normalization check (e.g. leads:view vs leads.view)
       const normKey = permission.replace(/:/g, '.');
-      const userScope = perms[normKey] || perms[permission];
+      let userScope = perms[normKey] || perms[permission];
+
+      // Seamless alias fallback: tasks module aligns with calendar permissions if tasks.* not explicitly customized
+      if (!userScope && normKey.startsWith('tasks.')) {
+        if (normKey === 'tasks.view') {
+          userScope = perms['calendar.view'];
+        } else if (normKey === 'tasks.create' || normKey === 'tasks.edit' || normKey === 'tasks.delete') {
+          userScope = perms['calendar.create_event'] || perms['calendar.view'];
+        }
+      }
 
       if (!userScope || userScope === 'none') return false;
       if (!requiredScope) return true;

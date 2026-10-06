@@ -13,6 +13,7 @@ import {
   Award,
   HardHat,
   ShieldCheck,
+  CheckSquare,
 } from 'lucide-react';
 
 export interface ModuleConfig {
@@ -120,6 +121,14 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     description: 'Roof inspection appointments, crew dispatch calendars, and team events',
     icon: Calendar,
     accentColor: 'from-violet-500 to-purple-600 text-violet-600 bg-violet-50 border-violet-200',
+    scoped: true,
+  },
+  {
+    id: 'tasks',
+    label: 'Tasks & Follow-ups',
+    description: 'Personal sticky notes, homeowner follow-ups, and operational tasks',
+    icon: CheckSquare,
+    accentColor: 'from-sky-500 to-indigo-600 text-sky-600 bg-sky-50 border-sky-200',
     scoped: true,
   },
   {

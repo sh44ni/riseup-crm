@@ -9,6 +9,8 @@ PERMISSION_ALIASES: Dict[str, str] = {
     "jobs.manage_permits": "jobs.edit", "jobs.delete": "jobs.edit",
     "clients.view_clients": "clients.view", "users.manage": "users.assign_roles",
     "users.edit": "users.assign_roles", "roles.manage": "roles.edit",
+    "tasks.view": "calendar.view", "tasks.create": "calendar.create_event",
+    "tasks.edit": "calendar.create_event", "tasks.delete": "calendar.create_event",
 }
 
 def normalize_permission_key(key: str) -> str:
@@ -319,6 +321,11 @@ SYSTEM_PERMISSIONS = [
     ("calendar.view", "calendar", "view", "View schedule and calendar"),
     ("calendar.create_event", "calendar", "create_event", "Schedule site visits and meetings"),
     ("calendar.view_others", "calendar", "view_others", "View other team members' calendars"),
+    # Tasks & Follow-ups
+    ("tasks.view", "tasks", "view", "View team and personal tasks"),
+    ("tasks.create", "tasks", "create", "Create tasks and follow-ups"),
+    ("tasks.edit", "tasks", "edit", "Edit and complete tasks"),
+    ("tasks.delete", "tasks", "delete", "Delete tasks"),
     # Inspections
     ("inspections.view", "inspections", "view", "View roof inspections"),
     ("inspections.create", "inspections", "create", "Create and log roof inspections"),
