@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import 'leaflet/dist/leaflet.css';
 import { Icon } from '@/components/shared/Icon';
 import { Section } from '@/components/shared/Container';
 import { SectionHeading } from '@/components/shared/SectionHeading';
@@ -172,25 +173,28 @@ export function ProjectsMap() {
     ? SAN_DIEGO_MAP_PROJECTS
     : SAN_DIEGO_MAP_PROJECTS.filter((p) => p.category === filter);
 
+  const leafletRef = useRef<any>(null);
+
+  // Initialize Map Once
   useEffect(() => {
     let isMounted = true;
 
-    async function initLeaflet() {
+    async function initMap() {
       if (typeof window === 'undefined' || !mapContainerRef.current) return;
-      
-      if (!document.getElementById('leaflet-css')) {
-        const link = document.createElement('link');
-        link.id = 'leaflet-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
-      }
 
-      const L = await import('leaflet');
+      try {
+        const leafletModule = await import('leaflet');
+        const L = (leafletModule as any).default || leafletModule;
+        leafletRef.current = L;
 
-      if (!isMounted || !mapContainerRef.current) return;
+        if (!isMounted || !mapContainerRef.current) return;
 
-      if (!mapInstanceRef.current) {
+        // Clean up any stale container instance if hot-reloaded
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+
         const map = L.map(mapContainerRef.current, {
           center: [33.0800, -117.2000],
           zoom: 10,
@@ -198,74 +202,120 @@ export function ProjectsMap() {
           zoomControl: true,
         });
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-          subdomains: 'abcd',
+        // Esri ArcGIS World Street Map (100% Free, reliable enterprise CDN, no API key required)
+        const mapTiles = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; DeLorme, NAVTEQ',
           maxZoom: 19,
+          crossOrigin: true,
         }).addTo(map);
 
         mapInstanceRef.current = map;
+
+        // Render initial markers
+        renderMarkers(L, map, filter);
+
+        // Ensure tiles render completely after layout settles
+        setTimeout(() => {
+          if (isMounted && mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+          }
+        }, 200);
+
+        setTimeout(() => {
+          if (isMounted && mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+          }
+        }, 600);
+      } catch (err) {
+        console.error('Failed to initialize map:', err);
       }
-
-      renderMarkers(L);
     }
 
-    function renderMarkers(L: any) {
-      if (!mapInstanceRef.current) return;
+    initMap();
 
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
-
-      filteredProjects.forEach((proj) => {
-        const color = CATEGORY_COLORS[proj.category]?.hex || '#2F9FE3';
-
-        const customIcon = L.divIcon({
-          className: 'custom-map-pin',
-          html: `
-            <div style="
-              background-color: ${color};
-              width: 32px;
-              height: 32px;
-              border-radius: 50% 50% 50% 0;
-              transform: rotate(-45deg);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              border: 2.5px solid #FFFFFF;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-              cursor: pointer;
-              transition: transform 0.2s ease;
-            ">
-              <div style="
-                width: 10px;
-                height: 10px;
-                background-color: #FFFFFF;
-                border-radius: 50%;
-                transform: rotate(45deg);
-              "></div>
-            </div>
-          `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
-          popupAnchor: [0, -32],
-        });
-
-        const marker = L.marker([proj.lat, proj.lng], { icon: customIcon }).addTo(mapInstanceRef.current);
-
-        marker.on('click', () => {
-          setSelectedProject(proj);
-        });
-
-        markersRef.current.push(marker);
+    // Resize observer to prevent grey tile container glitches
+    let resizeObserver: ResizeObserver | null = null;
+    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
       });
+      resizeObserver.observe(mapContainerRef.current);
     }
-
-    initLeaflet();
 
     return () => {
       isMounted = false;
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
     };
-  }, [filter]);
+  }, []);
+
+  const renderMarkers = useCallback((L: any, map: any, currentFilter: string) => {
+    if (!map || !L) return;
+
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    const activeList = currentFilter === 'all'
+      ? SAN_DIEGO_MAP_PROJECTS
+      : SAN_DIEGO_MAP_PROJECTS.filter((p) => p.category === currentFilter);
+
+    activeList.forEach((proj) => {
+      const color = CATEGORY_COLORS[proj.category]?.hex || '#2F9FE3';
+
+      const customIcon = L.divIcon({
+        className: 'custom-map-pin',
+        html: `
+          <div style="
+            background-color: ${color};
+            width: 32px;
+            height: 32px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2.5px solid #FFFFFF;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+          ">
+            <div style="
+              width: 10px;
+              height: 10px;
+              background-color: #FFFFFF;
+              border-radius: 50%;
+              transform: rotate(45deg);
+            "></div>
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32],
+      });
+
+      const marker = L.marker([proj.lat, proj.lng], { icon: customIcon }).addTo(map);
+
+      marker.on('click', () => {
+        setSelectedProject(proj);
+      });
+
+      markersRef.current.push(marker);
+    });
+  }, []);
+
+  // Update markers on filter change
+  useEffect(() => {
+    if (mapInstanceRef.current && leafletRef.current) {
+      renderMarkers(leafletRef.current, mapInstanceRef.current, filter);
+    }
+  }, [filter, renderMarkers]);
 
   const handleCityClick = (lat: number, lng: number, cityName: string) => {
     if (mapInstanceRef.current) {
