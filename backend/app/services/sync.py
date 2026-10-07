@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -284,6 +285,249 @@ async def find_or_create_client(db: AsyncSession, data: Optional[Dict[str, Any]]
             if row:
                 return row[0]
         raise
+
+
+async def find_active_lead(
+    db: AsyncSession,
+    client_id: Optional[int] = None,
+    phone: Optional[str] = None,
+    email: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Finds the most relevant active lead for an incoming inquiry.
+    Matches primarily by client_id, with fallback to normalized phone or email.
+    Excludes leads with status 'lost' or 'cancelled'.
+    Prioritizes leads that have already progressed into sales stages over uncontacted leads.
+    """
+    conditions = []
+    params: Dict[str, Any] = {}
+
+    if client_id:
+        conditions.append("client_id = :client_id")
+        params["client_id"] = client_id
+
+    norm_phone = normalize_phone(phone)
+    if norm_phone:
+        raw_p = (phone or "").strip()
+        formatted_p = format_phone(phone)
+        conditions.append("""
+            (phone IS NOT NULL AND (
+                phone = :raw_phone 
+                OR phone = :norm_phone 
+                OR phone = :formatted_phone 
+                OR REGEXP_REPLACE(phone, '\\D', '', 'g') = :norm_phone
+            ))
+        """)
+        params["raw_phone"] = raw_p
+        params["norm_phone"] = norm_phone
+        params["formatted_phone"] = formatted_p
+
+    clean_email = (email or "").strip().lower()
+    if clean_email:
+        conditions.append("(email IS NOT NULL AND LOWER(email) = :email)")
+        params["email"] = clean_email
+
+    if not conditions:
+        return None
+
+    sql = f"""
+        SELECT 
+            id, client_id, full_name, phone, email, address, city, zip,
+            service_type, notes, subject, message, lead_source, source_type,
+            lead_source_detail, pipeline_stage, status, priority, lead_score,
+            estimated_value, roof_sqf, roof_squares, roof_type, discount_applied,
+            created_at, updated_at
+        FROM leads
+        WHERE ({' OR '.join(conditions)})
+          AND (status IS NULL OR status NOT IN ('lost', 'cancelled'))
+        ORDER BY
+            CASE
+                WHEN pipeline_stage IN (
+                    'initial_call', 'estimate_scheduled', 'inspection_scheduled',
+                    'estimate_sent', 'contract_sent', 'stage_2_site_visit',
+                    'stage_3_estimate_drafting', 'stage_4_proposal_review'
+                ) THEN 1
+                WHEN pipeline_stage = 'stage_1_lead_gen' OR status = 'new' THEN 2
+                ELSE 3
+            END ASC,
+            created_at DESC
+        LIMIT 1
+    """
+    res = await db.execute(text(sql), params)
+    row = res.mappings().first()
+    return dict(row) if row else None
+
+
+async def merge_inquiry_into_lead(
+    db: AsyncSession,
+    existing_lead: Dict[str, Any],
+    *,
+    client_id: int,
+    form_type: str,
+    lead_source: Optional[str] = None,
+    lead_source_detail: Optional[str] = None,
+    service_type: Optional[str] = None,
+    subject: Optional[str] = None,
+    message: Optional[str] = None,
+    notes: Optional[str] = None,
+    address: Optional[str] = None,
+    city: Optional[str] = None,
+    zip_code: Optional[str] = None,
+    roof_sqf: Optional[float] = None,
+    roof_squares: Optional[float] = None,
+    roof_type: Optional[str] = None,
+    estimated_value: Optional[float] = None,
+    source_page: Optional[str] = None,
+) -> int:
+    """
+    Merges an incoming form submission or offer claim into an existing active lead:
+      1. Preserves current pipeline stage & assignment (never demotes).
+      2. Backfills missing address, city, or zip.
+      3. Applies promo / voucher discount if claimed on this submission.
+      4. Appends incoming message/notes to lead's notes if new content.
+      5. Populates missing roof specs / estimated deal value.
+      6. Inserts an activity log record into 'activities' (visible in Lead timeline, Client 360, and Dashboard).
+    Returns the lead ID.
+    """
+    lead_id = existing_lead["id"]
+    cid = existing_lead.get("client_id") or client_id
+
+    # Check if incoming request is claiming an offer/voucher
+    notes_str = (notes or "").strip()
+    msg_str = (message or "").strip()
+    is_offer_claim = (
+        form_type == "storm_promo"
+        or lead_source == "storm_promo_popup"
+        or "voucher" in notes_str.lower()
+        or "promo" in notes_str.lower()
+        or "1,000 off" in notes_str.lower()
+        or "$1000 off" in notes_str.lower()
+    )
+
+    discount_val = None
+    if is_offer_claim:
+        discount_val = "$1,000 Off Storm Voucher"
+
+    # Notes reconciliation
+    incoming_text = msg_str or notes_str
+    existing_notes = (existing_lead.get("notes") or "").strip()
+    new_notes = existing_notes
+
+    if incoming_text:
+        cleaned_incoming = " ".join(incoming_text.split())
+        cleaned_existing = " ".join(existing_notes.split())
+        if cleaned_incoming not in cleaned_existing:
+            now_str = datetime.now(timezone.utc).strftime("%b %d, %Y • %I:%M %p UTC")
+            header = f"[Additional Inquiry ({lead_source_detail or form_type}) — {now_str}]"
+            if subject and subject.lower() not in incoming_text.lower():
+                block = f"{header}\nSubject: {subject}\n{incoming_text}"
+            else:
+                block = f"{header}\n{incoming_text}"
+
+            if new_notes:
+                new_notes = f"{new_notes}\n\n{block}"
+            else:
+                new_notes = block
+
+    update_clauses = ["updated_at = NOW()"]
+    params: Dict[str, Any] = {"lid": lead_id}
+
+    if not existing_lead.get("client_id") and cid:
+        update_clauses.append("client_id = :client_id")
+        params["client_id"] = cid
+
+    if (not existing_lead.get("address") or not str(existing_lead["address"]).strip()) and address:
+        update_clauses.append("address = :address")
+        params["address"] = address
+
+    if (not existing_lead.get("city") or not str(existing_lead["city"]).strip()) and city:
+        update_clauses.append("city = :city")
+        params["city"] = city
+
+    if (not existing_lead.get("zip") or not str(existing_lead["zip"]).strip()) and zip_code:
+        update_clauses.append("zip = :zip")
+        params["zip"] = zip_code
+
+    if new_notes != existing_notes:
+        update_clauses.append("notes = :notes")
+        params["notes"] = new_notes
+
+    if (not existing_lead.get("service_type") or not str(existing_lead["service_type"]).strip()) and service_type:
+        update_clauses.append("service_type = :service_type")
+        params["service_type"] = service_type
+
+    if (not existing_lead.get("roof_type") or not str(existing_lead["roof_type"]).strip()) and (roof_type or service_type):
+        update_clauses.append("roof_type = :roof_type")
+        params["roof_type"] = roof_type or service_type
+
+    if (not existing_lead.get("roof_sqf") or existing_lead["roof_sqf"] == 0) and roof_sqf:
+        update_clauses.append("roof_sqf = :roof_sqf")
+        update_clauses.append("roof_squares = :roof_squares")
+        params["roof_sqf"] = int(roof_sqf)
+        params["roof_squares"] = roof_squares or round(roof_sqf / 100.0, 1)
+
+    if (not existing_lead.get("estimated_value") or float(existing_lead["estimated_value"] or 0) == 0) and estimated_value:
+        update_clauses.append("estimated_value = :estimated_value")
+        params["estimated_value"] = estimated_value
+
+    if is_offer_claim and not existing_lead.get("discount_applied"):
+        update_clauses.append("discount_applied = :discount_applied")
+        params["discount_applied"] = discount_val
+
+    if is_offer_claim and "voucher" not in (existing_lead.get("lead_source_detail") or "").lower():
+        current_detail = existing_lead.get("lead_source_detail") or existing_lead.get("lead_source") or "Website"
+        update_clauses.append("lead_source_detail = :lead_source_detail")
+        params["lead_source_detail"] = f"{current_detail} | ⚡ $1,000 Off Storm Voucher"
+
+    if (not existing_lead.get("message") or not str(existing_lead["message"]).strip()) and msg_str:
+        update_clauses.append("message = :message")
+        params["message"] = msg_str
+
+    if (not existing_lead.get("subject") or not str(existing_lead["subject"]).strip()) and subject:
+        update_clauses.append("subject = :subject")
+        params["subject"] = subject
+
+    sql_up = f"UPDATE leads SET {', '.join(update_clauses)} WHERE id = :lid"
+    await db.execute(text(sql_up), params)
+
+    # Activity Timeline entry
+    if form_type == "storm_promo" or lead_source == "storm_promo_popup":
+        act_title = "⚡ Additional Inquiry: $1,000 Off Storm Voucher Claimed"
+    elif form_type in ("estimator_full", "calculator") or lead_source == "website_estimator":
+        act_title = "📊 Additional Inquiry: Instant Estimator Submitted"
+    elif form_type == "contact" or lead_source == "website_contact":
+        act_title = "✉️ Additional Inquiry: Website Contact Form Received"
+    else:
+        act_title = f"Additional Inquiry ({lead_source_detail or form_type or 'Website'})"
+
+    desc_parts = []
+    if subject:
+        desc_parts.append(f"Subject: {subject}")
+    if incoming_text:
+        desc_parts.append(f"Message: {incoming_text}")
+    if roof_sqf:
+        desc_parts.append(f"Roof: {roof_sqf:,.0f} sq ft")
+    if estimated_value:
+        desc_parts.append(f"Est. Value: ${estimated_value:,.0f}")
+
+    act_desc = " | ".join(desc_parts) if desc_parts else f"Homeowner submitted an additional website form ({lead_source_detail or form_type})."
+
+    await db.execute(text("""
+        INSERT INTO activities (
+            entity_type, entity_id, client_id, activity_type,
+            title, description, performed_by, created_at
+        ) VALUES (
+            'lead', :lid, :cid, 'form_submission',
+            :title, :description, 'Website Visitor', NOW()
+        )
+    """), {
+        "lid": lead_id,
+        "cid": cid,
+        "title": act_title,
+        "description": act_desc,
+    })
+
+    return lead_id
 
 
 async def recalculate_client_stats(db: AsyncSession, client_id: int) -> None:

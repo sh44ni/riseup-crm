@@ -5,7 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.middlewares.rate_limit import rate_limit
-from app.services.sync import find_or_create_client, parse_address_components
+from app.services.sync import (
+    find_or_create_client,
+    parse_address_components,
+    find_active_lead,
+    merge_inquiry_into_lead,
+)
 from app.services.scoring import calculate_lead_score
 from app.services.calculator import calculate_lead_estimated_value
 from app.core.audit import get_client_ip
@@ -201,61 +206,87 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
         "notes": notes,
     })
 
-    insert_sql = text("""
-        INSERT INTO leads (
-            form_type, full_name, phone, email, address, city, zip, service_type,
-            notes, source_page, status, priority, lead_score, lead_source, client_id,
-            source_type, lead_source_detail, pipeline_stage, stage_entered_at,
-            roof_sqf, roof_squares, roof_type, estimated_value, created_at
-        ) VALUES (
-            :form_type, :full_name, :phone, :email, :address, :city, :zip, :service_type,
-            :notes, :source_page, 'new', :priority, :score, :lead_source, :client_id,
-            'website', :detail, 'stage_1_lead_gen', NOW(),
-            :roof_sqf, :roof_squares, :roof_type, :estimated_value, NOW()
-        ) RETURNING id
-    """)
+    # Check for existing active lead for this homeowner
+    existing_lead = await find_active_lead(db, client_id=client_id, phone=phone, email=email)
+    is_merged = False
 
-    lead_id = (await db.execute(insert_sql, {
-        "form_type": form_type,
-        "full_name": full_name,
-        "phone": phone,
-        "email": email,
-        "address": address,
-        "city": city,
-        "zip": zip_code,
-        "service_type": service_type,
-        "notes": notes,
-        "source_page": source_page,
-        "priority": priority,
-        "score": score,
-        "lead_source": lead_source,
-        "client_id": client_id,
-        "detail": detail,
-        "roof_sqf": sqft_val,
-        "roof_squares": squares_val,
-        "roof_type": service_type,
-        "estimated_value": estimated_value,
-    })).scalar_one()
-
-    # Log activity
-    if form_type == "storm_promo" or lead_source == "storm_promo_popup":
-        title = "⚡ Storm Season Alert $1,000 Off Claimed"
-    elif form_type in ("estimator_full", "calculator") or lead_source == "website_estimator":
-        title = "📊 Instant Estimator Ballpark Submitted"
-    elif "/service-area/" in source_page:
-        title = f"📍 Priority Local Roof Inspection ({city or 'Local'})"
+    if existing_lead:
+        is_merged = True
+        lead_id = await merge_inquiry_into_lead(
+            db,
+            existing_lead,
+            client_id=client_id,
+            form_type=form_type,
+            lead_source=lead_source,
+            lead_source_detail=detail,
+            service_type=service_type,
+            notes=notes,
+            address=address,
+            city=city,
+            zip_code=zip_code,
+            roof_sqf=sqft_val,
+            roof_squares=squares_val,
+            roof_type=service_type,
+            estimated_value=estimated_value,
+            source_page=source_page,
+        )
+        await db.commit()
     else:
-        title = "New Estimate Request"
-    await db.execute(text("""
-        INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, created_at)
-        VALUES ('lead', :lid, :cid, 'form_submission', :title, :desc, 'Website Visitor', NOW())
-    """), {
-        "lid": lead_id,
-        "cid": client_id,
-        "title": title,
-        "desc": notes or f"Inquiry submitted through website portal ({detail}) - ${estimated_value:,.0f} estimated value",
-    })
-    await db.commit()
+        insert_sql = text("""
+            INSERT INTO leads (
+                form_type, full_name, phone, email, address, city, zip, service_type,
+                notes, source_page, status, priority, lead_score, lead_source, client_id,
+                source_type, lead_source_detail, pipeline_stage, stage_entered_at,
+                roof_sqf, roof_squares, roof_type, estimated_value, created_at
+            ) VALUES (
+                :form_type, :full_name, :phone, :email, :address, :city, :zip, :service_type,
+                :notes, :source_page, 'new', :priority, :score, :lead_source, :client_id,
+                'website', :detail, 'stage_1_lead_gen', NOW(),
+                :roof_sqf, :roof_squares, :roof_type, :estimated_value, NOW()
+            ) RETURNING id
+        """)
+
+        lead_id = (await db.execute(insert_sql, {
+            "form_type": form_type,
+            "full_name": full_name,
+            "phone": phone,
+            "email": email,
+            "address": address,
+            "city": city,
+            "zip": zip_code,
+            "service_type": service_type,
+            "notes": notes,
+            "source_page": source_page,
+            "priority": priority,
+            "score": score,
+            "lead_source": lead_source,
+            "client_id": client_id,
+            "detail": detail,
+            "roof_sqf": sqft_val,
+            "roof_squares": squares_val,
+            "roof_type": service_type,
+            "estimated_value": estimated_value,
+        })).scalar_one()
+
+        # Log activity
+        if form_type == "storm_promo" or lead_source == "storm_promo_popup":
+            title = "⚡ Storm Season Alert $1,000 Off Claimed"
+        elif form_type in ("estimator_full", "calculator") or lead_source == "website_estimator":
+            title = "📊 Instant Estimator Ballpark Submitted"
+        elif "/service-area/" in source_page:
+            title = f"📍 Priority Local Roof Inspection ({city or 'Local'})"
+        else:
+            title = "New Estimate Request"
+        await db.execute(text("""
+            INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, created_at)
+            VALUES ('lead', :lid, :cid, 'form_submission', :title, :desc, 'Website Visitor', NOW())
+        """), {
+            "lid": lead_id,
+            "cid": client_id,
+            "title": title,
+            "desc": notes or f"Inquiry submitted through website portal ({detail}) - ${estimated_value:,.0f} estimated value",
+        })
+        await db.commit()
 
     # ── Instant Automated Emails Dispatch (Customer Confirmation + Team Alert) ──
     try:
@@ -279,6 +310,7 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
             )
 
         # 2. Internal Team High-Priority Alert
+        source_note = f"Additional Inquiry (Merged into Lead #{lead_id}) - {detail}" if is_merged else detail
         await send_internal_lead_alert_email(
             lead_id=lead_id,
             customer_name=full_name,
@@ -288,8 +320,8 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
             city=city,
             service_type=service_type or "Free Estimate Request",
             estimated_value=estimated_value,
-            notes=notes,
-            source_detail=detail,
+            notes=f"[MERGED ADDITIONAL INQUIRY]\n{notes}" if is_merged else notes,
+            source_detail=source_note,
             priority=priority,
         )
     except Exception as e:
@@ -300,4 +332,5 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
         "leadId": lead_id,
         "estimatedValue": estimated_value,
         "roofSqf": sqft_val,
+        "merged": is_merged,
     }

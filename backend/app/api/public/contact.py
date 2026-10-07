@@ -4,7 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.core.database import get_db
 from app.middlewares.rate_limit import rate_limit
-from app.services.sync import find_or_create_client, parse_address_components
+from app.services.sync import (
+    find_or_create_client,
+    parse_address_components,
+    find_active_lead,
+    merge_inquiry_into_lead,
+)
 from app.core.audit import get_client_ip
 from app.services.turnstile import verify_turnstile_token
 from app.utils.phone import validate_and_clean_us_phone, format_us_phone
@@ -159,45 +164,69 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
         "notes": f"Subject: {subject}" if subject else None,
     })
 
-    # Insert lead record
-    insert_sql = text("""
-        INSERT INTO leads (
-            form_type, full_name, phone, email, address, city, zip, service_type,
-            subject, message, source_page, status, client_id, source_type,
-            lead_source, lead_source_detail, created_at
-        ) VALUES (
-            'contact', :full_name, :phone, :email, :address, :city, :zip, :service_type,
-            :subject, :message, :source_page, 'new', :client_id, 'website',
-            :lead_source, :lead_source_detail, NOW()
-        ) RETURNING id
-    """)
+    # Check for existing active lead for this homeowner
+    existing_lead = await find_active_lead(db, client_id=client_id, phone=phone, email=email)
+    is_merged = False
 
-    lead_id = (await db.execute(insert_sql, {
-        "full_name": full_name,
-        "phone": phone,
-        "email": email,
-        "address": address,
-        "city": city,
-        "zip": zip_code,
-        "service_type": service_type,
-        "subject": subject,
-        "message": message,
-        "source_page": source_page,
-        "client_id": client_id,
-        "lead_source": lead_source,
-        "lead_source_detail": lead_source_detail,
-    })).scalar_one()
+    if existing_lead:
+        is_merged = True
+        lead_id = await merge_inquiry_into_lead(
+            db,
+            existing_lead,
+            client_id=client_id,
+            form_type="contact",
+            lead_source=lead_source,
+            lead_source_detail=lead_source_detail,
+            service_type=service_type,
+            subject=subject,
+            message=message,
+            notes=message,
+            address=address,
+            city=city,
+            zip_code=zip_code,
+            source_page=source_page,
+        )
+        await db.commit()
+    else:
+        # Insert lead record
+        insert_sql = text("""
+            INSERT INTO leads (
+                form_type, full_name, phone, email, address, city, zip, service_type,
+                subject, message, source_page, status, client_id, source_type,
+                lead_source, lead_source_detail, created_at
+            ) VALUES (
+                'contact', :full_name, :phone, :email, :address, :city, :zip, :service_type,
+                :subject, :message, :source_page, 'new', :client_id, 'website',
+                :lead_source, :lead_source_detail, NOW()
+            ) RETURNING id
+        """)
 
-    # Log activity timeline entry
-    await db.execute(text("""
-        INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, created_at)
-        VALUES ('lead', :lid, :cid, 'system', 'Website Contact Form Received', :desc, 'Website Visitor', NOW())
-    """), {
-        "lid": lead_id,
-        "cid": client_id,
-        "desc": f"Subject: {subject or 'General Inquiry'}. Message: {message}",
-    })
-    await db.commit()
+        lead_id = (await db.execute(insert_sql, {
+            "full_name": full_name,
+            "phone": phone,
+            "email": email,
+            "address": address,
+            "city": city,
+            "zip": zip_code,
+            "service_type": service_type,
+            "subject": subject,
+            "message": message,
+            "source_page": source_page,
+            "client_id": client_id,
+            "lead_source": lead_source,
+            "lead_source_detail": lead_source_detail,
+        })).scalar_one()
+
+        # Log activity timeline entry
+        await db.execute(text("""
+            INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, created_at)
+            VALUES ('lead', :lid, :cid, 'form_submission', 'Website Contact Form Received', :desc, 'Website Visitor', NOW())
+        """), {
+            "lid": lead_id,
+            "cid": client_id,
+            "desc": f"Subject: {subject or 'General Inquiry'}. Message: {message}",
+        })
+        await db.commit()
 
     # ── Instant Automated Emails Dispatch (Customer Confirmation + Team Alert) ──
     try:
@@ -218,17 +247,18 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
             )
 
         # 2. Internal Team High-Priority Alert
+        source_note = f"Additional Contact Inquiry (Merged into Lead #{lead_id})" if is_merged else "Website Contact Form"
         await send_internal_lead_alert_email(
             lead_id=lead_id,
             customer_name=full_name,
             phone=phone,
             email=email,
             service_type=subject or "Website Contact Query",
-            notes=message,
-            source_detail="Website Contact Form",
+            notes=f"[MERGED ADDITIONAL INQUIRY]\n{message}" if is_merged else message,
+            source_detail=source_note,
             priority="high",
         )
     except Exception as e:
         logger.warning(f"Automated inquiry email dispatch notice: {e}")
 
-    return {"ok": True, "leadId": lead_id}
+    return {"ok": True, "leadId": lead_id, "merged": is_merged}
