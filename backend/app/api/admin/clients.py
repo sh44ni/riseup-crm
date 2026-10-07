@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.middlewares.auth import get_current_user
 from app.core.permissions import require_permission, build_scope_filter, check_resource_access, AuthUser
 from app.services.sync import find_or_create_client, normalize_phone, recalculate_client_stats, auto_heal_dataflow_sync, parse_address_components
+from app.utils.formatting import format_person_name
 from app.schemas.clients import CreateClientRequest, CreateExistingClientRequest, ClientResponse
 
 class CreateClientPayload(BaseModel):
@@ -420,7 +421,8 @@ async def create_client(
     db: AsyncSession = Depends(get_db)
 ):
     payload_dict = payload.model_dump(exclude_unset=True)
-    full_name = (payload_dict.get("fullName") or payload_dict.get("full_name") or payload_dict.get("name") or "").strip()
+    raw_name = payload_dict.get("fullName") or payload_dict.get("full_name") or payload_dict.get("name") or ""
+    full_name = format_person_name(raw_name)
     phone = payload_dict.get("phone")
     email = payload_dict.get("email")
 
@@ -526,7 +528,8 @@ async def create_existing_client(
       3. 'jobs' row (if in production or completed lifetime warranty)
       4. 'activities' entry documenting who added the homeowner and the initial stage
     """
-    if not payload.full_name or len(payload.full_name.strip()) < 2:
+    full_name = format_person_name(payload.full_name)
+    if not full_name or len(full_name) < 2:
         raise HTTPException(status_code=400, detail="Homeowner full name is required (at least 2 characters)")
     if not payload.phone and not payload.email:
         raise HTTPException(status_code=400, detail="At least one contact method (phone or email) are required")
@@ -1041,7 +1044,9 @@ async def update_client(
                 val = None
             elif isinstance(val, str):
                 val = val.strip()
-                if key == "email":
+                if key == "full_name":
+                    val = format_person_name(val)
+                elif key == "email":
                     val = val.lower()
                     if val:
                         existing_email_match = (await db.execute(

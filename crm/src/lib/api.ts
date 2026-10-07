@@ -24,6 +24,25 @@ export const API_ORIGIN = getBackendBaseUrl();
 // Only fall back to the full absolute URL for non-proxied hosts (e.g. Vercel previews).
 import { isPublicEndpoint, isOnPublicPage } from '@/shared/api/publicRoutes';
 import { getCsrfToken, setCsrfToken } from '@/shared/api/client';
+import { formatPersonName, formatStreetAddress, formatCityName, formatZipCode } from '@/utils/formatters';
+
+export function normalizePersonAndAddressPayload<T extends Record<string, any>>(payload: T): T {
+  if (!payload || typeof payload !== 'object') return payload;
+  const p = { ...payload } as any;
+  if (p.full_name) p.full_name = formatPersonName(p.full_name);
+  if (p.fullName) p.fullName = formatPersonName(p.fullName);
+  if (p.name) p.name = formatPersonName(p.name);
+  if (p.customer_name) p.customer_name = formatPersonName(p.customer_name);
+  if (p.customerName) p.customerName = formatPersonName(p.customerName);
+  if (p.address) p.address = formatStreetAddress(p.address);
+  if (p.customer_address) p.customer_address = formatStreetAddress(p.customer_address);
+  if (p.city) p.city = formatCityName(p.city);
+  if (p.customer_city) p.customer_city = formatCityName(p.customer_city);
+  if (p.zip) p.zip = formatZipCode(p.zip);
+  if (p.zipCode) p.zipCode = formatZipCode(p.zipCode);
+  if (p.customer_zip) p.customer_zip = formatZipCode(p.customer_zip);
+  return p as T;
+}
 
 const PROXIED_HOSTS = ['localhost', '127.0.0.1', 'crm.riseuprac.com', 'staging.riseuprac.com'];
 export const API_BASE = (() => {
@@ -278,16 +297,18 @@ class ApiClient {
   }
 
   async createLead(payload: any) {
+    const normalized = normalizePersonAndAddressPayload(payload);
     return this.request('/admin/leads', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalized),
     });
   }
 
   async updateLead(id: number | string, payload: any) {
+    const normalized = normalizePersonAndAddressPayload(payload);
     return this.request(`/admin/leads/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalized),
     });
   }
 
@@ -345,16 +366,18 @@ class ApiClient {
   }
 
   async createClient(payload: any) {
+    const normalized = normalizePersonAndAddressPayload(payload);
     return this.request('/admin/clients', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalized),
     });
   }
 
   async updateClient(id: number | string, payload: any) {
+    const normalized = normalizePersonAndAddressPayload(payload);
     return this.request(`/admin/clients/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalized),
     });
   }
 
@@ -416,9 +439,10 @@ class ApiClient {
   }
 
   async createEstimate(payload: any) {
+    const normalized = normalizePersonAndAddressPayload(payload);
     return this.request('/admin/estimates', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(normalized),
     });
   }
 

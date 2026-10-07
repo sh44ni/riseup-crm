@@ -7,6 +7,8 @@ from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 from concurrent.futures import ThreadPoolExecutor
 from playwright.sync_api import sync_playwright
+import re
+from app.utils.formatting import format_person_name, format_street_address, format_city_name
 
 logger = get_logger(__name__)
 
@@ -240,9 +242,24 @@ def _clean_address_string(addr: str) -> str:
     if not addr:
         return ""
     parts = [p.strip() for p in str(addr).split(",") if p.strip()]
+    if not parts:
+        return ""
+    street_part = format_street_address(parts[0])
+    formatted_parts = [street_part or parts[0]]
+    for p in parts[1:]:
+        lower = p.lower()
+        if lower in ("ca", "california"):
+            formatted_parts.append("CA")
+        elif re.match(r"^(?:ca|california)\s+(\d{5}(?:-\d{4})?)$", lower):
+            m = re.match(r"^(?:ca|california)\s+(\d{5}(?:-\d{4})?)$", lower)
+            formatted_parts.append(f"CA {m.group(1)}")
+        elif re.match(r"^\d{5}(?:-\d{4})?$", p):
+            formatted_parts.append(p)
+        else:
+            formatted_parts.append(format_city_name(p) or p)
     seen = set()
     deduped = []
-    for part in parts:
+    for part in formatted_parts:
         lower = part.lower()
         if lower in seen:
             continue
@@ -262,6 +279,8 @@ def _render_contract_html(contract_data: Dict[str, Any]) -> str:
         merged["project_address"] = _clean_address_string(merged["project_address"])
     if not merged.get("client_name") or not str(merged["client_name"]).strip():
         merged["client_name"] = "[Client Name Pending]"
+    else:
+        merged["client_name"] = format_person_name(merged["client_name"])
 
     # Determine execution status:
     # 1. Client signature

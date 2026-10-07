@@ -11,6 +11,7 @@ from app.services.calculator import calculate_lead_estimated_value
 from app.core.audit import get_client_ip
 from app.services.turnstile import verify_turnstile_token
 from app.utils.phone import validate_and_clean_us_phone, format_us_phone
+from app.utils.formatting import format_person_name
 from app.utils.spam import check_honeypots, check_speed_trap, check_spam_content, SpamAttemptRecord
 from app.utils.spam_logger import log_spam_attempt
 from app.core.config import settings
@@ -85,7 +86,7 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
             ))
             return {"ok": True}
 
-    full_name = (body.get("fullName") or body.get("name") or "").strip()
+    full_name = format_person_name(body.get("fullName") or body.get("name") or "")
     phone_raw = (body.get("phone") or "").strip()
     if not full_name or not phone_raw:
         raise HTTPException(status_code=400, detail="Name and phone are required")

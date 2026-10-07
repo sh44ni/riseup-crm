@@ -15,6 +15,7 @@ from app.core.errors import NotFound, Forbidden
 from app.domain.leads.service import LeadService
 from app.domain.leads.schemas import LeadActivityCreatePayload
 from app.services.sync import find_or_create_client, parse_address_components, normalize_phone
+from app.utils.formatting import format_person_name
 from app.services.scoring import calculate_lead_score
 from app.schemas.leads import LeadCreate, LeadUpdate, LeadResponse
 logger = get_logger(__name__)
@@ -233,12 +234,13 @@ async def list_leads(
 @router.post("", dependencies=[Depends(require_permission("leads:create"))])
 async def create_lead(payload: LeadCreate, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
     body = payload.model_dump(exclude_unset=True)
-    full_name = payload.full_name
+    full_name = format_person_name(payload.full_name)
     phone = payload.phone
     email = payload.email
-    address = payload.address
-    city = payload.city or "San Diego"
-    zip_code = payload.zip
+    parsed_addr = parse_address_components(payload.address, payload.city, payload.zip)
+    address = parsed_addr["address"]
+    city = parsed_addr["city"] or "San Diego"
+    zip_code = parsed_addr["zip"]
     service_type = payload.service_type or "Residential Roofing"
     notes = payload.notes
     creator_name = getattr(user, "name", None) or (user.email.split("@")[0] if getattr(user, "email", None) else "Owner")
@@ -531,6 +533,10 @@ async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: A
             body["city"] = parsed_addr["city"]
         if "zip" in body:
             body["zip"] = parsed_addr["zip"]
+
+    # Normalize full_name
+    if "full_name" in body and body["full_name"]:
+        body["full_name"] = format_person_name(body["full_name"])
 
     # Normalize email
     if "email" in body:

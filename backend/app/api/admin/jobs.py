@@ -20,7 +20,13 @@ class CreateJobActivityPayload(BaseModel):
     authorName: Optional[str] = None
     authorRole: Optional[str] = None
 from app.core.permissions import require_permission, require_any_permission, build_scope_filter
-from app.services.sync import find_or_create_client, recalculate_client_stats
+from app.services.sync import find_or_create_client, recalculate_client_stats, parse_address_components
+from app.utils.formatting import (
+    format_person_name,
+    format_street_address,
+    format_city_name,
+    format_zip_code,
+)
 from app.schemas.jobs import JobCreate, JobUpdate, JobResponse
 from app.shared.numbering import next_document_number
 from app.core.uow import UnitOfWork
@@ -213,6 +219,13 @@ async def create_job(
                 if not contract_value and est_row.total:
                     contract_value = float(est_row.total)
 
+    if customer_name:
+        customer_name = format_person_name(customer_name)
+    parsed_addr = parse_address_components(address, city, zip_code)
+    address = parsed_addr["address"]
+    city = parsed_addr["city"]
+    zip_code = parsed_addr["zip"]
+
     if not customer_name:
         raise HTTPException(status_code=400, detail="Customer name is required to create a job")
 
@@ -367,6 +380,14 @@ async def update_job(
         camel_f = re.sub(r'_([a-z])', lambda m: m.group(1).upper(), f)
         val = payload_dict.get(f) if f in payload_dict else payload_dict.get(camel_f)
         if val is not None or f in payload_dict or camel_f in payload_dict:
+            if f == "customer_name" and val:
+                val = format_person_name(val)
+            elif f == "address" and val:
+                val = format_street_address(val)
+            elif f == "city" and val:
+                val = format_city_name(val)
+            elif f == "zip" and val:
+                val = format_zip_code(val)
             params[f] = val
             updates.append(f"{f} = :{f}")
 

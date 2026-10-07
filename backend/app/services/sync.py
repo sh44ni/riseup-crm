@@ -3,6 +3,12 @@ from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from app.utils.formatting import (
+    format_person_name,
+    format_street_address,
+    format_city_name,
+    format_zip_code,
+)
 
 def normalize_phone(phone: Optional[str]) -> Optional[str]:
     if not phone:
@@ -38,6 +44,7 @@ def parse_address_components(
     - Extracts ZIP if embedded in the address string.
     - Strips state (e.g. ', CA' or 'CA').
     - If only city/area was entered into address (e.g. 'Carlsbad' or 'Oceanside'), moves it to city.
+    - Applies standard USPS street abbreviations, unit numbers, directionals, and title-casing.
     - Normalizes empty/whitespace strings to None.
     """
     addr = (raw_address or "").strip()
@@ -81,10 +88,10 @@ def parse_address_components(
     if addr and city and addr.lower().endswith(city.lower()):
         addr = addr[:-len(city)].rstrip(",").strip()
 
-    # Final normalization: empty strings become None
-    final_addr = addr.strip() if addr and addr.strip() else None
-    final_city = city.strip() if city and city.strip() else None
-    final_zip = zip_code.strip() if zip_code and zip_code.strip() else None
+    # Final normalization & standardization:
+    final_addr = format_street_address(addr) if addr and addr.strip() else None
+    final_city = format_city_name(city) if city and city.strip() else None
+    final_zip = format_zip_code(zip_code) if zip_code and zip_code.strip() else None
 
     return {
         "address": final_addr,
@@ -101,7 +108,8 @@ async def find_or_create_client(db: AsyncSession, data: Optional[Dict[str, Any]]
     input_data.update(kwargs)
     data = input_data
 
-    full_name = (data.get("fullName") or data.get("full_name") or "").strip()
+    raw_name = data.get("fullName") or data.get("full_name") or ""
+    full_name = format_person_name(raw_name)
     raw_phone = data.get("phone")
     norm_phone = normalize_phone(raw_phone)
     email = (data.get("email") or "").strip().lower() or None

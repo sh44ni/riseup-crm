@@ -13,7 +13,13 @@ from pydantic import BaseModel, Field
 from app.core.database import get_db
 from app.core.permissions import require_permission, require_any_permission, has_permission, build_scope_filter, check_resource_access
 from app.services.calculator import calculate_roof_estimate
-from app.services.sync import find_or_create_client, recalculate_client_stats
+from app.services.sync import find_or_create_client, recalculate_client_stats, parse_address_components
+from app.utils.formatting import (
+    format_person_name,
+    format_street_address,
+    format_city_name,
+    format_zip_code,
+)
 from app.services.pdf_generator import generate_estimate_proposal_pdf, save_estimate_pdf_file
 from app.services.email_service import send_estimate_proposal_email
 from app.services.reminders import schedule_follow_up_reminder
@@ -154,7 +160,7 @@ async def create_estimate(
     user: Dict[str, Any] = Depends(require_permission("estimates:create")),
     db: AsyncSession = Depends(get_db)
 ):
-    customer_name = payload.customer_name
+    customer_name = format_person_name(payload.customer_name)
     if not customer_name:
         raise HTTPException(status_code=400, detail="Customer name is required")
 
@@ -177,9 +183,10 @@ async def create_estimate(
 
     customer_phone = payload.customer_phone
     customer_email = payload.customer_email
-    customer_address = payload.customer_address
-    customer_city = payload.customer_city
-    customer_zip = payload.customer_zip
+    parsed_addr = parse_address_components(payload.customer_address, payload.customer_city, payload.customer_zip)
+    customer_address = parsed_addr["address"]
+    customer_city = parsed_addr["city"]
+    customer_zip = parsed_addr["zip"]
 
     calc = calculate_roof_estimate(
         roof_squares=roof_squares,
@@ -455,7 +462,15 @@ async def update_estimate(
     for f in allowed:
         if f in payload_dict:
             val = payload_dict[f]
-            if f in ("addons", "proposal_data") and isinstance(val, (list, dict)):
+            if f == "customer_name" and val:
+                val = format_person_name(val)
+            elif f == "customer_address" and val:
+                val = format_street_address(val)
+            elif f == "customer_city" and val:
+                val = format_city_name(val)
+            elif f == "customer_zip" and val:
+                val = format_zip_code(val)
+            elif f in ("addons", "proposal_data") and isinstance(val, (list, dict)):
                 val = orjson.dumps(val).decode("utf-8")
             params[f] = val
             if f in ("addons", "proposal_data"):
@@ -1451,10 +1466,13 @@ async def create_two_options_estimate(
 
     # Extract client info from proposal data or use defaults
     client = proposal_data.get("client", {})
-    customer_name = client.get("name") or "Draft"
+    raw_name = client.get("name")
+    customer_name = format_person_name(raw_name) if raw_name else "Draft"
     customer_phone = client.get("phone") or ""
     customer_email = client.get("email") or ""
-    customer_address = client.get("property") or ""
+    raw_addr = client.get("property") or client.get("address")
+    parsed_addr = parse_address_components(raw_addr)
+    customer_address = parsed_addr["address"] or raw_addr or ""
     lead_id = client.get("leadId")
     parsed_lead_id = int(lead_id) if lead_id and str(lead_id).isdigit() else None
 
@@ -1582,10 +1600,13 @@ async def autosave_two_options_estimate(
     pricing = payload.get("pricing", {}) if isinstance(payload, dict) else {}
     lead_id = client.get("leadId")
     parsed_lead_id = int(lead_id) if lead_id and str(lead_id).isdigit() else None
-    customer_name = client.get("name")
+    raw_name = client.get("name")
+    customer_name = format_person_name(raw_name) if raw_name else None
     customer_phone = client.get("phone")
     customer_email = client.get("email")
-    customer_address = client.get("property")
+    raw_addr = client.get("property") or client.get("address")
+    parsed_addr = parse_address_components(raw_addr) if raw_addr else None
+    customer_address = (parsed_addr["address"] if parsed_addr else None) or raw_addr
 
     total_val = None
     if pricing.get("total") is not None:

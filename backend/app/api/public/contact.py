@@ -8,6 +8,7 @@ from app.services.sync import find_or_create_client, parse_address_components
 from app.core.audit import get_client_ip
 from app.services.turnstile import verify_turnstile_token
 from app.utils.phone import validate_and_clean_us_phone, format_us_phone
+from app.utils.formatting import format_person_name
 from app.utils.spam import check_honeypots, check_speed_trap, check_spam_content, SpamAttemptRecord
 from app.utils.spam_logger import log_spam_attempt
 from app.core.config import settings
@@ -82,7 +83,7 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
             ))
             return {"ok": True}
 
-    full_name = body.get("fullName", "").strip()
+    full_name = format_person_name(body.get("fullName", ""))
     if not full_name:
         raise HTTPException(status_code=400, detail="Name is required")
 

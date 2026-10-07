@@ -24,9 +24,24 @@ from app.core.database import get_db
 from app.core.audit import record_audit_log
 from app.core.permissions import has_permission, check_resource_access
 from app.middlewares.auth import require_auth, require_permission
-from app.services.contract_pdf_generator import generate_contract_pdf, save_contract_pdf
+from app.services.contract_pdf_generator import generate_contract_pdf, save_contract_pdf, _clean_address_string
 from app.services.email_service import send_contract_email
+from app.utils.formatting import format_person_name
 logger = get_logger(__name__)
+
+def format_contract_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    if not data or not isinstance(data, dict):
+        return {}
+    formatted = dict(data)
+    if formatted.get("client_name"):
+        formatted["client_name"] = format_person_name(formatted["client_name"])
+    if formatted.get("clientName"):
+        formatted["clientName"] = format_person_name(formatted["clientName"])
+    if formatted.get("project_address"):
+        formatted["project_address"] = _clean_address_string(formatted["project_address"])
+    if formatted.get("projectAddress"):
+        formatted["projectAddress"] = _clean_address_string(formatted["projectAddress"])
+    return formatted
 
 router = APIRouter(prefix="/contracts", tags=["Admin Contracts"], dependencies=[Depends(require_permission("contracts.view"))])
 
@@ -263,7 +278,7 @@ async def build_contract(
         contract_number = existing_contract["contract_number"] or f"RU-{datetime.now(timezone.utc).year}-{contract_id:05d}"
         signing_token = existing_contract.get("signing_token") or secrets.token_urlsafe(24)
         
-        contract_data = dict(payload.contract_data)
+        contract_data = format_contract_data(dict(payload.contract_data))
         contract_data["contract_number"] = contract_number
         contract_data["is_signed"] = bool(existing_contract.get("status") == "signed")
         contract_data["client_initials"] = existing_contract.get("client_initials") or ""
@@ -305,7 +320,7 @@ async def build_contract(
 
         # 5. Prepare contract data for empty unsigned template
         signing_token = secrets.token_urlsafe(24)
-        contract_data = dict(payload.contract_data)
+        contract_data = format_contract_data(dict(payload.contract_data))
         contract_data["contract_number"] = contract_number
         contract_data["is_signed"] = False
         contract_data["client_initials"] = ""
@@ -1101,7 +1116,7 @@ async def autosave_contract_draft(
             detail="Contract has already been sent and can no longer be edited."
         )
 
-    saved_data = dict(payload.contract_data)
+    saved_data = format_contract_data(dict(payload.contract_data))
     if contract.get("client_initials") and not saved_data.get("client_initials"):
         saved_data["client_initials"] = contract.get("client_initials")
     if contract.get("signature_name") and not saved_data.get("client_signature_name"):

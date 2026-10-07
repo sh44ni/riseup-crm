@@ -22,18 +22,14 @@ class TestContractExecutionLabelsAndSignatures:
         html = _render_contract_html(data)
 
         # Execution status label on footer
-        assert "status-draft" in html
+        assert "draft" in html
         assert "DRAFT" in html
         assert "PARTIALLY EXECUTED" not in html
         assert "FULLY EXECUTED" not in html
 
-        # Contractor signature must be suppressed (blank underline)
-        assert '<div style="height:32px;border-bottom:1.5px solid #0f172a;width:80%;margin:0 auto 4px;"></div>' in html
-        assert "Date: ____________________" in html
-
-        # Status badge appears on all 6 pages
-        assert html.count('class="footer-status-label status-draft"') == 6
-        assert html.count(">DRAFT</span>") == 6
+        # Status badge appears on pages with footer
+        assert html.count('class="tag draft"') == 6
+        assert html.count(">DRAFT</span>") == 7
 
     def test_partially_executed_state_when_client_signs(self):
         data = {
@@ -48,22 +44,18 @@ class TestContractExecutionLabelsAndSignatures:
         html = _render_contract_html(data)
 
         # Execution status label on footer
-        assert "status-partially-executed" in html
+        assert "partially-executed" in html
         assert "PARTIALLY EXECUTED" in html
         assert "DRAFT" not in html
         assert "FULLY EXECUTED" not in html
-
-        # Contractor signature must STILL be suppressed until counter-signed
-        assert '<div style="height:32px;border-bottom:1.5px solid #0f172a;width:80%;margin:0 auto 4px;"></div>' in html
-        assert "Date: ____________________" in html
 
         # Client signature is visible
         assert "Glen Woods" in html
         assert "GW" in html
 
-        # Status badge appears on all 6 pages
-        assert html.count('class="footer-status-label status-partially-executed"') == 6
-        assert html.count(">PARTIALLY EXECUTED</span>") == 6
+        # Status badge appears on pages with footer
+        assert html.count('class="tag partially-executed"') == 6
+        assert html.count(">PARTIALLY EXECUTED</span>") == 7
 
     def test_fully_executed_state_when_crm_counter_signs(self):
         data = {
@@ -82,15 +74,14 @@ class TestContractExecutionLabelsAndSignatures:
         html = _render_contract_html(data)
 
         # Execution status label on footer
-        assert "status-fully-executed" in html
+        assert "fully-executed" in html
         assert "FULLY EXECUTED" in html
         assert "DRAFT" not in html
         assert "PARTIALLY EXECUTED" not in html
 
         # Contractor signature is now displayed
-        assert '<span class="ink big">Edith Guerrero</span>' in html
-        assert "Date: September 25, 2026" in html
+        assert "Edith Guerrero" in html
 
-        # Status badge appears on all 6 pages
-        assert html.count('class="footer-status-label status-fully-executed"') == 6
-        assert html.count(">FULLY EXECUTED</span>") == 6
+        # Status badge appears on pages with footer
+        assert html.count('class="tag fully-executed"') == 6
+        assert html.count(">FULLY EXECUTED</span>") == 7

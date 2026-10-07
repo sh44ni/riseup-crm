@@ -12,6 +12,7 @@ from app.domain.leads.schemas import (
 )
 from app.services.scoring import calculate_lead_score
 from app.services.sync import find_or_create_client, normalize_phone, parse_address_components
+from app.utils.formatting import format_person_name
 from app.shared.activity import log_activity
 
 
@@ -32,7 +33,7 @@ class LeadService:
     async def create_lead(self, principal: Principal, payload: LeadCreatePayload) -> dict[str, Any]:
         data = payload.model_dump(exclude_unset=True)
 
-        full_name = data.get("full_name", "").strip()
+        full_name = format_person_name(data.get("full_name", ""))
         if not full_name:
             raise ValidationFailed("Full name is required to create a lead.")
 
@@ -150,6 +151,9 @@ class LeadService:
                 changes["city"] = addr["city"]
             if "zip" in changes:
                 changes["zip"] = addr["zip"]
+
+        if "full_name" in changes and changes["full_name"]:
+            changes["full_name"] = format_person_name(changes["full_name"])
 
         updated = await self.repo.update_lead(self.uow, lead_id, changes)
         assert updated is not None
