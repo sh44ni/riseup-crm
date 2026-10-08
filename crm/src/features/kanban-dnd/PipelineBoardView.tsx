@@ -6,6 +6,7 @@ import {
 } from '@/components/pipeline/pipelineTypes';
 import { KanbanBoard } from '@/components/pipeline/KanbanBoard';
 import { PipelineProcessTimeline } from '@/components/pipeline/PipelineProcessTimeline';
+import { KanbanColumnSkeleton } from '@/components/dashboard/KanbanColumnSkeleton';
 import { PipelineTableView } from './PipelineTableView';
 import { PipelineScheduleView } from './PipelineScheduleView';
 import { PipelineScrollbar } from './PipelineScrollbar';
@@ -106,20 +107,7 @@ export function PipelineBoardView({
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 items-start">
         {[1, 2, 3, 4].map((ph) => (
-          <div
-            key={ph}
-            className="rounded-2xl p-3 flex flex-col space-y-3 border border-slate-200/70 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 min-h-[580px] animate-pulse"
-          >
-            <div className="h-10 rounded-xl bg-slate-200/80 dark:bg-slate-800" />
-            <div className="space-y-3 flex-1">
-              {[1, 2, 3].map((st) => (
-                <div key={st} className="space-y-2 rounded-xl p-2.5 bg-slate-100/60 dark:bg-slate-800/60">
-                  <div className="h-4 rounded bg-slate-200 dark:bg-slate-700 w-1/2" />
-                  <div className="h-20 rounded-xl bg-slate-200/60 dark:bg-slate-700/60" />
-                </div>
-              ))}
-            </div>
-          </div>
+          <KanbanColumnSkeleton key={ph} cardCount={3} />
         ))}
       </div>
     );

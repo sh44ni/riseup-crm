@@ -1,5 +1,4 @@
-import React from 'react';
-import { ChevronRight, Edit3, Mail, Phone, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { ChevronRight, Edit3, Mail, Phone, ArrowUp, ArrowDown, ArrowUpDown, Users } from 'lucide-react';
 import { Client360Record, ClientSortConfig, ClientSortField } from '@/types/client360Types';
 import { getTelUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { ClientStatusBadge } from '@/components/clients/ClientStatusBadge';
@@ -107,12 +106,23 @@ export function ClientDirectoryTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-          {clients.map((client) => (
-            <tr
-              key={client.id}
-              onClick={() => onSelectClient(client)}
-              className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors cursor-pointer group"
-            >
+          {clients.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="py-12 text-center">
+                <Users size={32} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
+                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No homeowners found</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Try adjusting your search or filter criteria.
+                </p>
+              </td>
+            </tr>
+          ) : (
+            clients.map((client) => (
+              <tr
+                key={client.id}
+                onClick={() => onSelectClient(client)}
+                className="hover:bg-slate-50/80 dark:hover:bg-white/5 transition-colors cursor-pointer group"
+              >
               <td className="py-3 px-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 text-white font-bold flex items-center justify-center text-xs shrink-0">
@@ -186,7 +196,7 @@ export function ClientDirectoryTable({
                 </div>
               </td>
             </tr>
-          ))}
+          )))}
         </tbody>
       </table>
     </div>

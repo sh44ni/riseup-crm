@@ -348,6 +348,7 @@ export function LeadsPage() {
             shareLabel="Active share"
             stageLabel="Lead Generation"
             sparklineData={stats?.sparklines?.newLeads}
+            isLoading={isLoading}
           />
           <UniversalStatCard
             label="Active Pipeline"
@@ -363,6 +364,7 @@ export function LeadsPage() {
             shareLabel="Active share"
             stageLabel="In Pipeline"
             sparklineData={stats?.sparklines?.contacted}
+            isLoading={isLoading}
           />
           <UniversalStatCard
             label="Won Rate"
@@ -378,6 +380,7 @@ export function LeadsPage() {
             shareLabel="Win rate"
             stageLabel="Conversions"
             sparklineData={stats?.sparklines?.jobsWon}
+            isLoading={isLoading}
           />
           <UniversalStatCard
             label="Inspections Booked"
@@ -393,6 +396,7 @@ export function LeadsPage() {
             shareLabel="Booking share"
             stageLabel="Site Survey"
             sparklineData={stats?.sparklines?.estScheduled}
+            isLoading={isLoading}
           />
           <UniversalStatCard
             label={canViewFinances ? "Pipeline Value" : "Active Inquiries"}
@@ -408,6 +412,7 @@ export function LeadsPage() {
             shareLabel={canViewFinances ? "Have estimates" : "Active status"}
             stageLabel="Pipeline Intake"
             sparklineData={stats?.sparklines?.estSent}
+            isLoading={isLoading}
           />
           <UniversalStatCard
             label="Lost Opportunities"
@@ -424,6 +429,7 @@ export function LeadsPage() {
             shareLabel="Loss percentage"
             stageLabel="Loss Prevention"
             sparklineData={stats?.sparklines?.lostClosed}
+            isLoading={isLoading}
           />
         </div>
       </ErrorBoundary>

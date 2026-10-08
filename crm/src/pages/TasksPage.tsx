@@ -15,6 +15,7 @@ import { useOperationsTasksQuery } from '@/entities/task/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { useDebounce } from '@/hooks/useDebounce';
+import { TaskItemsSkeleton } from '@/components/common/Skeletons';
 
 export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -351,6 +352,7 @@ export function TasksPage() {
         dueTodayCount={dueTodayCount}
         upcomingCount={upcomingCount}
         completedCount={completedCount}
+        isLoading={isLoadingTasks}
       />
 
       {/* 3. Mode Switcher Tabs & Category Filter Pills */}
@@ -366,7 +368,9 @@ export function TasksPage() {
 
       {/* 4. Main Body: Sectioned Team Operations List OR Dashboard Sticky Notes Board */}
       {activeTab === 'operations' ? (
-        tasks.length === 0 && !isLoadingTasks ? (
+        isLoadingTasks ? (
+          <TaskItemsSkeleton count={6} />
+        ) : tasks.length === 0 ? (
           /* Polished Empty State for 0 Operational Tasks */
           <div className="bg-white/80 dark:bg-slate-900/60 light-glass-panel rounded-3xl border border-white/90 dark:border-white/10 shadow-2xs p-12 text-center flex flex-col items-center justify-center space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shadow-xs">

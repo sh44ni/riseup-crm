@@ -23,6 +23,7 @@ import { NewEstimateChooserModal } from '@/components/estimates/NewEstimateChoos
 import { UploadAndSendModal } from '@/components/estimates/UploadAndSendModal';
 import { api } from '@/lib/api';
 import { formatEstimatePrice } from '@/shared/config/estimateConstants';
+import { EstimatesTableSkeleton } from '@/components/common/Skeletons';
 import { useToast } from '@/context/ToastContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
@@ -222,21 +223,25 @@ export function EstimatesPage() {
           label="Total Estimates"
           value={summary.totalCount}
           icon={FileText}
+          isLoading={loading}
         />
         <UniversalStatCard
           label="Pipeline Value"
           value={formatEstimatePrice(summary.pipelineValue)}
           icon={DollarSign}
+          isLoading={loading}
         />
         <UniversalStatCard
           label="Accepted"
           value={summary.acceptedCount}
           icon={CheckCircle2}
+          isLoading={loading}
         />
         <UniversalStatCard
           label="Accepted Value"
           value={formatEstimatePrice(summary.acceptedValue)}
           icon={DollarSign}
+          isLoading={loading}
         />
       </div>
 
@@ -275,7 +280,7 @@ export function EstimatesPage() {
       {/* Estimates Table */}
       <div className="light-glass-card rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-400 dark:text-slate-500 text-sm">Loading estimates...</div>
+          <EstimatesTableSkeleton rowCount={7} />
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center">
             <FileText size={40} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />

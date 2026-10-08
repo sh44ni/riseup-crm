@@ -5,9 +5,10 @@ import { ContractsSummary } from '@/api/contractApi';
 
 interface ContractsKpiCardsProps {
   summary: ContractsSummary;
+  isLoading?: boolean;
 }
 
-export function ContractsKpiCards({ summary }: ContractsKpiCardsProps) {
+export function ContractsKpiCards({ summary, isLoading = false }: ContractsKpiCardsProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       <UniversalStatCard
@@ -23,6 +24,7 @@ export function ContractsKpiCards({ summary }: ContractsKpiCardsProps) {
         sharePct={100}
         shareLabel="Portfolio"
         stageLabel="Contracts"
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -39,6 +41,7 @@ export function ContractsKpiCards({ summary }: ContractsKpiCardsProps) {
         sharePct={summary.totalCount > 0 ? Math.round((summary.signedCount / summary.totalCount) * 100) : 0}
         shareLabel="Signing rate"
         stageLabel="Executed"
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -59,6 +62,7 @@ export function ContractsKpiCards({ summary }: ContractsKpiCardsProps) {
         }
         shareLabel="Pending execution"
         stageLabel="Counter-signature"
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -75,6 +79,7 @@ export function ContractsKpiCards({ summary }: ContractsKpiCardsProps) {
         sharePct={summary.totalCount > 0 ? Math.round((summary.sentCount / summary.totalCount) * 100) : 0}
         shareLabel="Pending share"
         stageLabel="Out for signature"
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -91,6 +96,7 @@ export function ContractsKpiCards({ summary }: ContractsKpiCardsProps) {
         sharePct={summary.totalValue > 0 ? Math.round((summary.signedValue / summary.totalValue) * 100) : 0}
         shareLabel="Realized %"
         stageLabel="Signed revenue"
+        isLoading={isLoading}
       />
     </div>
   );

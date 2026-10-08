@@ -17,12 +17,14 @@ import {
 import { TeamOperationEvent } from '@/types/calendarTypes';
 import { CATEGORY_CONFIG } from '@/shared/config/calendarConfig';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { CalendarDayScheduleSkeleton } from '@/components/common/Skeletons';
 
 interface CalendarDayInspectorProps {
   selectedDay: number;
   currentYear?: number;
   currentMonth?: number;
   events: TeamOperationEvent[];
+  isLoading?: boolean;
   onOpenNewTask: () => void;
   onToggleStatus: (eventId: string) => void;
   onEditEvent?: (event: TeamOperationEvent) => void;
@@ -34,6 +36,7 @@ export function CalendarDayInspector({
   currentYear,
   currentMonth,
   events,
+  isLoading = false,
   onOpenNewTask,
   onToggleStatus,
   onEditEvent,
@@ -95,7 +98,9 @@ export function CalendarDayInspector({
 
       {/* Main Scrollable Body */}
       <div className="flex-1 min-h-0 py-2 overflow-y-auto pr-1">
-        {dayEvents.length === 0 ? (
+        {isLoading ? (
+          <CalendarDayScheduleSkeleton count={3} />
+        ) : dayEvents.length === 0 ? (
           /* Empty State */
           <div className="h-full flex flex-col items-center justify-center text-center p-4 space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-sky-50/90 dark:bg-sky-950/60 border border-sky-200/80 dark:border-sky-800/60 flex items-center justify-center text-[#1878B8] dark:text-sky-400 shadow-2xs">

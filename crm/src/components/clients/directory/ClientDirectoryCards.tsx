@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, MapPin, Phone, Mail, Edit3, ExternalLink } from 'lucide-react';
+import { ChevronRight, MapPin, Phone, Mail, Edit3, ExternalLink, Users } from 'lucide-react';
 import { Client360Record } from '@/types/client360Types';
 import { getTelUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { ClientStatusBadge } from '@/components/clients/ClientStatusBadge';
@@ -15,6 +15,18 @@ export function ClientDirectoryCards({
   onSelectClient,
   onEditContact,
 }: ClientDirectoryCardsProps) {
+  if (clients.length === 0) {
+    return (
+      <div className="light-glass-card rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-3">
+        <Users size={36} className="text-slate-300 dark:text-slate-600" />
+        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No homeowners found</h4>
+        <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm">
+          Try adjusting your search or filter criteria, or add a new homeowner to the directory.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
       {clients.map((client) => (

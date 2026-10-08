@@ -16,6 +16,7 @@ import { ClientProfileTab } from '@/components/clients/profile/ClientProfileHead
 import { ClientModalsSection } from '@/components/clients/ClientModalsSection';
 import { CreateClientPayload, CreateExistingClientPayload } from '@/api/clientsApi';
 import { sortClients, getSavedClientSort, saveClientSort } from '@/utils/clientSortUtils';
+import { ClientCardsSkeleton, TableSkeleton } from '@/components/common/Skeletons';
 
 export function ClientsPage() {
   const { can, isOwner, getScope, user } = useAuth();
@@ -28,6 +29,7 @@ export function ClientsPage() {
   const {
     clients,
     summary,
+    loading,
     selectedClientId,
     setSelectedClientId,
     currentClient,
@@ -285,6 +287,7 @@ export function ClientsPage() {
             clients={clients}
             summary={summary}
             stats={stats}
+            isLoading={loading}
           />
 
           <ClientDirectoryToolbar
@@ -302,7 +305,15 @@ export function ClientsPage() {
             onSortChange={handleSortChange}
           />
 
-          {directoryDisplayMode === 'cards' ? (
+          {loading ? (
+            directoryDisplayMode === 'cards' ? (
+              <ClientCardsSkeleton count={10} />
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs p-3">
+                <TableSkeleton rowCount={7} colWidths={['w-36', 'w-48', 'w-32', 'w-24', 'w-28']} />
+              </div>
+            )
+          ) : directoryDisplayMode === 'cards' ? (
             <ClientDirectoryCards
               clients={sortedClients}
               onSelectClient={handleOpenClientProfile}

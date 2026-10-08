@@ -145,7 +145,7 @@ export function DashboardPage() {
 
   const repOptions = useMemo(() => computeRepOptions(teamUsers, columns), [teamUsers, columns]);
   const activeStats = useMemo(() => computeActiveStats(columns, summary, stats), [columns, summary, stats]);
-  const isStatsLoadingInitial = Boolean((statsLoading && !stats) && (pipelineLoading && columns.length === 0));
+  const isStatsLoadingInitial = Boolean((statsLoading && !stats) || (pipelineLoading && columns.length === 0));
 
   const DASHBOARD_STAGE_ORDER: Record<string, number> = {
     new_leads: 1, contacted: 2, est_scheduled: 3, est_sent: 4, follow_up: 5, contract_sent: 6, active_jobs: 7, job_completed: 7,

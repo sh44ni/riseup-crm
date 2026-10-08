@@ -48,6 +48,7 @@ export function CalendarPage() {
 
   const {
     events,
+    isLoading: isEventsLoading,
     isRefreshing,
     addEvent,
     updateEvent,
@@ -308,6 +309,7 @@ export function CalendarPage() {
             currentYear={currentYear}
             currentMonth={currentMonth}
             events={events}
+            isLoading={isEventsLoading}
             onOpenNewTask={handleOpenCreate}
             onToggleStatus={handleToggleStatus}
             onEditEvent={handleEditEvent}

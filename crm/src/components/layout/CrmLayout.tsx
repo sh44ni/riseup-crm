@@ -5,7 +5,7 @@ import { CrmSidebar } from './CrmSidebar';
 import { CrmTopBar } from './CrmTopBar';
 import { CrmRightPanel } from './CrmRightPanel';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { ContentLoadingFallback } from './PageLoadingFallback';
+import { ContentLoadingFallback, PageLoadingFallback } from './PageLoadingFallback';
 const QuickAddLeadModal = React.lazy(() =>
   import('@/components/pipeline/QuickAddLeadModal').then((m) => ({ default: m.QuickAddLeadModal }))
 );
@@ -55,14 +55,7 @@ export function CrmLayout() {
     location.pathname.startsWith('/marketing');
 
   if (isLoading || isHydrating) {
-    return (
-      <div className="min-h-screen bg-[#070B12] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-[#1878B8] border-t-transparent animate-spin" />
-          <div className="text-xs font-semibold text-slate-400">Loading Rise Up CRM...</div>
-        </div>
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
 
   if (!user) {

@@ -9,12 +9,14 @@ interface ClientDirectoryStatsProps {
   clients: Client360Record[];
   summary?: ClientSummary | null;
   stats?: DashboardStats | null;
+  isLoading?: boolean;
 }
 
 export function ClientDirectoryStats({
   clients,
   summary,
   stats,
+  isLoading = false,
 }: ClientDirectoryStatsProps) {
   const activeCount = summary?.activeProjects ?? clients.filter((c) => c.status === 'active_job' && !isClientLost(c)).length;
   const completedCount = summary?.existingClientsCount ?? clients.filter((c) => c.status === 'completed' && !isClientLost(c)).length;
@@ -38,6 +40,7 @@ export function ClientDirectoryStats({
         shareLabel="Client directory"
         stageLabel="Homeowner Base"
         sparklineData={stats?.sparklines?.newLeads}
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -54,6 +57,7 @@ export function ClientDirectoryStats({
         shareLabel="Site share"
         stageLabel="Production"
         sparklineData={stats?.sparklines?.jobsWon}
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -70,6 +74,7 @@ export function ClientDirectoryStats({
         shareLabel="Warranty share"
         stageLabel="Protected Roofs"
         sparklineData={stats?.sparklines?.jobsWon}
+        isLoading={isLoading}
       />
 
       <UniversalStatCard
@@ -86,6 +91,7 @@ export function ClientDirectoryStats({
         shareLabel="Lost share"
         stageLabel="Win-Back Radar"
         sparklineData={stats?.sparklines?.lostClosed}
+        isLoading={isLoading}
       />
     </div>
   );

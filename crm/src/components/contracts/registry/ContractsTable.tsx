@@ -2,6 +2,7 @@ import React from 'react';
 import { RefreshCw, FileText, Plus } from 'lucide-react';
 import { ContractRow } from '@/api/contractApi';
 import { ContractTableRow } from './ContractTableRow';
+import { ShimmerBox } from '@/components/common/Skeletons';
 
 interface ContractsTableProps {
   loading: boolean;
@@ -50,12 +51,28 @@ export function ContractsTable({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-xs">
             {loading ? (
-              <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-400 font-semibold">
-                  <RefreshCw className="animate-spin inline-block mr-2" size={16} />
-                  Loading contracts...
-                </td>
-              </tr>
+              Array.from({ length: 7 }).map((_, i) => (
+                <tr key={i} style={{ opacity: 1 - i * 0.1 }}>
+                  <td className="py-3.5 px-4"><ShimmerBox className="h-5 w-24 rounded-lg" /></td>
+                  <td className="py-3.5 px-4">
+                    <div className="space-y-1">
+                      <ShimmerBox className="h-4 w-32 rounded" />
+                      <ShimmerBox className="h-3 w-20 rounded" />
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4"><ShimmerBox className="h-3.5 w-40 rounded" /></td>
+                  <td className="py-3.5 px-4"><ShimmerBox className="h-5 w-24 rounded-full" /></td>
+                  <td className="py-3.5 px-4 text-right"><ShimmerBox className="h-4 w-20 rounded ml-auto" /></td>
+                  <td className="py-3.5 px-4"><ShimmerBox className="h-5 w-20 rounded-full" /></td>
+                  <td className="py-3.5 px-4"><ShimmerBox className="h-3.5 w-24 rounded" /></td>
+                  <td className="py-3.5 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <ShimmerBox className="h-7 w-20 rounded-xl" />
+                      <ShimmerBox className="h-7 w-8 rounded-xl" />
+                    </div>
+                  </td>
+                </tr>
+              ))
             ) : contracts.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-16 text-center">

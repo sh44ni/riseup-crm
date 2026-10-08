@@ -12,6 +12,7 @@ interface TasksKpiCardsProps {
   dueTodayCount: number;
   upcomingCount: number;
   completedCount: number;
+  isLoading?: boolean;
 }
 
 export function TasksKpiCards({
@@ -19,6 +20,7 @@ export function TasksKpiCards({
   dueTodayCount,
   upcomingCount,
   completedCount,
+  isLoading = false,
 }: TasksKpiCardsProps) {
   const totalTasks = overdueCount + dueTodayCount + upcomingCount + completedCount;
   const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0;
@@ -45,6 +47,7 @@ export function TasksKpiCards({
         sharePct={totalTasks > 0 ? Math.round((overdueCount / totalTasks) * 100) : 0}
         shareLabel="Backlog share"
         stageLabel="Action Required"
+        isLoading={isLoading}
       />
 
       {/* 2. DUE TODAY */}
@@ -66,6 +69,7 @@ export function TasksKpiCards({
         sharePct={totalTasks > 0 ? Math.round((dueTodayCount / totalTasks) * 100) : 0}
         shareLabel="Daily volume"
         stageLabel="Active Today"
+        isLoading={isLoading}
       />
 
       {/* 3. UPCOMING */}
@@ -87,6 +91,7 @@ export function TasksKpiCards({
         sharePct={totalTasks > 0 ? Math.round((upcomingCount / totalTasks) * 100) : 0}
         shareLabel="Future share"
         stageLabel="Scheduled"
+        isLoading={isLoading}
       />
 
       {/* 4. COMPLETED */}
@@ -104,6 +109,7 @@ export function TasksKpiCards({
         sharePct={completionRate}
         shareLabel="Completion"
         stageLabel="Resolved"
+        isLoading={isLoading}
       />
     </div>
   );

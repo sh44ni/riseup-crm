@@ -11,6 +11,7 @@ import { JobRecord } from '@/types/jobTypes';
 import { JobCard } from '@/components/jobs/JobCard';
 import { JobsTableView } from '@/components/jobs/JobsTableView';
 import { JobInspectorModal } from '@/components/jobs/JobInspectorModal';
+import { JobCardsSkeleton, TableSkeleton } from '@/components/common/Skeletons';
 
 export function JobsPage() {
   const [search, setSearch] = useState('');
@@ -81,9 +82,18 @@ export function JobsPage() {
       <div className="light-glass-panel rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-            Showing <strong className="text-slate-900 dark:text-white">{activeJobs.length}</strong> active {activeJobs.length === 1 ? 'jobsite' : 'jobsites'}
+            {loading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block w-6 h-3 bg-slate-200/70 dark:bg-slate-700/70 rounded animate-pulse" />
+                <span>active jobsites</span>
+              </span>
+            ) : (
+              <>
+                Showing <strong className="text-slate-900 dark:text-white">{activeJobs.length}</strong> active {activeJobs.length === 1 ? 'jobsite' : 'jobsites'}
+              </>
+            )}
           </span>
-          {completedJobs.length > 0 && (
+          {!loading && completedJobs.length > 0 && (
             <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
               • {completedJobs.length} completed
             </span>
@@ -97,7 +107,15 @@ export function JobsPage() {
       </div>
 
       {/* ACTIVE JOBS */}
-      {activeJobs.length > 0 ? (
+      {loading ? (
+        viewMode === 'table' ? (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md shadow-xs p-3">
+            <TableSkeleton rowCount={6} colWidths={['w-24', 'w-36', 'w-48', 'w-24', 'w-20']} />
+          </div>
+        ) : (
+          <JobCardsSkeleton count={6} />
+        )
+      ) : activeJobs.length > 0 ? (
         viewMode === 'table' ? (
           <JobsTableView jobs={activeJobs} onSelectJob={handleOpenInspector} />
         ) : (
@@ -111,12 +129,10 @@ export function JobsPage() {
         <div className="py-20 text-center rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 bg-white/30 dark:bg-white/5 space-y-2">
           <Hammer size={32} className="mx-auto text-slate-300 dark:text-slate-600" />
           <h5 className="font-bold text-sm text-slate-600 dark:text-slate-300">
-            {loading ? 'Loading jobs...' : 'No active jobs'}
+            No active jobs
           </h5>
           <p className="text-xs text-slate-400 dark:text-slate-500 max-w-sm mx-auto">
-            {loading
-              ? 'Fetching your work orders...'
-              : 'Jobs appear here automatically when leads move to Active Jobs in your pipeline.'}
+            Jobs appear here automatically when leads move to Active Jobs in your pipeline.
           </p>
         </div>
       )}

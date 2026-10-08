@@ -262,7 +262,7 @@ export function ContractsPage() {
       />
 
       {/* 2. EXECUTIVE KPI CARDS */}
-      <ContractsKpiCards summary={summary} />
+      <ContractsKpiCards summary={summary} isLoading={loading} />
 
       {/* 3. FILTER TABS & TOOLBAR */}
       <ContractsToolbar

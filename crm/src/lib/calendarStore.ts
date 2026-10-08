@@ -57,7 +57,7 @@ export const CATEGORY_ACCENT_COLORS: Record<CalendarEventCategory, string> = {
  * powered by TanStack Query.
  */
 export function useCalendarEvents() {
-  const { data: rawEvents = [], isFetching, refetch } = useCalendarEventsQuery();
+  const { data: rawEvents = [], isLoading, isFetching, refetch } = useCalendarEventsQuery();
   const createMutation = useCreateCalendarEventMutation();
   const updateMutation = useUpdateCalendarEventMutation();
   const deleteMutation = useDeleteCalendarEventMutation();
@@ -118,6 +118,7 @@ export function useCalendarEvents() {
 
   return {
     events,
+    isLoading,
     isRefreshing: isFetching,
     addEvent,
     updateEvent,
