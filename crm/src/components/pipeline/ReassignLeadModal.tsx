@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { UserCog, X, AlertTriangle, Loader2, User, ChevronDown, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { reassignLead } from '@/api/pipelineApi';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 export interface ReassignLeadModalProps {
   isOpen: boolean;
@@ -168,25 +169,18 @@ export function ReassignLeadModal({
                 <span>Loading team members...</span>
               </div>
             ) : (
-              <div className="relative">
-                <select
-                  value={selectedUserId ?? ''}
-                  onChange={(e) => setSelectedUserId(Number(e.target.value) || null)}
-                  className="w-full appearance-none p-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#121c2e] text-slate-800 dark:text-slate-100 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-[#1878B8] cursor-pointer"
-                >
-                  <option value="" disabled>Select team member...</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role?.replace('_', ' ') || 'Staff'}) — {u.email}
-                      {u.id === currentAssigneeId ? ' (Current Assignee)' : ''}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={14}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                />
-              </div>
+              <CrmSelect
+                value={selectedUserId !== null && selectedUserId !== undefined ? String(selectedUserId) : ''}
+                onChange={(val) => setSelectedUserId(val ? Number(val) : null)}
+                placeholder="Select team member..."
+                options={users.map((u) => ({
+                  value: String(u.id),
+                  label: `${u.name} (${u.role?.replace('_', ' ') || 'Staff'}) — ${u.email}`,
+                  badge: u.id === currentAssigneeId ? 'Current' : undefined,
+                  badgeClass: 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300',
+                }))}
+                triggerClassName="py-2.5 text-xs font-semibold"
+              />
             )}
           </div>
 

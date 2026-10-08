@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronDown, Users, LayoutGrid, CheckSquare, Layers } from 'lucide-react';
 import { OperationCategory, TeamMemberResource } from '@/types/calendarTypes';
 import { CATEGORY_CONFIG, CREW_RESOURCES } from '@/shared/config/calendarConfig';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface CalendarFilterBarProps {
   viewMode?: 'month' | 'swimlanes';
@@ -142,22 +143,19 @@ export function CalendarFilterBar({
             <Users size={11} className="text-slate-400 dark:text-slate-500" />
             <span>Staff:</span>
           </label>
-          <div className="relative">
-            <select
+          <div className="w-36">
+            <CrmSelect
               value={selectedAssignee}
-              onChange={(e) => onSelectAssignee(e.target.value)}
-              className="appearance-none pl-2.5 pr-7 py-1 rounded-xl bg-white/95 dark:bg-slate-800 border border-slate-200/90 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white shadow-2xs hover:border-sky-400 focus:outline-none focus:border-[#1878B8] cursor-pointer"
-            >
-              <option value="all">All Staff</option>
-              {membersList.map((member) => (
-                <option key={member.id} value={String(member.id)}>
-                  {member.name} ({member.roleLabel || member.role})
-                </option>
-              ))}
-            </select>
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 dark:text-slate-400">
-              <ChevronDown size={12} />
-            </div>
+              onChange={onSelectAssignee}
+              size="xs"
+              options={[
+                { value: 'all', label: 'All Staff' },
+                ...membersList.map((member) => ({
+                  value: String(member.id),
+                  label: `${member.name} (${member.roleLabel || member.role})`,
+                })),
+              ]}
+            />
           </div>
         </div>
       </div>

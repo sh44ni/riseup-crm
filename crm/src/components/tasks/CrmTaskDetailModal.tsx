@@ -14,6 +14,8 @@ import {
 import { CrmTask, TaskPriority, TaskCategory, TaskStatus } from '@/types/taskTypes';
 import { CrmModal } from '@/components/common/CrmModal';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { CrmSelect } from '@/components/common/CrmSelect';
+import { CrmDateTimePicker } from '@/components/common/CrmDateTimePicker';
 import { api } from '@/lib/api';
 
 interface UserItem {
@@ -62,6 +64,7 @@ export function CrmTaskDetailModal({
   const [category, setCategory] = useState<TaskCategory>('rise_up');
   const [status, setStatus] = useState<TaskStatus>('active');
   const [dueDateStr, setDueDateStr] = useState('');
+  const [dueDateTime, setDueDateTime] = useState('');
   const [assignedTo, setAssignedTo] = useState('Unassigned');
   const [assignedToUserId, setAssignedToUserId] = useState<number | undefined>(undefined);
   const [description, setDescription] = useState('');
@@ -81,6 +84,8 @@ export function CrmTaskDetailModal({
       setCategory(task.category || 'rise_up');
       setStatus(task.status || 'active');
       setDueDateStr(task.dueDateFormatted || 'Today, 5:00 PM');
+      const isoPart = task.dueDate ? (task.dueDate.includes('T') ? task.dueDate.slice(0, 16) : task.dueDate) : '';
+      setDueDateTime(isoPart);
       setAssignedTo(task.assignedTo || 'Unassigned');
       setAssignedToUserId(task.assignedToUserId);
       setDescription(task.description || '');
@@ -122,8 +127,7 @@ export function CrmTaskDetailModal({
     }
   };
 
-  const handleAssigneeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
+  const handleAssigneeSelect = (val: string) => {
     if (val === 'Unassigned' || !val) {
       setAssignedTo('Unassigned');
       setAssignedToUserId(undefined);
@@ -146,6 +150,16 @@ export function CrmTaskDetailModal({
 
     setIsSaving(true);
     try {
+      let finalDueDateFormatted = dueDateStr || task.dueDateFormatted;
+      if (dueDateTime) {
+        const d = new Date(dueDateTime);
+        if (!isNaN(d.getTime())) {
+          finalDueDateFormatted =
+            d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+            ` at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        }
+      }
+
       if (onUpdateTask) {
         onUpdateTask({
           ...task,
@@ -155,7 +169,8 @@ export function CrmTaskDetailModal({
           priority,
           category,
           status,
-          dueDateFormatted: dueDateStr,
+          dueDate: dueDateTime || task.dueDate,
+          dueDateFormatted: finalDueDateFormatted,
           assignedTo: assignedTo || 'Unassigned',
           assignedToUserId,
           assignedInitials:
@@ -324,32 +339,32 @@ export function CrmTaskDetailModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 block">Priority</label>
-            <select
+            <CrmSelect
               value={priority}
-              onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="w-full p-2 rounded-xl bg-slate-50/80 hover:bg-white focus:bg-white dark:bg-white/5 dark:hover:bg-white/10 dark:focus:bg-slate-900 border border-slate-200/90 dark:border-white/10 focus:border-[#1878B8] text-xs font-semibold text-slate-900 dark:text-white outline-none shadow-2xs cursor-pointer"
-            >
-              <option value="urgent">🔴 Urgent</option>
-              <option value="high">🟡 High</option>
-              <option value="normal">🔵 Normal</option>
-              <option value="low">⚪ Low</option>
-            </select>
+              onChange={(val) => setPriority(val as TaskPriority)}
+              options={[
+                { value: 'urgent', label: '🔴 Urgent' },
+                { value: 'high', label: '🟡 High' },
+                { value: 'normal', label: '🔵 Normal' },
+                { value: 'low', label: '⚪ Low' },
+              ]}
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 block">Category</label>
-            <select
+            <CrmSelect
               value={category}
-              onChange={(e) => setCategory(e.target.value as TaskCategory)}
-              className="w-full p-2 rounded-xl bg-slate-50/80 hover:bg-white focus:bg-white dark:bg-white/5 dark:hover:bg-white/10 dark:focus:bg-slate-900 border border-slate-200/90 dark:border-white/10 focus:border-[#1878B8] text-xs font-semibold text-slate-900 dark:text-white outline-none shadow-2xs cursor-pointer"
-            >
-              <option value="rise_up">Rise Up Operations</option>
-              <option value="estimate_followup">Estimate Follow-Up</option>
-              <option value="permits_city">City Permits</option>
-              <option value="content_creation">Content Creation</option>
-              <option value="marketing">Marketing</option>
-              <option value="general">General</option>
-            </select>
+              onChange={(val) => setCategory(val as TaskCategory)}
+              options={[
+                { value: 'rise_up', label: 'Rise Up Operations' },
+                { value: 'estimate_followup', label: 'Estimate Follow-Up' },
+                { value: 'permits_city', label: 'City Permits' },
+                { value: 'content_creation', label: 'Content Creation' },
+                { value: 'marketing', label: 'Marketing' },
+                { value: 'general', label: 'General' },
+              ]}
+            />
           </div>
         </div>
 
@@ -357,33 +372,38 @@ export function CrmTaskDetailModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 block">Due Date &amp; Time</label>
-            <div className="relative">
-              <Calendar size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                value={dueDateStr}
-                onChange={(e) => setDueDateStr(e.target.value)}
-                placeholder="Sep 20, 2:00 PM"
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50/80 hover:bg-white focus:bg-white dark:bg-white/5 dark:hover:bg-white/10 dark:focus:bg-slate-900 border border-slate-200/90 dark:border-white/10 focus:border-[#1878B8] text-xs font-semibold text-slate-900 dark:text-white outline-none shadow-2xs placeholder-slate-400 dark:placeholder-slate-500"
-              />
-            </div>
+            <CrmDateTimePicker
+              value={dueDateTime}
+              onChange={(val) => {
+                setDueDateTime(val);
+                if (val) {
+                  const d = new Date(val);
+                  if (!isNaN(d.getTime())) {
+                    setDueDateStr(
+                      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                      ` at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+                    );
+                  }
+                }
+              }}
+              placeholder="Select due date & time..."
+            />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 block">Assigned To</label>
-            <select
+            <CrmSelect
               value={assignedToUserId ? String(assignedToUserId) : assignedTo}
-              onChange={handleAssigneeChange}
+              onChange={handleAssigneeSelect}
               disabled={isLoadingUsers}
-              className="w-full p-2 rounded-xl bg-slate-50/80 hover:bg-white focus:bg-white dark:bg-white/5 dark:hover:bg-white/10 dark:focus:bg-slate-900 border border-slate-200/90 dark:border-white/10 focus:border-[#1878B8] text-xs font-semibold text-slate-900 dark:text-white outline-none shadow-2xs cursor-pointer disabled:opacity-60"
-            >
-              <option value="Unassigned">⚠️ Unassigned</option>
-              {users.map((u) => (
-                <option key={u.id} value={String(u.id)}>
-                  {u.name} ({formatRole(u.role)})
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: 'Unassigned', label: '⚠️ Unassigned' },
+                ...users.map((u) => ({
+                  value: String(u.id),
+                  label: `${u.name} (${formatRole(u.role)})`,
+                })),
+              ]}
+            />
           </div>
         </div>
 

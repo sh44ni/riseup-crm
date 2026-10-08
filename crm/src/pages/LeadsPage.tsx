@@ -112,7 +112,7 @@ export function LeadsPage() {
     const timer = setTimeout(() => {
       setDebouncedSearch(search.trim());
       setPage(1); // reset to first page on new search
-    }, 400);
+    }, 250);
     return () => clearTimeout(timer);
   }, [search, setPage]);
 

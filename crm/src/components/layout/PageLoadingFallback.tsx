@@ -114,8 +114,42 @@ function ContentSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Exported fallback — full layout shell
+// Exported fallbacks:
+// 1. ContentLoadingFallback — for seamless page switches inside CrmLayout (sidebar remains intact)
+// 2. PageLoadingFallback — for root-level auth/public page loads
 // ---------------------------------------------------------------------------
+export function ContentLoadingFallback() {
+  return (
+    <div className="flex-1 min-w-0 w-full space-y-4 animate-in fade-in duration-150">
+      {/* Hero banner skeleton */}
+      <Shimmer className="h-24 w-full rounded-2xl" />
+
+      {/* Stat cards row skeleton */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[0, 1, 2, 3].map((i) => (
+          <Shimmer key={i} className="h-20 rounded-2xl" />
+        ))}
+      </div>
+
+      {/* Toolbar skeleton */}
+      <div className="flex items-center gap-2">
+        <Shimmer className="h-9 w-52 rounded-xl" />
+        <Shimmer className="h-9 w-28 rounded-xl" />
+        <Shimmer className="h-9 w-28 rounded-xl" />
+        <div className="flex-1" />
+        <Shimmer className="h-9 w-24 rounded-xl" />
+      </div>
+
+      {/* Content cards / table rows */}
+      <div className="space-y-2.5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Shimmer key={i} className="h-14 w-full rounded-xl" style={{ opacity: 1 - i * 0.12 }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PageLoadingFallback() {
   return (
     <div className="h-screen w-full flex bg-[#070B12] text-slate-100 antialiased overflow-hidden">
@@ -124,3 +158,4 @@ export function PageLoadingFallback() {
     </div>
   );
 }
+

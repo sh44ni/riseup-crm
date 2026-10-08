@@ -17,6 +17,7 @@ import {
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
 import { getTelUrl, getMailtoUrl } from '@/utils/contactValidation';
 import { formatRelativeTime } from './types';
+import { CrmDateTimePicker } from '@/components/common/CrmDateTimePicker';
 
 export interface DealSummaryTabProps {
   dealId: string | number;
@@ -265,11 +266,10 @@ export function DealSummaryTab({
           )}
           {showScheduler && (
             <div className="mt-1.5 space-y-1.5 pt-1.5 border-t border-slate-200/70 dark:border-white/10">
-              <input
-                type="datetime-local"
+              <CrmDateTimePicker
                 value={scheduleInput}
-                onChange={(e) => setScheduleInput(e.target.value)}
-                className="w-full text-[11px] px-2 py-1 rounded-lg border border-slate-300 dark:border-white/20 bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-sky-400"
+                onChange={setScheduleInput}
+                placeholder="Select date & time..."
               />
               <button
                 type="button"

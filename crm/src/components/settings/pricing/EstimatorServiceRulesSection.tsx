@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Building, Calculator, Home, SlidersHorizontal, Sun, Wrench } from 'lucide-react';
 import { EstimatorPricingRuleItem, PricingConfig } from '@/types/settingsTypes';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface EstimatorServiceRulesSectionProps {
   rules: EstimatorPricingRuleItem[];
@@ -235,17 +236,16 @@ export function EstimatorServiceRulesSection({
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
               Test Service
             </label>
-            <select
+            <CrmSelect
               value={simService}
-              onChange={(e) => setSimService(e.target.value)}
-              className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-400 cursor-pointer"
-            >
-              {rules.map((r) => (
-                <option key={r.slug} value={r.slug}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSimService}
+              options={rules.map((r) => ({
+                value: r.slug,
+                label: r.name,
+              }))}
+              triggerClassName="bg-slate-800/90 border-slate-700 text-white font-bold text-xs py-2 hover:bg-slate-800"
+              menuClassName="bg-slate-900 border-slate-700 text-white"
+            />
           </div>
 
           <div>
@@ -265,31 +265,35 @@ export function EstimatorServiceRulesSection({
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
               Pitch Multiplier
             </label>
-            <select
+            <CrmSelect
               value={simPitch}
-              onChange={(e) => setSimPitch(e.target.value as any)}
-              className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-400 cursor-pointer"
-            >
-              <option value="flatTo3_12">0/12–3/12 Flat ({pitchMultipliers.flatTo3_12 || 1.0}x)</option>
-              <option value="fourTo6_12">4/12–6/12 Standard ({pitchMultipliers.fourTo6_12 || 1.0}x)</option>
-              <option value="sevenTo9_12">7/12–9/12 Moderate ({pitchMultipliers.sevenTo9_12 || 1.15}x)</option>
-              <option value="tenPlus_12">10/12+ Steep ({pitchMultipliers.tenPlus_12 || 1.3}x)</option>
-            </select>
+              onChange={(val) => setSimPitch(val as any)}
+              options={[
+                { value: 'flatTo3_12', label: `0/12–3/12 Flat (${pitchMultipliers.flatTo3_12 || 1.0}x)` },
+                { value: 'fourTo6_12', label: `4/12–6/12 Standard (${pitchMultipliers.fourTo6_12 || 1.0}x)` },
+                { value: 'sevenTo9_12', label: `7/12–9/12 Moderate (${pitchMultipliers.sevenTo9_12 || 1.15}x)` },
+                { value: 'tenPlus_12', label: `10/12+ Steep (${pitchMultipliers.tenPlus_12 || 1.3}x)` },
+              ]}
+              triggerClassName="bg-slate-800/90 border-slate-700 text-white font-bold text-xs py-2 hover:bg-slate-800"
+              menuClassName="bg-slate-900 border-slate-700 text-white"
+            />
           </div>
 
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
               Height Multiplier
             </label>
-            <select
+            <CrmSelect
               value={simStory}
-              onChange={(e) => setSimStory(e.target.value as any)}
-              className="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold text-xs outline-none focus:border-sky-400 cursor-pointer"
-            >
-              <option value="oneStory">1-Story ({storyMultipliers.oneStory || 1.0}x)</option>
-              <option value="twoStory">2-Story ({storyMultipliers.twoStory || 1.08}x)</option>
-              <option value="threeStoryCoastal">3-Story / Coastal ({storyMultipliers.threeStoryCoastal || 1.22}x)</option>
-            </select>
+              onChange={(val) => setSimStory(val as any)}
+              options={[
+                { value: 'oneStory', label: `1-Story (${storyMultipliers.oneStory || 1.0}x)` },
+                { value: 'twoStory', label: `2-Story (${storyMultipliers.twoStory || 1.08}x)` },
+                { value: 'threeStoryCoastal', label: `3-Story / Coastal (${storyMultipliers.threeStoryCoastal || 1.22}x)` },
+              ]}
+              triggerClassName="bg-slate-800/90 border-slate-700 text-white font-bold text-xs py-2 hover:bg-slate-800"
+              menuClassName="bg-slate-900 border-slate-700 text-white"
+            />
           </div>
         </div>
 

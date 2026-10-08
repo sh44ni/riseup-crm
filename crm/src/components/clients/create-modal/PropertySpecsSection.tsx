@@ -3,6 +3,7 @@ import { Home, MapPin, Building2 } from 'lucide-react';
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import type { ExistingClientFormData } from './types';
 import { ROOF_MATERIAL_OPTIONS } from './types';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface PropertySpecsSectionProps {
   register: UseFormRegister<ExistingClientFormData>;
@@ -17,6 +18,8 @@ export function PropertySpecsSection({
   watch,
 }: PropertySpecsSectionProps) {
   const hoa = watch('hoa');
+  const roofType = watch('roofType');
+  const stories = watch('stories');
 
   return (
     <div className="space-y-3">
@@ -69,16 +72,12 @@ export function PropertySpecsSection({
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Roof Material
           </label>
-          <select
-            {...register('roofType')}
-            className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-          >
-            {ROOF_MATERIAL_OPTIONS.map((mat) => (
-              <option key={mat} value={mat}>
-                {mat}
-              </option>
-            ))}
-          </select>
+          <CrmSelect
+            value={roofType}
+            onChange={(val) => setValue('roofType', val, { shouldValidate: true })}
+            options={ROOF_MATERIAL_OPTIONS.map((mat) => ({ value: mat, label: mat }))}
+            triggerClassName="h-9 font-medium"
+          />
         </div>
 
         <div>
@@ -99,14 +98,16 @@ export function PropertySpecsSection({
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Stories
           </label>
-          <select
-            {...register('stories')}
-            className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-          >
-            <option value={1}>1 Story</option>
-            <option value={2}>2 Stories</option>
-            <option value={3}>3+ Stories</option>
-          </select>
+          <CrmSelect
+            value={String(stories ?? 1)}
+            onChange={(val) => setValue('stories', Number(val) as 1 | 2 | 3, { shouldValidate: true })}
+            options={[
+              { value: '1', label: '1 Story' },
+              { value: '2', label: '2 Stories' },
+              { value: '3', label: '3+ Stories' },
+            ]}
+            triggerClassName="h-9 font-medium"
+          />
         </div>
 
         <div>

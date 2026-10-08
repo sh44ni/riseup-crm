@@ -2,6 +2,8 @@ import React from 'react';
 import { Flag } from 'lucide-react';
 import { OperationCategory, OperationPriority } from '@/types/calendarTypes';
 
+import { CrmSelect } from '@/components/common/CrmSelect';
+
 interface ScheduleCategoryPriorityProps {
   category: OperationCategory;
   priority: OperationPriority;
@@ -22,18 +24,18 @@ export function ScheduleCategoryPriority({
         <label className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 block">
           Operation Category
         </label>
-        <select
+        <CrmSelect
           value={category}
-          onChange={(e) => onCategoryChange(e.target.value as OperationCategory)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 dark:focus:ring-sky-900/30 transition-all bg-white dark:bg-slate-900 cursor-pointer shadow-2xs"
-        >
-          <option value="team_task">Team Task & Follow-up</option>
-          <option value="client_meeting">Client Visit & Meeting</option>
-          <option value="project_op">Project Operation / Milestone</option>
-          <option value="permit_filing">City Permit Inspection / Filing</option>
-          <option value="warranty_audit">Warranty Audit & Roof Check</option>
-          <option value="reminder">Reminder & Internal Milestone</option>
-        </select>
+          onChange={(val) => onCategoryChange(val as OperationCategory)}
+          options={[
+            { value: 'team_task', label: 'Team Task & Follow-up' },
+            { value: 'client_meeting', label: 'Client Visit & Meeting' },
+            { value: 'project_op', label: 'Project Operation / Milestone' },
+            { value: 'permit_filing', label: 'City Permit Inspection / Filing' },
+            { value: 'warranty_audit', label: 'Warranty Audit & Roof Check' },
+            { value: 'reminder', label: 'Reminder & Internal Milestone' },
+          ]}
+        />
       </div>
 
       {/* Priority */}

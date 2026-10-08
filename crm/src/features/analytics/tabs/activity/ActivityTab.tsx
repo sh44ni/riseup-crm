@@ -4,6 +4,8 @@ import { Download, RotateCcw, X } from 'lucide-react';
 import { activityApi } from './api';
 import { ActivityStats } from './ActivityStats';
 import { actorLabel, formatValue, humanize, summarize } from './summary';
+import { CrmSelect } from '@/components/common/CrmSelect';
+import { CrmDatePicker } from '@/components/common/CrmDatePicker';
 import type {
   ActivityDetail,
   ActivityEntry,
@@ -142,19 +144,22 @@ export default function ActivityTab() {
         role="search"
         aria-label="Activity filters"
       >
-        <select
-          aria-label="Employee"
-          className={inputCls}
-          value={filters.employee_id ?? ''}
-          onChange={(e) => setFilter('employee_id', e.target.value)}
-        >
-          <option value="">All employees</option>
-          {options?.employees.map((emp) => (
-            <option key={emp.user_id} value={emp.user_id}>
-              {emp.name || emp.email}
-            </option>
-          ))}
-        </select>
+        <div className="w-44">
+          <CrmSelect
+            value={filters.employee_id ?? ''}
+            onChange={(val) => setFilter('employee_id', val)}
+            placeholder="All employees"
+            options={[
+              { value: '', label: 'All employees' },
+              ...(options?.employees.map((emp) => ({
+                value: String(emp.user_id),
+                label: emp.name || emp.email || `Employee #${emp.user_id}`,
+              })) ?? []),
+            ]}
+            size="sm"
+            triggerClassName="h-9"
+          />
+        </div>
         <input
           aria-label="Client"
           className={`${inputCls} w-40`}
@@ -162,59 +167,68 @@ export default function ActivityTab() {
           value={filters.client ?? ''}
           onChange={(e) => setFilter('client', e.target.value)}
         />
-        <select
-          aria-label="Action"
-          className={inputCls}
-          value={filters.action ?? ''}
-          onChange={(e) => setFilter('action', e.target.value)}
-        >
-          <option value="">All actions</option>
-          {(options?.actions ?? ['create', 'update', 'delete', 'security']).map((a) => (
-            <option key={a} value={a}>
-              {humanize(a)}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Category"
-          className={inputCls}
-          value={filters.category ?? ''}
-          onChange={(e) => setFilter('category', e.target.value)}
-        >
-          <option value="">All changes</option>
-          {(options?.categories ?? []).map((c) => (
-            <option key={c} value={c}>
-              {humanize(c)}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Record type"
-          className={inputCls}
-          value={filters.record_type ?? ''}
-          onChange={(e) => setFilter('record_type', e.target.value)}
-        >
-          <option value="">All records</option>
-          {(options?.record_types ?? []).map((t) => (
-            <option key={t} value={t}>
-              {humanize(t)}
-            </option>
-          ))}
-        </select>
-        <input
-          type="date"
-          aria-label="From date"
-          className={inputCls}
-          value={filters.date_from ?? ''}
-          onChange={(e) => setFilter('date_from', e.target.value)}
-        />
-        <input
-          type="date"
-          aria-label="To date"
-          className={inputCls}
-          value={filters.date_to ?? ''}
-          onChange={(e) => setFilter('date_to', e.target.value)}
-        />
+        <div className="w-36">
+          <CrmSelect
+            value={filters.action ?? ''}
+            onChange={(val) => setFilter('action', val)}
+            placeholder="All actions"
+            options={[
+              { value: '', label: 'All actions' },
+              ...(options?.actions ?? ['create', 'update', 'delete', 'security']).map((a) => ({
+                value: a,
+                label: humanize(a),
+              })),
+            ]}
+            size="sm"
+            triggerClassName="h-9"
+          />
+        </div>
+        <div className="w-36">
+          <CrmSelect
+            value={filters.category ?? ''}
+            onChange={(val) => setFilter('category', val)}
+            placeholder="All changes"
+            options={[
+              { value: '', label: 'All changes' },
+              ...(options?.categories ?? []).map((c) => ({
+                value: c,
+                label: humanize(c),
+              })),
+            ]}
+            size="sm"
+            triggerClassName="h-9"
+          />
+        </div>
+        <div className="w-36">
+          <CrmSelect
+            value={filters.record_type ?? ''}
+            onChange={(val) => setFilter('record_type', val)}
+            placeholder="All records"
+            options={[
+              { value: '', label: 'All records' },
+              ...(options?.record_types ?? []).map((t) => ({
+                value: t,
+                label: humanize(t),
+              })),
+            ]}
+            size="sm"
+            triggerClassName="h-9"
+          />
+        </div>
+        <div className="w-36">
+          <CrmDatePicker
+            value={filters.date_from ?? ''}
+            onChange={(val) => setFilter('date_from', val)}
+            placeholder="From date"
+          />
+        </div>
+        <div className="w-36">
+          <CrmDatePicker
+            value={filters.date_to ?? ''}
+            onChange={(val) => setFilter('date_to', val)}
+            placeholder="To date"
+          />
+        </div>
         <input
           aria-label="Search"
           className={`${inputCls} w-44`}

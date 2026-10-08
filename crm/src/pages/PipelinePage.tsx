@@ -20,6 +20,7 @@ import { api } from '@/lib/api';
 import { useDragAutoScroll } from '@/hooks/useDragAutoScroll';
 import { useDashboardStats } from '@/lib/dashboardStatsStore';
 import { usePipelineData } from '@/hooks/usePipelineData';
+import { useUpdatePipelineStage, useClaimLeadMutation } from '@/entities/pipeline/mutations';
 import { PipelineToolbar } from '@/components/pipeline/PipelineToolbar';
 import { PipelineModals } from '@/components/pipeline/PipelineModals';
 import { useHotkey } from '@/shared/lib/useHotkey';
@@ -180,16 +181,23 @@ export function PipelinePage() {
     pillText: s.pillText,
   })), []);
 
+  const updateStageMutation = useUpdatePipelineStage();
+  const claimLeadMutation = useClaimLeadMutation();
+
   const dnd = useKanbanDnD({
     cards: kanbanCards,
     columns: kanbanColumns,
     canAdvanceStage,
     onMoveCard: async (cardId, targetStageId, notes) => {
-      await updatePipelineDealStage(cardId, targetStageId as PipelineStageId, notes, {
-        authorName: user?.name,
-        authorRole: user?.role,
+      await updateStageMutation.mutateAsync({
+        leadId: cardId,
+        newStage: targetStageId as PipelineStageId,
+        notes,
+        authorInfo: {
+          authorName: user?.name,
+          authorRole: user?.role,
+        },
       });
-      await refresh(true);
     },
     notifyWarning: (msg) => toast.warning(msg),
     notifySuccess: (msg) => toast.success(msg),
@@ -217,12 +225,16 @@ export function PipelinePage() {
     }
 
     try {
-      await updatePipelineDealStage(dealId, nextStage, 'Quick advance', {
-        authorName: user?.name,
-        authorRole: user?.role,
+      await updateStageMutation.mutateAsync({
+        leadId: dealId,
+        newStage: nextStage,
+        notes: 'Quick advance',
+        authorInfo: {
+          authorName: user?.name,
+          authorRole: user?.role,
+        },
       });
       toast.success(`Advanced to ${nextStage}`);
-      await refresh(true);
     } catch {
       toast.error('Stage advance not permitted.');
     }
@@ -234,9 +246,14 @@ export function PipelinePage() {
     const nextStage: PipelineStageId = 'estimate_scheduled';
     setIsSchedulingPipeline(true);
     try {
-      await updatePipelineDealStage(deal.id, nextStage, 'Advanced to Estimate Scheduled', {
-        authorName: user?.name,
-        authorRole: user?.role,
+      await updateStageMutation.mutateAsync({
+        leadId: deal.id,
+        newStage: nextStage,
+        notes: 'Advanced to Estimate Scheduled',
+        authorInfo: {
+          authorName: user?.name,
+          authorRole: user?.role,
+        },
       });
       if (!skipDate && pipelineScheduleDateTime) {
         await api.updateLead(deal.id, {
@@ -250,7 +267,6 @@ export function PipelinePage() {
       setIsSchedulingPipeline(false);
       setPendingScheduleDeal(null);
       setPipelineScheduleDateTime('');
-      refresh(true);
     }
   };
 
@@ -377,8 +393,7 @@ export function PipelinePage() {
         setClaimModalDeal={setClaimModalDeal}
         handleConfirmClaimDeal={async () => {
           if (!claimModalDeal) return;
-          await claimLead(claimModalDeal.id);
-          await refresh(true);
+          await claimLeadMutation.mutateAsync(claimModalDeal.id);
         }}
         reassignModalDeal={reassignModalDeal}
         setReassignModalDeal={setReassignModalDeal}

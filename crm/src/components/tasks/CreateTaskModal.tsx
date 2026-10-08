@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { CrmTask, TaskCategory, TaskPriority } from '@/types/taskTypes';
 import { api } from '@/lib/api';
+import { CrmSelect } from '@/components/common/CrmSelect';
+import { CrmDateTimePicker } from '@/components/common/CrmDateTimePicker';
 
 interface UserItem {
   id: number;
@@ -176,8 +178,7 @@ export function CreateTaskModal({
     }
   };
 
-  const handleAssigneeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
+  const handleAssigneeSelect = (val: string) => {
     if (val === 'Unassigned' || !val) {
       setAssignedTo('Unassigned');
       setAssignedToUserId(undefined);
@@ -192,6 +193,10 @@ export function CreateTaskModal({
         setAssignedToUserId(undefined);
       }
     }
+  };
+
+  const handleAssigneeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    handleAssigneeSelect(e.target.value);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -398,32 +403,32 @@ export function CreateTaskModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="font-bold text-slate-700 dark:text-slate-300 block">Category</label>
-              <select
+              <CrmSelect
                 value={category}
-                onChange={(e) => setCategory(e.target.value as TaskCategory)}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
-              >
-                <option value="rise_up">Rise Up Operations</option>
-                <option value="estimate_followup">Estimate Follow-up</option>
-                <option value="permits_city">City Permits</option>
-                <option value="content_creation">Content Creation</option>
-                <option value="marketing">Marketing</option>
-                <option value="general">Operations General</option>
-              </select>
+                onChange={(val) => setCategory(val as TaskCategory)}
+                options={[
+                  { value: 'rise_up', label: 'Rise Up Operations' },
+                  { value: 'estimate_followup', label: 'Estimate Follow-up' },
+                  { value: 'permits_city', label: 'City Permits' },
+                  { value: 'content_creation', label: 'Content Creation' },
+                  { value: 'marketing', label: 'Marketing' },
+                  { value: 'general', label: 'Operations General' },
+                ]}
+              />
             </div>
 
             <div className="space-y-1">
               <label className="font-bold text-slate-700 dark:text-slate-300 block">Priority</label>
-              <select
+              <CrmSelect
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
-              >
-                <option value="urgent">🔴 Urgent</option>
-                <option value="high">🟡 High</option>
-                <option value="normal">🔵 Normal</option>
-                <option value="low">⚪ Low</option>
-              </select>
+                onChange={(val) => setPriority(val as TaskPriority)}
+                options={[
+                  { value: 'urgent', label: '🔴 Urgent' },
+                  { value: 'high', label: '🟡 High' },
+                  { value: 'normal', label: '🔵 Normal' },
+                  { value: 'low', label: '⚪ Low' },
+                ]}
+              />
             </div>
           </div>
 
@@ -431,32 +436,26 @@ export function CreateTaskModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="font-bold text-slate-700 dark:text-slate-300 block">Due Date &amp; Time</label>
-              <div className="relative">
-                <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="datetime-local"
-                  value={dueDateTime}
-                  onChange={(e) => setDueDateTime(e.target.value)}
-                  className="w-full pl-8 pr-2.5 py-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400"
-                />
-              </div>
+              <CrmDateTimePicker
+                value={dueDateTime}
+                onChange={setDueDateTime}
+              />
             </div>
 
             <div className="space-y-1">
               <label className="font-bold text-slate-700 dark:text-slate-300 block">Assignee</label>
-              <select
+              <CrmSelect
                 value={assignedToUserId ? String(assignedToUserId) : assignedTo}
-                onChange={handleAssigneeChange}
+                onChange={handleAssigneeSelect}
                 disabled={isLoadingUsers}
-                className="w-full p-2 rounded-xl border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer disabled:opacity-60"
-              >
-                <option value="Unassigned">⚠️ Unassigned</option>
-                {users.map((u) => (
-                  <option key={u.id} value={String(u.id)}>
-                    {u.name} ({formatRole(u.role)})
-                  </option>
-                ))}
-              </select>
+                options={[
+                  { value: 'Unassigned', label: '⚠️ Unassigned' },
+                  ...users.map((u) => ({
+                    value: String(u.id),
+                    label: `${u.name} (${formatRole(u.role)})`,
+                  })),
+                ]}
+              />
             </div>
           </div>
 

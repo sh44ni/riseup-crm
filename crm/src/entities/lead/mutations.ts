@@ -38,6 +38,37 @@ export function useUpdateLeadStageMutation() {
   return useMutation({
     mutationFn: ({ id, stage }: { id: number | string; stage: Lead['status'] }) =>
       leadsApi.updateLeadStage(id, stage),
+
+    onMutate: async ({ id, stage }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.leads.all() });
+      const previousQueries = queryClient.getQueriesData<{ leads: Lead[]; total: number }>({
+        queryKey: queryKeys.leads.all(),
+      });
+
+      queryClient.setQueriesData<{ leads: Lead[]; total: number }>(
+        { queryKey: queryKeys.leads.all() },
+        (old) => {
+          if (!old?.leads) return old;
+          return {
+            ...old,
+            leads: old.leads.map((l) =>
+              String(l.id) === String(id) ? { ...l, status: stage } : l
+            ),
+          };
+        }
+      );
+
+      return { previousQueries };
+    },
+
+    onError: (_err, _vars, context) => {
+      if (context?.previousQueries) {
+        context.previousQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+
     onSettled: (_data, _err, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
@@ -52,6 +83,37 @@ export function useClaimLeadMutation() {
 
   return useMutation({
     mutationFn: (id: number | string) => leadsApi.claimLead(id),
+
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.leads.all() });
+      const previousQueries = queryClient.getQueriesData<{ leads: Lead[]; total: number }>({
+        queryKey: queryKeys.leads.all(),
+      });
+
+      queryClient.setQueriesData<{ leads: Lead[]; total: number }>(
+        { queryKey: queryKeys.leads.all() },
+        (old) => {
+          if (!old?.leads) return old;
+          return {
+            ...old,
+            leads: old.leads.map((l) =>
+              String(l.id) === String(id) ? { ...l, isClaimed: true } : l
+            ),
+          };
+        }
+      );
+
+      return { previousQueries };
+    },
+
+    onError: (_err, _vars, context) => {
+      if (context?.previousQueries) {
+        context.previousQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+
     onSettled: (_data, _err, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });

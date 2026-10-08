@@ -12,6 +12,7 @@ import {
 import { Client360Record } from '@/types/client360Types';
 import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
 import { ClientStatusBadge } from '@/components/clients/ClientStatusBadge';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 export type ClientProfileTab = 'overview' | 'timeline' | 'quotes' | 'billing' | 'warranties' | 'tasks';
 
@@ -61,17 +62,19 @@ export function ClientProfileHeader({
         {/* Quick Switcher */}
         <div className="flex items-center gap-2 text-xs">
           <span className="text-slate-500 dark:text-slate-400 font-semibold hidden sm:inline">Switch Client:</span>
-          <select
-            value={selectedClientId ?? ''}
-            onChange={(e) => onSelectClientId(e.target.value)}
-            className="px-3 py-1.5 rounded-xl border border-slate-300/80 dark:border-white/10 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-brand-600 dark:focus:border-sky-500 shadow-2xs"
-          >
-            {clients.map((c) => (
-              <option key={c.id} value={c.id} className="dark:bg-slate-900 dark:text-white">
-                {c.name} ({c.status === 'active_job' ? 'Active' : c.status === 'closed_lost' ? 'Lost' : 'Completed'})
-              </option>
-            ))}
-          </select>
+          <div className="w-56 sm:w-64">
+            <CrmSelect
+              value={selectedClientId ?? ''}
+              onChange={onSelectClientId}
+              options={clients.map((c) => ({
+                value: c.id,
+                label: c.name,
+                badge: c.status === 'active_job' ? 'Active' : c.status === 'closed_lost' ? 'Lost' : 'Completed',
+                badgeClass: c.status === 'active_job' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+              }))}
+              size="sm"
+            />
+          </div>
         </div>
       </div>
 

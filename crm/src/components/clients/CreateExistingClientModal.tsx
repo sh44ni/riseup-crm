@@ -18,6 +18,7 @@ import {
 import { PipelineStageSelector } from './create-modal/PipelineStageSelector';
 import { HomeownerIdentitySection } from './create-modal/HomeownerIdentitySection';
 import { PropertySpecsSection } from './create-modal/PropertySpecsSection';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 export interface CreateExistingClientModalProps {
   isOpen: boolean;
@@ -70,6 +71,9 @@ export function CreateExistingClientModal({
   const emailValue = watch('email');
   const phoneValue = watch('phone');
   const pipelineStage = watch('pipelineStage');
+  const serviceType = watch('serviceType');
+  const assignedToUserId = watch('assignedToUserId');
+  const clientSinceValue = watch('clientSince');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -239,6 +243,7 @@ export function CreateExistingClientModal({
             register={register}
             errors={errors}
             setValue={setValue}
+            clientSinceValue={clientSinceValue}
             emailValue={emailValue}
             phoneValue={phoneValue}
             emailConflict={emailConflict}
@@ -265,16 +270,12 @@ export function CreateExistingClientModal({
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Service / Project Type
                 </label>
-                <select
-                  {...register('serviceType')}
-                  className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-                >
-                  {SERVICE_OPTIONS.map((svc) => (
-                    <option key={svc} value={svc}>
-                      {svc}
-                    </option>
-                  ))}
-                </select>
+                <CrmSelect
+                  value={serviceType}
+                  onChange={(val) => setValue('serviceType', val, { shouldValidate: true })}
+                  options={SERVICE_OPTIONS.map((svc) => ({ value: svc, label: svc }))}
+                  triggerClassName="h-9 font-medium"
+                />
               </div>
 
               <div>
@@ -298,19 +299,18 @@ export function CreateExistingClientModal({
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Assigned Representative
                 </label>
-                <select
-                  {...register('assignedToUserId', {
-                    setValueAs: (v) => (v ? Number(v) : null),
-                  })}
-                  className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-                >
-                  <option value="">Auto-Assign to Creator ({user?.name || 'Self'})</option>
-                  {teamMembers.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.role || 'Staff'})
-                    </option>
-                  ))}
-                </select>
+                <CrmSelect
+                  value={assignedToUserId ? String(assignedToUserId) : ''}
+                  onChange={(val) => setValue('assignedToUserId', val ? Number(val) : null, { shouldValidate: true })}
+                  options={[
+                    { value: '', label: `Auto-Assign to Creator (${user?.name || 'Self'})` },
+                    ...teamMembers.map((m) => ({
+                      value: String(m.id),
+                      label: `${m.name} (${m.role || 'Staff'})`,
+                    })),
+                  ]}
+                  triggerClassName="h-9 font-medium"
+                />
               </div>
             </div>
 

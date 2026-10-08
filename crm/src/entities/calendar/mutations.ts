@@ -41,6 +41,32 @@ export function useToggleCalendarTaskMutation() {
   return useMutation({
     mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
       toggleTaskComplete(id, completed),
+
+    // Sub-16ms instant checkmark toggle
+    onMutate: async ({ id, completed }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.calendar.all() });
+      const prevEvents = queryClient.getQueryData<TeamOperationEvent[]>(queryKeys.calendar.events());
+
+      if (prevEvents) {
+        queryClient.setQueryData<TeamOperationEvent[]>(
+          queryKeys.calendar.events(),
+          prevEvents.map((evt) =>
+            String(evt.id) === String(id)
+              ? { ...evt, completed, status: completed ? 'completed' : 'scheduled' }
+              : evt
+          )
+        );
+      }
+
+      return { prevEvents };
+    },
+
+    onError: (_err, _vars, context) => {
+      if (context?.prevEvents) {
+        queryClient.setQueryData(queryKeys.calendar.events(), context.prevEvents);
+      }
+    },
+
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.calendar.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all() });

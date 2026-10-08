@@ -3,6 +3,7 @@ import { RotateCcw, Shield } from 'lucide-react';
 import { DevBadge } from '@/components/common/DevBadge';
 import { isDevEmail } from '@/utils/devUtils';
 import { Role, UserItem } from '../types';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface ActiveMembersTableProps {
   users: UserItem[];
@@ -117,17 +118,17 @@ export function ActiveMembersTable({
 
                     <td className="py-3 px-4">
                       {canChangeThisUserRole ? (
-                        <select
-                          value={u.roles?.[0]?.id || roles.find((r) => r.name.toLowerCase() === u.role.toLowerCase() || r.name.toLowerCase().replace(/ /g, '_') === u.role.toLowerCase())?.id || ''}
-                          onChange={(e) => onRoleChange(u.id, Number(e.target.value))}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-white/10 hover:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer shadow-2xs"
-                        >
-                          {selectableRoles.map((r) => (
-                            <option key={r.id} value={r.id} className="dark:bg-slate-900 dark:text-white">
-                              {r.name}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="w-36">
+                          <CrmSelect
+                            value={String(u.roles?.[0]?.id || roles.find((r) => r.name.toLowerCase() === u.role.toLowerCase() || r.name.toLowerCase().replace(/ /g, '_') === u.role.toLowerCase())?.id || '')}
+                            onChange={(val) => onRoleChange(u.id, Number(val))}
+                            options={selectableRoles.map((r) => ({
+                              value: String(r.id),
+                              label: r.name,
+                            }))}
+                            size="xs"
+                          />
+                        </div>
                       ) : (
                         <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border inline-flex items-center gap-1 ${
                           isUserOwner

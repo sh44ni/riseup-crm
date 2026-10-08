@@ -5,6 +5,7 @@ import { FieldWithCap } from '../FieldWithCap';
 import { PhotoFrameEditor } from '../PhotoFrameEditor';
 import { Calendar, Search, Upload, Lock, User, MapPin, Phone, Mail, Image, Check } from 'lucide-react';
 import { api, API_ORIGIN } from '@/lib/api';
+import { CrmDatePicker } from '@/components/common/CrmDatePicker';
 
 const getImgSrc = (url?: string) => {
   if (!url) return '';
@@ -154,9 +155,12 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
     setShowDropdown(false);
   };
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const date = new Date(e.target.value);
-    onDataChange({ proposalDate: date.toISOString() });
+  const handleDateChange = (val: string) => {
+    if (!val) return;
+    const date = new Date(val);
+    if (!isNaN(date.getTime())) {
+      onDataChange({ proposalDate: date.toISOString() });
+    }
   };
 
   const formattedDate = data.proposalDate 
@@ -203,11 +207,10 @@ export function DetailsStep({ data, onDataChange }: StepProps) {
         <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
           <Calendar size={14} /> Proposal Date
         </label>
-        <input 
-          type="date"
+        <CrmDatePicker 
           value={formattedDate}
           onChange={handleDateChange}
-          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:border-[#1a5ba5] focus:ring-2 focus:ring-[#1a5ba5]/20 transition-all"
+          placeholder="Select proposal date..."
         />
       </div>
 

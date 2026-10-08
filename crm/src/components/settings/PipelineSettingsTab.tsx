@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { PipelineAutomation } from '@/types/settingsTypes';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface PipelineSettingsTabProps {
   pipeline: PipelineAutomation;
@@ -165,26 +166,30 @@ export function PipelineSettingsTab({
               <label className="block font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px]">
                 After-Hours Routing (After 7:00 PM PST)
               </label>
-              <select
+              <CrmSelect
                 value={pipeline.afterHoursRouting}
-                onChange={(e) =>
+                onChange={(val) =>
                   onChange({
                     ...pipeline,
-                    afterHoursRouting: e.target.value as any,
+                    afterHoursRouting: val as any,
                   })
                 }
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 focus:border-[#1878B8] text-xs font-semibold text-slate-800 dark:text-white outline-none shadow-2xs cursor-pointer"
-              >
-                <option value="emergency_dispatcher">
-                  Forward to On-Call Emergency Tarp Dispatcher
-                </option>
-                <option value="queue_morning">
-                  Queue SMS for 07:00 AM Next Morning Rollout
-                </option>
-                <option value="voicemail">
-                  Send After-Hours SMS with Online Scheduling Link
-                </option>
-              </select>
+                options={[
+                  {
+                    value: 'emergency_dispatcher',
+                    label: 'Forward to On-Call Emergency Tarp Dispatcher',
+                  },
+                  {
+                    value: 'queue_morning',
+                    label: 'Queue SMS for 07:00 AM Next Morning Rollout',
+                  },
+                  {
+                    value: 'voicemail',
+                    label: 'Send After-Hours SMS with Online Scheduling Link',
+                  },
+                ]}
+                triggerClassName="py-2.5 text-xs font-semibold"
+              />
             </div>
           </div>
 
@@ -350,23 +355,27 @@ export function PipelineSettingsTab({
               <label className="block font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px]">
                 Lead Auto-Assignment Algorithm
               </label>
-              <select
+              <CrmSelect
                 value={pipeline.autoAssignMode}
-                onChange={(e) =>
-                  onChange({ ...pipeline, autoAssignMode: e.target.value as any })
+                onChange={(val) =>
+                  onChange({ ...pipeline, autoAssignMode: val as any })
                 }
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 focus:border-[#1878B8] text-xs font-semibold text-slate-800 dark:text-white outline-none shadow-2xs cursor-pointer"
-              >
-                <option value="territory_zip">
-                  Zip-Code Territory Matrix (Oceanside, Carlsbad, Encinitas)
-                </option>
-                <option value="round_robin">
-                  Round-Robin Equal Distribution (Dave Miller & Carlos Morales)
-                </option>
-                <option value="manual">
-                  Manual Dispatch Assignment (Hold in Unassigned Pool)
-                </option>
-              </select>
+                options={[
+                  {
+                    value: 'territory_zip',
+                    label: 'Zip-Code Territory Matrix (Oceanside, Carlsbad, Encinitas)',
+                  },
+                  {
+                    value: 'round_robin',
+                    label: 'Round-Robin Equal Distribution (Dave Miller & Carlos Morales)',
+                  },
+                  {
+                    value: 'manual',
+                    label: 'Manual Dispatch Assignment (Hold in Unassigned Pool)',
+                  },
+                ]}
+                triggerClassName="py-2.5 text-xs font-semibold"
+              />
             </div>
           </div>
         </div>

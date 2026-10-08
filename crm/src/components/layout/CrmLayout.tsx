@@ -5,6 +5,7 @@ import { CrmSidebar } from './CrmSidebar';
 import { CrmTopBar } from './CrmTopBar';
 import { CrmRightPanel } from './CrmRightPanel';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { ContentLoadingFallback } from './PageLoadingFallback';
 const QuickAddLeadModal = React.lazy(() =>
   import('@/components/pipeline/QuickAddLeadModal').then((m) => ({ default: m.QuickAddLeadModal }))
 );
@@ -98,9 +99,11 @@ export function CrmLayout() {
         {!isLightGlass && <CrmTopBar />}
         <main className={`flex-1 min-w-0 min-h-0 relative z-10 ${isSingleScreen ? 'flex flex-col px-3 sm:px-4 py-2' : isLightGlass ? 'px-4 py-2.5' : 'p-6'}`}>
           <ErrorBoundary fallbackTitle="Module Error Encountered">
-            <PageTransitionWrapper key={location.pathname}>
-              <Outlet />
-            </PageTransitionWrapper>
+            <React.Suspense fallback={<ContentLoadingFallback />}>
+              <PageTransitionWrapper key={location.pathname}>
+                <Outlet />
+              </PageTransitionWrapper>
+            </React.Suspense>
           </ErrorBoundary>
         </main>
       </div>

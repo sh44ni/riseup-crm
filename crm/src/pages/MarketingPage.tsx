@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { CrmPageHero } from '@/components/common/CrmPageHero';
+import { CrmDatePicker } from '@/components/common/CrmDatePicker';
 import { fetchMarketingAnalytics, fetchSpamShield } from '@/api/marketingApi';
 import type { MarketingAnalyticsData, MarketingTimeframe, SpamShieldData } from '@/types/marketingTypes';
 import { MarketingKpiCards } from '@/components/marketing/MarketingKpiCards';
@@ -290,23 +291,23 @@ export const MarketingPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-semibold">From:</span>
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                className="text-xs px-2 py-1 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:border-sky-500"
-                required
-              />
+              <div className="w-36">
+                <CrmDatePicker
+                  value={customFrom}
+                  onChange={setCustomFrom}
+                  placeholder="From date"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-1.5 text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-semibold">To:</span>
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
-                className="text-xs px-2 py-1 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:border-sky-500"
-                required
-              />
+              <div className="w-36">
+                <CrmDatePicker
+                  value={customTo}
+                  onChange={setCustomTo}
+                  placeholder="To date"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <button

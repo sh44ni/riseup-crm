@@ -1,6 +1,7 @@
 import React from 'react';
 import { RefreshCw, Download, Plus, Search, X, Filter, Kanban, Layers, Clock, Calendar } from 'lucide-react';
 import { PipelineSummary } from '@/api/pipelineApi';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface PipelineToolbarProps {
   searchQuery: string;
@@ -177,40 +178,47 @@ export function PipelineToolbar({
               <span>Filter:</span>
             </div>
 
-            <select
-              value={selectedEstimator}
-              onChange={(e) => onEstimatorChange(e.target.value)}
-              className="text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200 focus:outline-none shadow-2xs"
-            >
-              <option value="all">All Estimators</option>
-              {availableEstimators.map((est) => (
-                <option key={est} value={est}>{est}</option>
-              ))}
-            </select>
+            <div className="w-36">
+              <CrmSelect
+                value={selectedEstimator}
+                onChange={onEstimatorChange}
+                size="xs"
+                options={[
+                  { value: 'all', label: 'All Estimators' },
+                  ...availableEstimators.map((est) => ({ value: est, label: est })),
+                ]}
+              />
+            </div>
 
-            <select
-              value={selectedService}
-              onChange={(e) => onServiceChange(e.target.value)}
-              className="text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200 focus:outline-none shadow-2xs"
-            >
-              <option value="all">All Roofing Types</option>
-              <option value="Tile">Spanish / Concrete Tile</option>
-              <option value="Shingle">Architectural Shingle</option>
-              <option value="Metal">Standing Seam Metal</option>
-              <option value="Commercial">Flat / Commercial TPO</option>
-              <option value="Repair">Leak Repair &amp; Maintenance</option>
-            </select>
+            <div className="w-44">
+              <CrmSelect
+                value={selectedService}
+                onChange={onServiceChange}
+                size="xs"
+                options={[
+                  { value: 'all', label: 'All Roofing Types' },
+                  { value: 'Tile', label: 'Spanish / Concrete Tile' },
+                  { value: 'Shingle', label: 'Architectural Shingle' },
+                  { value: 'Metal', label: 'Standing Seam Metal' },
+                  { value: 'Commercial', label: 'Flat / Commercial TPO' },
+                  { value: 'Repair', label: 'Leak Repair & Maintenance' },
+                ]}
+              />
+            </div>
 
-            <select
-              value={selectedSlaFilter}
-              onChange={(e) => onSlaFilterChange(e.target.value)}
-              className="text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200 focus:outline-none shadow-2xs"
-            >
-              <option value="all">All SLA Timelines</option>
-              <option value="due_today">⚡ Action Due Today</option>
-              <option value="overdue">⚠️ SLA Overdue</option>
-              <option value="high_value">💎 High Value (&gt;$25k)</option>
-            </select>
+            <div className="w-40">
+              <CrmSelect
+                value={selectedSlaFilter}
+                onChange={onSlaFilterChange}
+                size="xs"
+                options={[
+                  { value: 'all', label: 'All SLA Timelines' },
+                  { value: 'due_today', label: '⚡ Action Due Today' },
+                  { value: 'overdue', label: '⚠️ SLA Overdue' },
+                  { value: 'high_value', label: '💎 High Value (>$25k)' },
+                ]}
+              />
+            </div>
           </div>
         </div>
       </div>

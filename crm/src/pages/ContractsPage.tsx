@@ -20,30 +20,25 @@ import { ContractsKpiCards } from '@/components/contracts/registry/ContractsKpiC
 import { ContractsToolbar } from '@/components/contracts/registry/ContractsToolbar';
 import { ContractsTable } from '@/components/contracts/registry/ContractsTable';
 
+import { useContractsListQuery } from '@/entities/contract/queries';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+
 export function ContractsPage() {
   const { user, isOwner } = useAuth();
   const canCounterSign = isOwner || Boolean(user?.is_authorized_signatory);
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Mode: 'registry' (table list) vs 'studio' (full-screen split Studio workspace)
   const mode = searchParams.get('mode') || 'registry';
   const editContractId = searchParams.get('id');
 
-  const [contracts, setContracts] = useState<ContractRow[]>([]);
-  const [summary, setSummary] = useState<ContractsSummary>({
-    totalCount: 0,
-    signedCount: 0,
-    clientSignedCount: 0,
-    sentCount: 0,
-    draftCount: 0,
-    archivedCount: 0,
-    totalValue: 0,
-    signedValue: 0,
-  });
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all');
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const urlStatus = searchParams.get('status');
@@ -52,38 +47,36 @@ export function ContractsPage() {
     }
   }, [searchParams, statusFilter]);
 
+  const {
+    data,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useContractsListQuery(
+    {
+      status: statusFilter,
+      search: debouncedSearch.trim() || undefined,
+    },
+    { enabled: mode === 'registry' }
+  );
+
+  const contracts = data?.contracts || [];
+  const summary: ContractsSummary = data?.summary || {
+    totalCount: 0,
+    signedCount: 0,
+    clientSignedCount: 0,
+    sentCount: 0,
+    draftCount: 0,
+    archivedCount: 0,
+    totalValue: 0,
+    signedValue: 0,
+  };
+  const loading = isLoading && !data;
+
   const [selectedCounterSign, setSelectedCounterSign] = useState<ContractRow | null>(null);
   const [deleteConfirmContract, setDeleteConfirmContract] = useState<ContractRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
-
-  const fetchContractsList = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await getContracts({ status: statusFilter, search });
-      setContracts(res.contracts || []);
-      setSummary(
-        res.summary || {
-          totalCount: 0,
-          signedCount: 0,
-          sentCount: 0,
-          draftCount: 0,
-          totalValue: 0,
-          signedValue: 0,
-        }
-      );
-    } catch (err: unknown) {
-      console.error('Failed to fetch contracts:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, search]);
-
-  useEffect(() => {
-    if (mode === 'registry') {
-      fetchContractsList();
-    }
-  }, [mode, fetchContractsList]);
 
   const handleDeleteDraft = async () => {
     if (!deleteConfirmContract) return;
@@ -92,7 +85,7 @@ export function ContractsPage() {
       await deleteContractDraft(deleteConfirmContract.id);
       toast.success('Contract draft deleted successfully');
       setDeleteConfirmContract(null);
-      await fetchContractsList();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contracts.all() });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       toast.error(`Failed to delete draft: ${msg}`);
@@ -110,7 +103,7 @@ export function ContractsPage() {
         await archiveContract(contract.id);
         toast.success(`Archived contract ${contract.contract_number}`);
       }
-      await fetchContractsList();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contracts.all() });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       toast.error(`Failed to update archive status: ${msg}`);
@@ -231,12 +224,12 @@ export function ContractsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={fetchContractsList}
-              disabled={loading}
+              onClick={() => refetch()}
+              disabled={isFetching}
               className="h-9 flex items-center gap-1.5 px-3 rounded-xl liquid-glass-btn text-xs font-bold text-slate-700 hover:text-slate-900 dark:text-slate-200 transition-all cursor-pointer shadow-2xs"
               title="Refresh contracts"
             >
-              <RefreshCw size={13} className={loading ? 'animate-spin text-[#1878B8]' : ''} />
+              <RefreshCw size={13} className={isFetching ? 'animate-spin text-[#1878B8]' : ''} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
@@ -309,7 +302,7 @@ export function ContractsPage() {
         onClose={() => setSelectedCounterSign(null)}
         onSuccess={() => {
           setSelectedCounterSign(null);
-          fetchContractsList();
+          refetch();
         }}
       />
 

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { ColumnData, EnrichedDeal, enrichDeals } from './pipelineTypes';
 import { useAuth } from '@/context/AuthContext';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface PipelineCalendarViewProps {
   columns: ColumnData[];
@@ -197,18 +198,21 @@ export function PipelineCalendarView({
 
         {/* Right Mode Switch & Stage Filter */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <select
-            value={selectedStageFilter}
-            onChange={(e) => setSelectedStageFilter(e.target.value)}
-            className="px-2.5 py-1 rounded-xl liquid-glass-input text-[11px] font-semibold text-slate-700 dark:text-slate-200 dark:bg-slate-900 cursor-pointer focus:outline-none"
-          >
-            <option value="all">All Stages ({allDeals.length})</option>
-            {columns.map((col) => (
-              <option key={col.id} value={col.id}>
-                {col.title} ({col.cards.length})
-              </option>
-            ))}
-          </select>
+          <div className="w-44 sm:w-48">
+            <CrmSelect
+              value={selectedStageFilter}
+              onChange={setSelectedStageFilter}
+              size="xs"
+              options={[
+                { value: 'all', label: `All Stages (${allDeals.length})` },
+                ...columns.map((col) => ({
+                  value: col.id,
+                  label: `${col.title} (${col.cards.length})`,
+                })),
+              ]}
+              triggerClassName="py-1 text-[11px]"
+            />
+          </div>
 
           <div className="flex items-center bg-white/60 dark:bg-slate-900/60 p-0.5 rounded-xl border border-white/80 dark:border-white/10 shadow-2xs">
             <button

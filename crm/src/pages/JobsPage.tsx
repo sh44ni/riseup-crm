@@ -6,6 +6,7 @@ import {
 import { CrmPageHero } from '@/components/common/CrmPageHero';
 import { ViewToggle } from '@/components/common/ViewToggle';
 import { useJobs } from '@/hooks/useJobs';
+import { useDebounce } from '@/hooks/useDebounce';
 import { JobRecord } from '@/types/jobTypes';
 import { JobCard } from '@/components/jobs/JobCard';
 import { JobsTableView } from '@/components/jobs/JobsTableView';
@@ -13,6 +14,7 @@ import { JobInspectorModal } from '@/components/jobs/JobInspectorModal';
 
 export function JobsPage() {
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export function JobsPage() {
     updateJobDetails,
     markJobComplete,
     logActivity,
-  } = useJobs('all', search);
+  } = useJobs('all', debouncedSearch);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

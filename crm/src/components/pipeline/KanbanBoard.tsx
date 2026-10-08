@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   PipelineDealItem,
   StageDefinition,
@@ -53,37 +53,66 @@ export function KanbanBoard({
   const localScrollRef = useRef<HTMLDivElement>(null);
   const activeScrollRef = (scrollRef as React.RefObject<HTMLDivElement>) || localScrollRef;
 
-  const handleDragStart = (dealId: string, _sourceStageId: PipelineStageId) => {
-    setDraggedDealId(dealId);
-  };
+  // Single-pass stage grouping with memoization to eliminate per-render array allocations
+  const dealsByStage = useMemo(() => {
+    const map: Record<string, PipelineDealItem[]> = {};
+    for (const stage of stages) {
+      map[stage.id] = [];
+    }
+    for (const deal of filteredDeals) {
+      if (map[deal.stageId]) {
+        map[deal.stageId].push(deal);
+      }
+    }
+    if (map['follow_up']) {
+      map['follow_up'].sort((a, b) => {
+        if (a.isFollowupOverdue && !b.isFollowupOverdue) return -1;
+        if (!a.isFollowupOverdue && b.isFollowupOverdue) return 1;
+        const remA = a.followupDaysRemaining ?? 7;
+        const remB = b.followupDaysRemaining ?? 7;
+        return remA - remB;
+      });
+    }
+    return map;
+  }, [stages, filteredDeals]);
 
-  const handleDragEnd = () => {
+  // Memoized stage totals
+  const stageTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const stage of stages) {
+      const stageDeals = dealsByStage[stage.id] || [];
+      totals[stage.id] = stageDeals.reduce((sum, d) => sum + d.value, 0);
+    }
+    return totals;
+  }, [stages, dealsByStage]);
+
+  const handleDragStart = useCallback((dealId: string, _sourceStageId: PipelineStageId) => {
+    setDraggedDealId(dealId);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
     setDraggedDealId(null);
     setDragOverStageId(null);
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, stageId: PipelineStageId) => {
+  const handleDragOver = useCallback((e: React.DragEvent, stageId: PipelineStageId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverStageId !== stageId) {
-      setDragOverStageId(stageId);
-    }
-  };
+    setDragOverStageId((prev) => (prev !== stageId ? stageId : prev));
+  }, []);
 
-  const handleDragLeave = (stageId: PipelineStageId) => {
-    if (dragOverStageId === stageId) {
-      setDragOverStageId(null);
-    }
-  };
+  const handleDragLeave = useCallback((stageId: PipelineStageId) => {
+    setDragOverStageId((prev) => (prev === stageId ? null : prev));
+  }, []);
 
-  const handleDropOnStage = (e: React.DragEvent, targetStageId: PipelineStageId) => {
+  const handleDropOnStage = useCallback((e: React.DragEvent, targetStageId: PipelineStageId) => {
     e.preventDefault();
     if (draggedDealId) {
       onDropDealOnStage(draggedDealId, targetStageId);
     }
     setDraggedDealId(null);
     setDragOverStageId(null);
-  };
+  }, [draggedDealId, onDropDealOnStage]);
 
   return (
     <div className="relative">
@@ -93,19 +122,8 @@ export function KanbanBoard({
         className="grid grid-flow-col auto-cols-[300px] gap-3.5 overflow-x-auto pb-4 pt-1 transition-all kanban-horizontal-scroll"
       >
         {stages.map((stage, stageIdx) => {
-          const rawStageDeals = filteredDeals.filter((d) => d.stageId === stage.id);
-          const stageDeals =
-            stage.id === 'follow_up'
-              ? [...rawStageDeals].sort((a, b) => {
-                  if (a.isFollowupOverdue && !b.isFollowupOverdue) return -1;
-                  if (!a.isFollowupOverdue && b.isFollowupOverdue) return 1;
-                  const remA = a.followupDaysRemaining ?? 7;
-                  const remB = b.followupDaysRemaining ?? 7;
-                  return remA - remB;
-                })
-              : rawStageDeals;
-
-          const totalVal = stageDeals.reduce((sum, d) => sum + d.value, 0);
+          const stageDeals = dealsByStage[stage.id] || [];
+          const totalVal = stageTotals[stage.id] || 0;
           const nextStage = stages[stageIdx + 1];
           const isColHighlighted = highlightedStage === stage.id;
           const isHovered = dragOverStageId === stage.id;

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Calendar, Clock } from 'lucide-react';
 import { START_TIME_OPTIONS, END_TIME_OPTIONS } from './types';
+import { CrmDatePicker } from '@/components/common/CrmDatePicker';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface ScheduleDateTimeFieldsProps {
   dateStr: string;
@@ -28,12 +30,9 @@ export function ScheduleDateTimeFields({
           <Calendar size={12} className="text-slate-400" />
           <span>Due Date</span>
         </label>
-        <input
-          type="date"
-          required
+        <CrmDatePicker
           value={dateStr}
-          onChange={(e) => onDateChange(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 shadow-2xs"
+          onChange={onDateChange}
         />
         {errorScheduledDate && (
           <p className="text-rose-500 text-xs mt-1">{errorScheduledDate}</p>
@@ -45,17 +44,11 @@ export function ScheduleDateTimeFields({
           <Clock size={12} className="text-slate-400" />
           <span>Start Time</span>
         </label>
-        <select
+        <CrmSelect
           value={startTime}
-          onChange={(e) => onStartTimeChange(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 bg-white dark:bg-slate-900 shadow-2xs cursor-pointer"
-        >
-          {START_TIME_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={onStartTimeChange}
+          options={START_TIME_OPTIONS}
+        />
       </div>
 
       <div>
@@ -63,17 +56,11 @@ export function ScheduleDateTimeFields({
           <Clock size={12} className="text-slate-400" />
           <span>End Time</span>
         </label>
-        <select
+        <CrmSelect
           value={endTime}
-          onChange={(e) => onEndTimeChange(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-sky-500 bg-white dark:bg-slate-900 shadow-2xs cursor-pointer"
-        >
-          {END_TIME_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={onEndTimeChange}
+          options={END_TIME_OPTIONS}
+        />
       </div>
     </div>
   );

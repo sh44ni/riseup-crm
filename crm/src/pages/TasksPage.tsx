@@ -8,12 +8,17 @@ import { TasksSectionList } from '@/components/tasks/TasksSectionList';
 import { PersonalStickyBoard } from '@/components/tasks/PersonalStickyBoard';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
 import { CrmTaskDetailModal } from '@/components/tasks/CrmTaskDetailModal';
-import { CrmTask, TaskCategory } from '@/types/taskTypes';
+import { CrmTask, TaskCategory, TaskStatus } from '@/types/taskTypes';
 import { usePersonalTasks } from '@/lib/personalTasksStore';
 import { api } from '@/lib/api';
+import { useOperationsTasksQuery } from '@/entities/task/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+import { useDebounce } from '@/hooks/useDebounce';
 
 export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const tabFromUrl = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'operations' | 'personal_notes'>(
     tabFromUrl === 'operations' ? 'operations' : 'personal_notes'
@@ -36,14 +41,68 @@ export function TasksPage() {
     });
   }, [setSearchParams]);
 
-  // Tasks start empty and are populated solely from real backend records
-  const [tasks, setTasks] = useState<CrmTask[]>([]);
-  const [isLoadingTasks, setIsLoadingTasks] = useState<boolean>(true);
+  // Tasks TanStack Query cache
+  const { data: rawTasks, isLoading: isTasksQueryLoading, refetch: refetchOperationsTasks } = useOperationsTasksQuery();
+  const [localTasks, setLocalTasks] = useState<CrmTask[] | null>(null);
+
   const [selectedCategory, setSelectedCategory] = useState<'all' | TaskCategory>('all');
   const [search, setSearch] = useState<string>('');
+  const debouncedSearch = useDebounce(search, 200);
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<CrmTask | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // Derive mapped tasks from query data
+  const backendTasks = useMemo<CrmTask[]>(() => {
+    if (!rawTasks) return [];
+    const now = new Date();
+    return rawTasks.map((t: any) => {
+      const due = t.due_at ? new Date(t.due_at) : new Date();
+      const isOverdue = due < now && !t.completed_at;
+      const isToday = due.toDateString() === now.toDateString();
+      const assignee = t.assigned_user_name || t.assigned_to || 'Unassigned';
+      const initials =
+        assignee !== 'Unassigned'
+          ? assignee
+              .split(' ')
+              .map((p: string) => p[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase()
+          : undefined;
+
+      return {
+        id: String(t.id),
+        title: t.title,
+        clientName: t.lead_name || t.job_customer_name || t.customer_name || (t.assigned_to !== assignee ? t.assigned_to : undefined),
+        description: t.description || undefined,
+        category: (t.event_type || t.category || 'general') as TaskCategory,
+        priority: (t.priority || 'normal') as any,
+        status: (t.completed_at ? 'completed' : 'active') as TaskStatus,
+        dueDate: t.due_at || new Date().toISOString(),
+        dueDateFormatted:
+          due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+          ` at ${due.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
+        isOverdue,
+        isToday,
+        isUpcoming: !isOverdue && !isToday,
+        assignedTo: assignee,
+        assignedToUserId: t.assigned_to_user_id ? Number(t.assigned_to_user_id) : undefined,
+        assignedInitials: initials,
+        completedAt: t.completed_at || undefined,
+        entityType: t.entity_type || undefined,
+        entityId: t.entity_id ? Number(t.entity_id) : undefined,
+      };
+    });
+  }, [rawTasks]);
+
+  // Sync backend data into localTasks
+  useEffect(() => {
+    setLocalTasks(backendTasks);
+  }, [backendTasks]);
+
+  const tasks = localTasks ?? backendTasks;
+  const isLoadingTasks = isTasksQueryLoading && !rawTasks;
 
   // Live Personal Tasks Store (synchronized 2-way with Dashboard right-dock widget)
   const {
@@ -82,8 +141,8 @@ export function TasksPage() {
     }
 
     // Filter by search query
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       list = list.filter(
         (t) =>
           t.title.toLowerCase().includes(q) ||
@@ -94,7 +153,7 @@ export function TasksPage() {
     }
 
     return list;
-  }, [tasks, selectedCategory, search]);
+  }, [tasks, selectedCategory, debouncedSearch]);
 
   // Operational KPI counts
   const opOverdueCount = useMemo(() => tasks.filter((t) => t.status === 'active' && t.isOverdue).length, [tasks]);
@@ -146,73 +205,10 @@ export function TasksPage() {
     return counts;
   }, [tasks]);
 
-  const loadTasksFromBackend = useCallback(async () => {
-    try {
-      const json = await api.getTasks();
-      const taskList = Array.isArray(json?.tasks)
-        ? json.tasks
-        : Array.isArray(json?.data)
-        ? json.data
-        : Array.isArray(json)
-        ? json
-        : [];
-
-      const now = new Date();
-      const mapped: CrmTask[] = taskList.map((t: any) => {
-        const due = t.due_at ? new Date(t.due_at) : new Date();
-        const isOverdue = due < now && !t.completed_at;
-        const isToday = due.toDateString() === now.toDateString();
-        const assignee = t.assigned_user_name || t.assigned_to || 'Unassigned';
-        const initials =
-          assignee !== 'Unassigned'
-            ? assignee
-                .split(' ')
-                .map((p: string) => p[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase()
-            : undefined;
-
-        return {
-          id: String(t.id),
-          title: t.title,
-          clientName: t.lead_name || t.job_customer_name || t.customer_name || (t.assigned_to !== assignee ? t.assigned_to : undefined),
-          description: t.description || undefined,
-          category: (t.event_type || t.category || 'general') as TaskCategory,
-          priority: (t.priority || 'normal') as any,
-          status: t.completed_at ? 'completed' : 'active',
-          dueDate: t.due_at || new Date().toISOString(),
-          dueDateFormatted:
-            due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-            ` at ${due.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
-          isOverdue,
-          isToday,
-          isUpcoming: !isOverdue && !isToday,
-          assignedTo: assignee,
-          assignedToUserId: t.assigned_to_user_id ? Number(t.assigned_to_user_id) : undefined,
-          assignedInitials: initials,
-          completedAt: t.completed_at || undefined,
-          entityType: t.entity_type || undefined,
-          entityId: t.entity_id ? Number(t.entity_id) : undefined,
-        };
-      });
-      setTasks(mapped);
-    } catch (err) {
-      console.warn('Failed to load tasks from backend:', err);
-      setTasks([]);
-    } finally {
-      setIsLoadingTasks(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadTasksFromBackend();
-  }, [loadTasksFromBackend]);
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([loadTasksFromBackend(), refreshPersonalTasks()]);
+      await Promise.all([refetchOperationsTasks(), refreshPersonalTasks()]);
     } finally {
       setIsRefreshing(false);
     }
@@ -220,8 +216,8 @@ export function TasksPage() {
 
   const handleToggleTask = async (id: string) => {
     let nextStatus: 'active' | 'completed' = 'completed';
-    setTasks((prev) =>
-      prev.map((t) => {
+    setLocalTasks((prev) =>
+      (prev ?? tasks).map((t) => {
         if (t.id === id) {
           nextStatus = t.status === 'completed' ? 'active' : 'completed';
           return {
@@ -236,8 +232,10 @@ export function TasksPage() {
 
     try {
       await api.updateTask({ id, completed: nextStatus === 'completed' });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list() });
     } catch (err) {
       console.error('Failed to toggle task completion on backend:', err);
+      refetchOperationsTasks();
     }
   };
 
@@ -256,15 +254,16 @@ export function TasksPage() {
         entityId: newTask.entityId,
       });
       const createdId = res?.task?.id ? String(res.task.id) : res?.data?.id ? String(res.data.id) : newTask.id;
-      setTasks((prev) => [{ ...newTask, id: createdId }, ...prev]);
+      setLocalTasks((prev) => [{ ...newTask, id: createdId }, ...(prev ?? tasks)]);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list() });
     } catch (err) {
       console.error('Failed to create task on backend:', err);
-      setTasks((prev) => [newTask, ...prev]);
+      setLocalTasks((prev) => [newTask, ...(prev ?? tasks)]);
     }
   };
 
   const handleUpdateTask = async (updated: CrmTask) => {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setLocalTasks((prev) => (prev ?? tasks).map((t) => (t.id === updated.id ? updated : t)));
     setSelectedTask(null);
 
     try {
@@ -279,16 +278,18 @@ export function TasksPage() {
         assignedTo: updated.assignedTo,
         assignedToUserId: updated.assignedToUserId,
       });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list() });
     } catch (err) {
       console.error('Failed to update task on backend:', err);
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setLocalTasks((prev) => (prev ?? tasks).filter((t) => t.id !== taskId));
     setSelectedTask(null);
     try {
       await api.deleteTask(taskId);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list() });
     } catch (err) {
       console.error('Failed to delete task on backend:', err);
     }

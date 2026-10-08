@@ -30,6 +30,7 @@ import { useDashboardStats } from '@/lib/dashboardStatsStore';
 import { ThemeToggleSwitch } from '@/components/common/ThemeToggleSwitch';
 import { useFeature } from '@/features/flags/useFeature';
 import { FeatureFlag } from '@/features/flags/types';
+import { preloadRoute } from '@/lib/routePreloader';
 
 interface NavItem {
   name: string;
@@ -269,6 +270,7 @@ export function CrmSidebar() {
                       key={item.name}
                       to={item.path}
                       end={item.path === '/'}
+                      onMouseEnter={() => preloadRoute(item.path)}
                       onMouseDown={() => handleNavMouseDown(item.path)}
                       onClick={
                         // When clicking "Clients 360" while already on /clients

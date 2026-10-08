@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -24,37 +24,10 @@ import { UploadAndSendModal } from '@/components/estimates/UploadAndSendModal';
 import { api } from '@/lib/api';
 import { formatEstimatePrice } from '@/shared/config/estimateConstants';
 import { useToast } from '@/context/ToastContext';
-
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-interface EstimateSummary {
-  totalCount: number;
-  pipelineValue: number;
-  acceptedCount: number;
-  acceptedValue: number;
-  draftCount?: number;
-  sentCount?: number;
-  archivedCount?: number;
-}
-
-interface EstimateRow {
-  id: number;
-  estimate_number: string;
-  status: string;
-  is_archived?: boolean;
-  customer_name: string;
-  customer_phone?: string;
-  customer_email?: string;
-  customer_address?: string;
-  total?: number;
-  template_key?: string;
-  pdf_url?: string;
-  created_at: string;
-  sent_at?: string;
-  lead_id?: number;
-  client_id?: number;
-}
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+import { useEstimatesListQuery, type EstimateRow, type EstimateSummary } from '@/entities/estimate/queries';
+import { useDebounce } from '@/hooks/useDebounce';
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
@@ -62,17 +35,16 @@ export function EstimatesPage() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Determine view mode from URL
   const mode = searchParams.get('mode') || 'registry';
   const editId = searchParams.get('id');
 
   // Registry state
-  const [estimates, setEstimates] = useState<EstimateRow[]>([]);
-  const [summary, setSummary] = useState<EstimateSummary>({ totalCount: 0, pipelineValue: 0, acceptedCount: 0, acceptedValue: 0 });
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 250);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [loading, setLoading] = useState(false);
   const [deleteConfirmEstimate, setDeleteConfirmEstimate] = useState<EstimateRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -80,30 +52,17 @@ export function EstimatesPage() {
   const [showChooser, setShowChooser] = useState(false);
   const [showUploadSend, setShowUploadSend] = useState(false);
 
+  // ── Fetch estimates for registry via TanStack Query ────────────────────
+  const {
+    data,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useEstimatesListQuery(statusFilter, { enabled: mode === 'registry' });
 
-  // ── Fetch estimates for registry ──────────────────────────────────────
-
-  const fetchEstimates = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.set('status', statusFilter);
-      const queryStr = params.toString() ? `?${params.toString()}` : '';
-      const res = await api.request(`/admin/estimates${queryStr}`);
-      setEstimates((res as any).estimates || []);
-      setSummary((res as any).summary || { totalCount: 0, pipelineValue: 0, acceptedCount: 0, acceptedValue: 0 });
-    } catch (err) {
-      console.error('Failed to fetch estimates:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
-
-  useEffect(() => {
-    if (mode === 'registry') {
-      fetchEstimates();
-    }
-  }, [mode, fetchEstimates]);
+  const estimates = data?.estimates || [];
+  const summary = data?.summary || { totalCount: 0, pipelineValue: 0, acceptedCount: 0, acceptedValue: 0 };
+  const loading = isLoading && !data;
 
   const handleToggleArchive = async (est: EstimateRow) => {
     try {
@@ -114,7 +73,7 @@ export function EstimatesPage() {
         await api.request(`/admin/estimates/${est.id}/archive`, { method: 'PATCH' });
         toast.success(`Archived estimate ${est.estimate_number}`);
       }
-      await fetchEstimates();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.estimates.all() });
     } catch (err: any) {
       toast.error(`Failed to update archive status: ${err.message || 'Unknown error'}`);
     }
@@ -127,7 +86,7 @@ export function EstimatesPage() {
       await api.request(`/admin/estimates/${deleteConfirmEstimate.id}`, { method: 'DELETE' });
       toast.success('Estimate draft deleted successfully');
       setDeleteConfirmEstimate(null);
-      await fetchEstimates();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.estimates.all() });
     } catch (err: any) {
       toast.error(`Failed to delete draft: ${err.message || 'Unknown error'}`);
     } finally {
@@ -167,7 +126,7 @@ export function EstimatesPage() {
 
   const backToRegistry = () => {
     setSearchParams({});
-    fetchEstimates();
+    refetch();
   };
 
   // ── Auto-open studio if navigating with client params ─────────────────
@@ -183,16 +142,16 @@ export function EstimatesPage() {
 
   // ── Filter estimates ──────────────────────────────────────────────────
 
-  const filtered = estimates.filter(e => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
+  const filtered = useMemo<EstimateRow[]>(() => {
+    if (!debouncedSearch) return estimates;
+    const q = debouncedSearch.toLowerCase();
+    return estimates.filter((e: EstimateRow) =>
       (e.customer_name || '').toLowerCase().includes(q) ||
       (e.estimate_number || '').toLowerCase().includes(q) ||
       (e.customer_email || '').toLowerCase().includes(q) ||
       (e.customer_address || '').toLowerCase().includes(q)
     );
-  });
+  }, [estimates, debouncedSearch]);
 
   // ── Render: Studio Mode (Wizard) ──────────────────────────────────────
 
@@ -457,7 +416,9 @@ export function EstimatesPage() {
       <UploadAndSendModal
         isOpen={showUploadSend}
         onClose={() => setShowUploadSend(false)}
-        onSuccess={fetchEstimates}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.estimates.all() });
+        }}
       />
     </div>
   );

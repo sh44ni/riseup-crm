@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Lock, Mail, RotateCcw, Send, UserPlus, X } from 'lucide-react';
 import { Role } from '../types';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface InviteMemberModalProps {
   isOpen: boolean;
@@ -162,17 +163,17 @@ export function InviteMemberModal({
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Role Assignment *
             </label>
-            <select
-              value={inviteRoleId}
-              onChange={(e) => setInviteRoleId(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#0f1d2f] border border-slate-200/90 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 shadow-2xs cursor-pointer transition-all"
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.id} className="bg-white dark:bg-[#0f1d2f] text-slate-900 dark:text-white">
-                  {r.name} {r.is_protected ? '(Protected Superuser)' : ''}
-                </option>
-              ))}
-            </select>
+            <CrmSelect
+              value={String(inviteRoleId)}
+              onChange={(val) => setInviteRoleId(Number(val))}
+              options={roles.map((r) => ({
+                value: String(r.id),
+                label: r.name,
+                badge: r.is_protected ? 'Protected' : undefined,
+                badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+              }))}
+              triggerClassName="py-2.5 text-xs font-semibold"
+            />
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
               {roles.find((r) => r.id === inviteRoleId)?.description ||
                 'Grants dynamic permissions configured in the Role Matrix.'}

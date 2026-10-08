@@ -13,6 +13,7 @@ import { ActiveMembersTable } from './members/ActiveMembersTable';
 import { PendingInvitationsTable } from './members/PendingInvitationsTable';
 import { InviteMemberModal } from './members/InviteMemberModal';
 import { TeamMembersHeader } from './members/TeamMembersHeader';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface TeamMembersListProps {
   roles: Role[];
@@ -204,28 +205,26 @@ export function TeamMembersList({ roles, onRefresh }: TeamMembersListProps) {
           />
         </div>
 
-        <select
+        <CrmSelect
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10 shadow-2xs cursor-pointer"
-        >
-          <option value="all" className="dark:bg-slate-900 dark:text-white">All Roles ({roles.length})</option>
-          {roles.map((r) => (
-            <option key={r.id} value={r.name} className="dark:bg-slate-900 dark:text-white">
-              {r.name}
-            </option>
-          ))}
-        </select>
+          onChange={setRoleFilter}
+          options={[
+            { value: 'all', label: `All Roles (${roles.length})` },
+            ...roles.map((r) => ({ value: r.name, label: r.name })),
+          ]}
+          triggerClassName="py-2 text-xs"
+        />
 
-        <select
+        <CrmSelect
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-white focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/10 shadow-2xs cursor-pointer"
-        >
-          <option value="all" className="dark:bg-slate-900 dark:text-white">All Account Statuses</option>
-          <option value="active" className="dark:bg-slate-900 dark:text-white">Active Only</option>
-          <option value="suspended" className="dark:bg-slate-900 dark:text-white">Suspended Only</option>
-        </select>
+          onChange={setStatusFilter}
+          options={[
+            { value: 'all', label: 'All Account Statuses' },
+            { value: 'active', label: 'Active Only' },
+            { value: 'suspended', label: 'Suspended Only' },
+          ]}
+          triggerClassName="py-2 text-xs"
+        />
       </div>
 
       <ActiveMembersTable

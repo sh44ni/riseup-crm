@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Home, Check } from 'lucide-react';
 import { RoofSpecs } from '@/types/client360Types';
+import { CrmSelect } from '@/components/common/CrmSelect';
 
 interface ClientEditSpecsModalProps {
   isOpen: boolean;
@@ -103,18 +104,19 @@ export function ClientEditSpecsModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Roof Material</label>
-              <select
+              <CrmSelect
                 value={formData.roofMaterial}
-                onChange={(e) => setFormData({ ...formData, roofMaterial: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#0284C7] dark:focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
-              >
-                <option value="Concrete Tile" className="dark:bg-slate-900 dark:text-white">Concrete Tile</option>
-                <option value="Spanish Clay S-Tile" className="dark:bg-slate-900 dark:text-white">Spanish Clay S-Tile</option>
-                <option value="Architectural Shingle" className="dark:bg-slate-900 dark:text-white">Architectural Shingle</option>
-                <option value="Standing Seam Metal" className="dark:bg-slate-900 dark:text-white">Standing Seam Metal</option>
-                <option value="Flat TPO Commercial" className="dark:bg-slate-900 dark:text-white">Flat TPO Commercial</option>
-                <option value="Tile Relay & Underlayment" className="dark:bg-slate-900 dark:text-white">Tile Relay & Underlayment</option>
-              </select>
+                onChange={(val) => setFormData({ ...formData, roofMaterial: val })}
+                options={[
+                  'Concrete Tile',
+                  'Spanish Clay S-Tile',
+                  'Architectural Shingle',
+                  'Standing Seam Metal',
+                  'Flat TPO Commercial',
+                  'Tile Relay & Underlayment',
+                ]}
+                triggerClassName="py-2 text-xs"
+              />
             </div>
 
             <div>

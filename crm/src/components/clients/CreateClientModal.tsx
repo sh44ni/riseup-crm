@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, User, Phone, Mail, MapPin, Home, Layers, Plus, Sparkles } from 'lucide-react';
 import { CreateClientPayload, checkClientContact } from '@/api/clientsApi';
+import { CrmSelect } from '@/components/common/CrmSelect';
 import { z } from 'zod';
 
 const CreateClientSchema = z.object({
@@ -337,17 +338,18 @@ export function CreateClientModal({ isOpen, onClose, onSave }: CreateClientModal
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Roof Material</label>
-              <select
-                value={formData.roofType}
-                onChange={(e) => setFormData({ ...formData, roofType: e.target.value })}
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#0284C7] dark:focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
-              >
-                <option value="Eagle Concrete Tile" className="dark:bg-slate-900 dark:text-white">Eagle Concrete Tile</option>
-                <option value="Architectural Shingle" className="dark:bg-slate-900 dark:text-white">Architectural Shingle</option>
-                <option value="Standing Seam Metal" className="dark:bg-slate-900 dark:text-white">Standing Seam Metal</option>
-                <option value="Commercial Flat / TPO" className="dark:bg-slate-900 dark:text-white">Commercial Flat / TPO</option>
-                <option value="Clay Spanish Tile" className="dark:bg-slate-900 dark:text-white">Clay Spanish Tile</option>
-              </select>
+              <CrmSelect
+                value={formData.roofType || 'Eagle Concrete Tile'}
+                onChange={(val) => setFormData({ ...formData, roofType: val })}
+                options={[
+                  'Eagle Concrete Tile',
+                  'Architectural Shingle',
+                  'Standing Seam Metal',
+                  'Commercial Flat / TPO',
+                  'Clay Spanish Tile',
+                ]}
+                triggerClassName="py-2 text-xs font-bold"
+              />
             </div>
 
             <div>

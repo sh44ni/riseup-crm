@@ -3,11 +3,13 @@ import { User, Calendar, Phone, Mail } from 'lucide-react';
 import type { UseFormRegister, FieldErrors, UseFormSetValue } from 'react-hook-form';
 import type { ExistingClientFormData } from './types';
 import { checkClientContact } from '@/api/clientsApi';
+import { CrmDatePicker } from '@/components/common/CrmDatePicker';
 
 interface HomeownerIdentitySectionProps {
   register: UseFormRegister<ExistingClientFormData>;
   errors: FieldErrors<ExistingClientFormData>;
   setValue: UseFormSetValue<ExistingClientFormData>;
+  clientSinceValue?: string;
   emailValue: string;
   phoneValue: string;
   emailConflict: string | null;
@@ -19,6 +21,8 @@ interface HomeownerIdentitySectionProps {
 export function HomeownerIdentitySection({
   register,
   errors,
+  setValue,
+  clientSinceValue = '',
   emailValue,
   phoneValue,
   emailConflict,
@@ -104,14 +108,12 @@ export function HomeownerIdentitySection({
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Client Since (Historical Date)
           </label>
-          <div className="relative">
-            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="date"
-              {...register('clientSince')}
-              className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
-            />
-          </div>
+          <CrmDatePicker
+            value={clientSinceValue}
+            onChange={(val) => setValue('clientSince', val, { shouldValidate: true })}
+            placeholder="Select date..."
+            name="clientSince"
+          />
         </div>
 
         <div>

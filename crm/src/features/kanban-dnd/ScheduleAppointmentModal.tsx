@@ -1,5 +1,6 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
+import { CrmDateTimePicker } from '@/components/common/CrmDateTimePicker';
 
 export interface ScheduleAppointmentModalProps {
   isOpen: boolean;
@@ -45,12 +46,9 @@ export function ScheduleAppointmentModal({
           <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
             Appointment Date &amp; Time
           </label>
-          <input
-            type="datetime-local"
+          <CrmDateTimePicker
             value={dateTime}
-            onChange={(e) => onDateTimeChange(e.target.value)}
-            className="w-full text-sm px-3 py-2 rounded-xl border border-slate-300 dark:border-white/20 bg-white/80 dark:bg-white/5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
-            autoFocus
+            onChange={onDateTimeChange}
           />
         </div>
 
