@@ -39,11 +39,10 @@
 
 .light-glass-canvas::before {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background-color: #F1F5F9;
   background-image:
     radial-gradient(ellipse 75% 50% at 15% 0%, rgba(56, 189, 248, 0.28), transparent 70%),
     radial-gradient(ellipse 60% 45% at 88% 8%, rgba(251, 191, 36, 0.20), transparent 60%),
@@ -266,7 +265,7 @@
 }
 
 .dark .light-glass-canvas::before {
-  background-color: #070B12;
+  background-color: transparent;
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(24, 120, 184, 0.20), transparent 70%),
     radial-gradient(circle at 100% 0%, rgba(47, 159, 227, 0.10), transparent 45%),

@@ -142,7 +142,7 @@ export function CrmRightPanel({ onQuickAdd }: { onQuickAdd?: () => void }) {
   const thirdPlace = activePerformers[2] || null;
 
   return (
-    <aside className="w-76 h-screen flex flex-col light-glass-canvas border-l border-slate-200/80 dark:border-white/10 shrink-0 select-none overflow-y-auto no-scrollbar px-3.5 py-3 space-y-2.5 sticky top-0 z-20 text-slate-800 dark:text-slate-100 relative">
+    <aside className="w-76 h-screen flex flex-col bg-slate-50/70 dark:bg-[#070C15]/75 backdrop-blur-xl border-l border-slate-200/80 dark:border-white/10 shrink-0 select-none overflow-y-auto no-scrollbar px-3.5 py-3 space-y-2.5 sticky top-0 z-20 text-slate-800 dark:text-slate-100 relative">
       {/* Background Architectural Dot Texture & Coastal Sunlight Diffusion */}
       <div
         className="absolute inset-0 pointer-events-none opacity-30 [background-image:radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px]"
