@@ -23,6 +23,12 @@ class Invoice(Base):
     payment_method: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     transaction_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    line_items: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
+    payment_terms: Mapped[Optional[str]] = mapped_column(Text, nullable=True, server_default="Due Upon Receipt")
+    pdf_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_to_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    balance: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

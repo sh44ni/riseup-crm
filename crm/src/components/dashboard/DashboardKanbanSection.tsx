@@ -20,23 +20,12 @@ export interface DashboardKanbanSectionProps {
   canViewFinances: boolean;
   canClaimLead: boolean;
   canReassignLead: boolean;
-  editingAddressCardId: string | null;
-  addressFormStreet: string;
-  addressFormCity: string;
-  addressFormZip: string;
-  isSavingAddress: boolean;
   onDragStart: (cardId: string, colId: string) => void;
   onDragEnd: () => void;
   onDragOver: (e: React.DragEvent, colId: string) => void;
   onDragLeave: (colId: string) => void;
   onDrop: (e: React.DragEvent, col: ColumnData) => void;
   onSelectCard: (card: DealCard, col: ColumnData) => void;
-  onStartEditAddress: (card: DealCard, e: React.SyntheticEvent) => void;
-  onSaveAddress: (card: DealCard, e: React.SyntheticEvent) => void;
-  onCancelEditAddress: (e?: React.SyntheticEvent) => void;
-  onStreetChange: (v: string) => void;
-  onCityChange: (v: string) => void;
-  onZipChange: (v: string) => void;
   onClaimLead: (card: DealCard) => void;
   onReassignLead: (card: DealCard) => void;
   onFollowUp: (card: DealCard) => void;
@@ -57,23 +46,12 @@ export function DashboardKanbanSection({
   canViewFinances,
   canClaimLead,
   canReassignLead,
-  editingAddressCardId,
-  addressFormStreet,
-  addressFormCity,
-  addressFormZip,
-  isSavingAddress,
   onDragStart,
   onDragEnd,
   onDragOver,
   onDragLeave,
   onDrop,
   onSelectCard,
-  onStartEditAddress,
-  onSaveAddress,
-  onCancelEditAddress,
-  onStreetChange,
-  onCityChange,
-  onZipChange,
   onClaimLead,
   onReassignLead,
   onFollowUp,
@@ -226,20 +204,9 @@ export function DashboardKanbanSection({
                   canClaimLead={canClaimLead}
                   canReassignLead={canReassignLead}
                   isDark={isDark}
-                  editingAddressCardId={editingAddressCardId}
-                  addressFormStreet={addressFormStreet}
-                  addressFormCity={addressFormCity}
-                  addressFormZip={addressFormZip}
-                  isSavingAddress={isSavingAddress}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                   onClick={() => onSelectCard(card, col)}
-                  onStartEditAddress={onStartEditAddress}
-                  onSaveAddress={onSaveAddress}
-                  onCancelEditAddress={onCancelEditAddress}
-                  onStreetChange={onStreetChange}
-                  onCityChange={onCityChange}
-                  onZipChange={onZipChange}
                   onClaimLead={onClaimLead}
                   onReassignLead={onReassignLead}
                   onFollowUp={onFollowUp}

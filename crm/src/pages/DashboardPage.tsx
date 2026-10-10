@@ -27,7 +27,6 @@ import { DashboardPendingContracts } from '@/components/dashboard/DashboardPendi
 import { DashboardKanbanSection } from '@/components/dashboard/DashboardKanbanSection';
 import { DashboardModalsSection } from '@/components/dashboard/DashboardModalsSection';
 import { computeActiveStats, computeRepOptions } from '@/components/dashboard/dashboardSelectors';
-import { useDashboardAddressEdit } from '@/components/dashboard/useDashboardAddressEdit';
 import { useHotkey } from '@/shared/lib/useHotkey';
 import { DealCard, ColumnData } from '@/components/dashboard/dashboardTypes';
 import { PipelineDealItem, PipelineStageId, enrichDeals, EnrichedDeal } from '@/components/pipeline/pipelineTypes';
@@ -71,7 +70,6 @@ export function DashboardPage() {
     isLoading: pipelineLoading,
     refresh: refreshPipeline,
     moveCardOptimistically,
-    updateCardAddress,
   } = usePipelineKanban();
 
   const [omniSearch, setOmniSearch] = useState('');
@@ -118,8 +116,6 @@ export function DashboardPage() {
     setToastMessage(msg);
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3500);
   }, []);
-
-  const addressEdit = useDashboardAddressEdit(updateCardAddress, showToast);
 
   const fetchPendingContracts = useCallback(async () => {
     if (!canCounterSign) return;
@@ -337,11 +333,6 @@ export function DashboardPage() {
           canViewFinances={canViewFinances}
           canClaimLead={canClaimLead}
           canReassignLead={canReassignLead}
-          editingAddressCardId={addressEdit.editingAddressCardId}
-          addressFormStreet={addressEdit.addressFormStreet}
-          addressFormCity={addressEdit.addressFormCity}
-          addressFormZip={addressEdit.addressFormZip}
-          isSavingAddress={addressEdit.isSavingAddress}
           onDragStart={(id, colId) => { if (canAdvanceStage) { dragCardRef.current = { cardId: id, fromColId: colId }; } }}
           onDragEnd={() => { dragCardRef.current = null; setDragOverColId(null); }}
           onDragOver={(e, colId) => { e.preventDefault(); setDragOverColId(colId); }}
@@ -352,12 +343,6 @@ export function DashboardPage() {
             const found = allEnriched.find((d: EnrichedDeal) => String(d.id) === String(card.id));
             if (found) setSelectedDeal(found);
           }}
-          onStartEditAddress={addressEdit.handleStartEdit}
-          onSaveAddress={addressEdit.handleSaveAddress}
-          onCancelEditAddress={addressEdit.handleCancelEdit}
-          onStreetChange={addressEdit.setAddressFormStreet}
-          onCityChange={addressEdit.setAddressFormCity}
-          onZipChange={addressEdit.setAddressFormZip}
           onClaimLead={(card) => setClaimModalCard(card)}
           onReassignLead={(card) => setReassignModalCard(card)}
           onFollowUp={(card) => setFollowUpModalCard(card)}

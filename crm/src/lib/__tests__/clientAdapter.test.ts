@@ -125,5 +125,51 @@ describe('clientAdapter and isClientLost logic', () => {
       expect(isClientLost(record)).toBe(true);
       expect(record.lossPostMortem?.lossReason).toBe('out_of_area');
     });
+
+    it('correctly parses photo and video media items from documents array', () => {
+      const raw = {
+        id: 80,
+        full_name: 'Media Test Client',
+        status: 'active_job',
+        client_category: 'existing_client',
+        created_at: '2026-01-01T00:00:00Z',
+        documents: [
+          {
+            id: 101,
+            name: 'roof_damage.jpg',
+            file_url: '/static/uploads/clients/80/roof_damage.jpg',
+            file_type: 'image/jpeg',
+            file_size: 1048576,
+            uploaded_by: 'Inspector Dave',
+            created_at: '2026-02-01T12:00:00Z',
+          },
+          {
+            id: 102,
+            name: 'gutter_drone_inspection.mp4',
+            file_url: '/static/uploads/clients/80/gutter_drone_inspection.mp4',
+            file_type: 'video/mp4',
+            file_size: 52428800,
+            uploaded_by: 'Drone Pilot Sarah',
+            created_at: '2026-02-02T14:30:00Z',
+          },
+        ],
+      } as BackendClient;
+
+      const record = backendClientToClient360(raw);
+      expect(record.media).toBeDefined();
+      expect(record.media?.length).toBe(2);
+
+      const photoItem = record.media?.find((m) => m.name === 'roof_damage.jpg');
+      expect(photoItem).toBeDefined();
+      expect(photoItem?.mediaType).toBe('photo');
+      expect(photoItem?.fileSize).toBe('1.0 MB');
+      expect(photoItem?.uploadedBy).toBe('Inspector Dave');
+
+      const videoItem = record.media?.find((m) => m.name === 'gutter_drone_inspection.mp4');
+      expect(videoItem).toBeDefined();
+      expect(videoItem?.mediaType).toBe('video');
+      expect(videoItem?.fileSize).toBe('50.0 MB');
+      expect(videoItem?.uploadedBy).toBe('Drone Pilot Sarah');
+    });
   });
 });

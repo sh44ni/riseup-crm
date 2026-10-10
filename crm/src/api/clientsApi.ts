@@ -33,6 +33,7 @@ export interface Client360ApiResponse {
   inspections: unknown[];
   inspection_photos?: unknown[];
   documents?: unknown[];
+  media?: unknown[];
   estimates: unknown[];
   jobs: BackendJob[];
   invoices: unknown[];
@@ -225,5 +226,28 @@ export async function markClientLostApi(
       lost_reason: lostReason,
       ...(lostNotes ? { lost_notes: lostNotes } : {}),
     }
+  );
+}
+
+export async function uploadClientMedia(
+  clientId: number | string,
+  files: File[]
+): Promise<{ ok: boolean; media: any[]; documents: any[] }> {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('files', file);
+  }
+  return await httpClient.post<{ ok: boolean; media: any[]; documents: any[] }>(
+    `/admin/clients/${clientId}/media/upload`,
+    formData
+  );
+}
+
+export async function deleteClientMedia(
+  clientId: number | string,
+  mediaId: number | string
+): Promise<{ ok: boolean; message: string }> {
+  return await httpClient.delete<{ ok: boolean; message: string }>(
+    `/admin/clients/${clientId}/media/${mediaId}`
   );
 }

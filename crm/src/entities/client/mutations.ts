@@ -7,6 +7,8 @@ import {
   archiveClient,
   addClientActivity,
   markClientLostApi,
+  uploadClientMedia,
+  deleteClientMedia,
   type CreateClientPayload,
   type CreateExistingClientPayload,
   type ClientActivityPayload,
@@ -107,6 +109,42 @@ export function useMarkClientLostMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.pipeline.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all() });
+    },
+  });
+}
+
+export function useUploadClientMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      clientId,
+      files,
+    }: {
+      clientId: number | string;
+      files: File[];
+    }) => uploadClientMedia(clientId, files),
+    onSettled: (_data, _err, { clientId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.detail(clientId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.profile360(clientId) });
+    },
+  });
+}
+
+export function useDeleteClientMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      clientId,
+      mediaId,
+    }: {
+      clientId: number | string;
+      mediaId: number | string;
+    }) => deleteClientMedia(clientId, mediaId),
+    onSettled: (_data, _err, { clientId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.detail(clientId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients.profile360(clientId) });
     },
   });
 }

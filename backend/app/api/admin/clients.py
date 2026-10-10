@@ -1,11 +1,32 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 import math
 import asyncio
+import os
+import uuid
+import re
+import json
 from pydantic import BaseModel, Field
+
+def format_file_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+def classify_media_type(filename: str, content_type: Optional[str]) -> str:
+    ext = os.path.splitext(filename)[1].lower().lstrip(".")
+    video_exts = {"mp4", "webm", "mov", "m4v", "ogg", "ogv", "mkv", "avi", "quicktime"}
+    if (content_type and content_type.startswith("video/")) or ext in video_exts:
+        return "video"
+    return "photo"
 
 from app.core.database import get_db
 from app.middlewares.auth import get_current_user
@@ -965,11 +986,40 @@ async def get_client_360(
                 "createdAt": str(ins.get("inspection_date") or ins.get("created_at") or "")
             })
 
-    # Fetch client documents
-    # docs_res handled in gather
+    # Enrich invoices with parsed line items and payment records
+    if invoices:
+        inv_ids = [inv["id"] for inv in invoices]
+        async with db_lock:
+            p_res = await db.execute(text("""
+                SELECT p.*, u.name as recorded_by_name
+                FROM payments p
+                LEFT JOIN users u ON p.recorded_by = u.id
+                WHERE p.invoice_id = ANY(:ids)
+                ORDER BY p.payment_date DESC, p.created_at DESC
+            """), {"ids": inv_ids})
+            all_payments = [dict(r._mapping) for r in p_res.fetchall()]
+
+        payments_by_inv = {}
+        for p in all_payments:
+            payments_by_inv.setdefault(p["invoice_id"], []).append(p)
+
+        for inv in invoices:
+            inv["payments"] = payments_by_inv.get(inv["id"], [])
+            if inv.get("line_items") and isinstance(inv["line_items"], str):
+                try:
+                    inv["line_items"] = json.loads(inv["line_items"])
+                except Exception:
+                    pass
 
     total_billed = sum(float(inv.get("amount") or 0) for inv in invoices)
-    total_paid = sum(float(inv.get("amount") or 0) for inv in invoices if inv.get("status") == "paid")
+    total_paid_from_payments = sum(
+        sum(float(p.get("amount") or 0) for p in inv.get("payments", []) if p.get("status") == "completed")
+        for inv in invoices
+    )
+    total_paid_from_invoices = sum(
+        float(inv.get("amount") or 0) for inv in invoices if inv.get("status") == "paid" and not inv.get("payments")
+    )
+    total_paid = total_paid_from_payments + total_paid_from_invoices
     balance_due = max(0.0, total_billed - total_paid)
 
     client["balance_due"] = balance_due
@@ -983,6 +1033,7 @@ async def get_client_360(
         "inspections": inspections,
         "inspection_photos": inspection_photos,
         "documents": documents,
+        "media": documents,
         "estimates": estimates,
         "jobs": jobs,
         "invoices": invoices,
@@ -1490,13 +1541,117 @@ async def add_client_document(
     await db.commit()
     return {"ok": True, "document": dict(row._mapping) if row else None}
 
+@router.post("/clients/{client_id}/media/upload")
+@router.post("/clients/{client_id}/upload")
+async def upload_client_media(
+    client_id: int,
+    file: Optional[UploadFile] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
+    user: Dict[str, Any] = Depends(require_permission("clients:view")),
+    db: AsyncSession = Depends(get_db)
+):
+    all_files: List[UploadFile] = []
+    if file:
+        all_files.append(file)
+    if files:
+        all_files.extend(files)
+
+    if not all_files:
+        raise HTTPException(status_code=400, detail="No files provided for upload")
+
+    # Verify client exists
+    c_res = await db.execute(text("SELECT id, full_name FROM clients WHERE id = :id"), {"id": client_id})
+    client_row = c_res.first()
+    if not client_row:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    user_name = user.get("name") or user.get("email") or "Staff"
+    upload_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "static", "uploads", "clients", str(client_id))
+    os.makedirs(upload_dir, exist_ok=True)
+
+    uploaded_docs = []
+    for f in all_files:
+        original_name = f.filename or "media_upload"
+        ext = os.path.splitext(original_name)[1].lower()
+        if not ext and f.content_type:
+            mime_map = {
+                "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif",
+                "video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"
+            }
+            ext = mime_map.get(f.content_type, ".jpg")
+
+        safe_basename = re.sub(r'[^a-zA-Z0-9_\-.]', '_', os.path.splitext(original_name)[0])
+        unique_name = f"{uuid.uuid4().hex[:10]}_{safe_basename}{ext}"
+        file_path = os.path.join(upload_dir, unique_name)
+
+        content = await f.read()
+        file_size_bytes = len(content)
+        with open(file_path, "wb") as disk_file:
+            disk_file.write(content)
+
+        file_size_str = format_file_size(file_size_bytes)
+        doc_type = classify_media_type(original_name, f.content_type)
+        content_type = f.content_type or ("video/mp4" if doc_type == "video" else "image/jpeg")
+        public_url = f"/static/uploads/clients/{client_id}/{unique_name}"
+
+        stmt = text("""
+            INSERT INTO client_documents (client_id, name, file_url, url, file_type, file_size, doc_type, uploaded_by, created_at)
+            VALUES (:cid, :name, :furl, :url, :ftype, :fsize, :dtype, :upby, NOW())
+            RETURNING *
+        """)
+        res = await db.execute(stmt, {
+            "cid": client_id,
+            "name": original_name,
+            "furl": public_url,
+            "url": public_url,
+            "ftype": content_type,
+            "fsize": file_size_str,
+            "dtype": doc_type,
+            "upby": user_name
+        })
+        row = res.first()
+        doc_dict = dict(row._mapping) if row else {}
+        uploaded_docs.append(doc_dict)
+
+        # Log activity to client timeline
+        await db.execute(text("""
+            INSERT INTO activities (entity_type, entity_id, client_id, activity_type, title, description, performed_by, created_at)
+            VALUES ('client', :cid, :cid, 'media', :title, :desc, :pby, NOW())
+        """), {
+            "cid": client_id,
+            "title": f"{'Video' if doc_type == 'video' else 'Photo'} Uploaded: {original_name}",
+            "desc": f"Uploaded {original_name} ({file_size_str})",
+            "pby": user_name
+        })
+
+    await db.commit()
+    return {"ok": True, "media": uploaded_docs, "documents": uploaded_docs}
+
 @router.delete("/clients/{client_id}/documents/{document_id}")
+@router.delete("/clients/{client_id}/media/{document_id}")
 async def delete_client_document(
     client_id: int,
     document_id: int,
-    user: Dict[str, Any] = Depends(require_permission("clients:delete")),
+    user: Dict[str, Any] = Depends(require_permission("clients:view")),
     db: AsyncSession = Depends(get_db)
 ):
+    # Check if file exists on disk to remove it
+    res = await db.execute(text("SELECT file_url, url, name FROM client_documents WHERE id = :did AND client_id = :cid"), {
+        "did": document_id,
+        "cid": client_id
+    })
+    doc_row = res.first()
+    if doc_row:
+        file_url = doc_row.file_url or doc_row.url or ""
+        if file_url.startswith("/static/"):
+            rel_path = file_url[len("/static/"):]
+            full_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "static", rel_path.replace("/", os.sep))
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                except Exception:
+                    pass
+
     await db.execute(text("DELETE FROM client_documents WHERE id = :did AND client_id = :cid"), {
         "did": document_id,
         "cid": client_id

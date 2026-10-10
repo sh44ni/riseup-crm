@@ -100,6 +100,7 @@ export interface TwoOptionsEstimate {
   plans: [EstimatePlan, EstimatePlan];
   addons: [EstimateAddon, EstimateAddon];
   pricing: EstimatePricing;
+  wizardStep?: number;
 }
 
 /**

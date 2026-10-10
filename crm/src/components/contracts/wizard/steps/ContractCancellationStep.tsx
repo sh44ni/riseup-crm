@@ -24,9 +24,10 @@ export function ContractCancellationStep({ data, onDataChange }: StepProps) {
             <input
               type="email"
               value={data.cancellationEmail || 'accountant@riseuprac.com'}
-              onChange={(e) => onDataChange({ cancellationEmail: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#1a5ba5]"
-              placeholder="accountant@riseuprac.com"
+              readOnly
+              tabIndex={-1}
+              aria-readonly="true"
+              className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none focus:outline-none"
             />
             <p className="text-[10px] text-slate-400">
               Listed on masthead and in both Exhibit A detachable cancellation forms.
@@ -37,7 +38,10 @@ export function ContractCancellationStep({ data, onDataChange }: StepProps) {
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
               Business Physical Address
             </label>
-            <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-medium text-slate-700">
+            <div
+              aria-readonly="true"
+              className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 cursor-not-allowed select-none"
+            >
               2182 S El Camino Real, Suite 202, Oceanside, CA 92054
             </div>
             <p className="text-[10px] text-slate-400">

@@ -55,7 +55,27 @@ async def lifespan(app: FastAPI):
             """))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_spam_attempts_submitted_at ON spam_attempts (submitted_at DESC)"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_spam_attempts_block_reason ON spam_attempts (block_reason)"))
-        logger.warning("Async PostgreSQL connection and spam_attempts schema healthy.")
+            for stmt in [
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items JSONB DEFAULT '[]'::jsonb",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_terms TEXT DEFAULT 'Due Upon Receipt'",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_url TEXT",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sent_to_email TEXT",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS balance NUMERIC(10, 2)",
+                "ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subtotal_amount NUMERIC(12, 2)",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12, 2) DEFAULT 0",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(6, 3) DEFAULT 0",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) DEFAULT 0",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12, 2) DEFAULT 0",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accepted_methods JSONB DEFAULT '[]'::jsonb",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_instructions TEXT",
+                "CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START WITH 1000",
+                "UPDATE invoices SET status = 'pending' WHERE status IN ('sent', 'draft')",
+            ]:
+                await conn.execute(text(stmt))
+            os.makedirs(os.path.join(STATIC_DIR, "uploads", "invoices"), exist_ok=True)
+        logger.warning("Async PostgreSQL connection, spam_attempts, and invoices schema healthy.")
     except Exception as e:
         logger.warning(f"Startup connection/schema notice: {e}")
 

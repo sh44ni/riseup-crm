@@ -43,6 +43,8 @@ export function ClientsPage() {
     refetch,
     createClientTask,
     toggleClientTask,
+    uploadMedia,
+    deleteMedia,
   } = useClients();
 
   const location = useLocation();
@@ -194,6 +196,32 @@ export function ClientsPage() {
       showToast('Failed to mark client as lost.');
     }
     setShowMarkLostModal(false);
+  };
+
+  const handleUploadMedia = async (files: File[]) => {
+    if (!currentClient) return;
+    try {
+      await uploadMedia(currentClient.id, files);
+      showToast(`${files.length} file${files.length > 1 ? 's' : ''} uploaded successfully!`);
+      refetch();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to upload media files.';
+      showToast(msg);
+      throw err;
+    }
+  };
+
+  const handleDeleteMedia = async (mediaId: string) => {
+    if (!currentClient) return;
+    try {
+      await deleteMedia(currentClient.id, mediaId);
+      showToast('Media file removed successfully.');
+      refetch();
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to delete media file.';
+      showToast(msg);
+      throw err;
+    }
   };
 
   const handleSaveExistingClient = async (payload: CreateExistingClientPayload) => {
@@ -349,6 +377,8 @@ export function ClientsPage() {
           onOpenMarkLost={() => setShowMarkLostModal(true)}
           onToggleTask={handleToggleTask}
           onAddTask={() => setIsAddTaskDialogOpen(true)}
+          onUploadMedia={handleUploadMedia}
+          onDeleteMedia={handleDeleteMedia}
         />
       ) : null}
 

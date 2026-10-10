@@ -161,6 +161,7 @@ export function EstimatesPage() {
       <WizardShell
         estimateId={editId}
         onBack={backToRegistry}
+        onSuccess={backToRegistry}
         prefill={{
           clientName: searchParams.get('clientName') || searchParams.get('name') || undefined,
           leadId: searchParams.get('leadId') || undefined,

@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice {{ invoice.invoice_number }} - Rise Up Roofing</title>
+  <style>
+    @page {
+      size: letter portrait;
+      margin: 0;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .page {
+      width: 816px;
+      min-height: 1056px;
+      padding: 44px 48px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      background: #ffffff;
+    }
+    /* Header */
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #091b36;
+    }
+    .logo-container {
+      max-width: 320px;
+    }
+    .logo-img {
+      height: 52px;
+      width: auto;
+      display: block;
+    }
+    .company-subtext {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    .company-license-badge {
+      display: inline-block;
+      margin-top: 4px;
+      background: #f1f5f9;
+      color: #091b36;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+      letter-spacing: 0.5px;
+    }
+    .invoice-title-col {
+      text-align: right;
+    }
+    .invoice-h1 {
+      margin: 0;
+      font-size: 36px;
+      font-weight: 900;
+      color: #091b36;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .invoice-meta-top {
+      margin-top: 4px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #00b0ed;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .status-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .status-paid {
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+    }
+    .status-pending {
+      background: #fffbeb;
+      color: #d97706;
+      border: 1px solid #fde68a;
+    }
+    .status-sent {
+      background: #f0f9ff;
+      color: #0284c7;
+      border: 1px solid #bae6fd;
+    }
+    .status-partially-paid {
+      background: #eff6ff;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+    }
+    .status-overdue {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+
+    /* Client & Invoice Meta Grid */
+    .meta-grid {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: 24px;
+    }
+    .meta-card {
+      flex: 1;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .meta-card-title {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .client-name {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .meta-text {
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.45;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      font-size: 12px;
+    }
+    .meta-label {
+      color: #64748b;
+      font-weight: 500;
+    }
+    .meta-val {
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    /* Line Items Table */
+    .table-section {
+      margin-top: 28px;
+      flex-grow: 1;
+    }
+    table.items-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-spacing: 0;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    table.items-table th {
+      background: #091b36;
+      color: #ffffff;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    table.items-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #1e293b;
+    }
+    table.items-table tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    table.items-table tr:last-child td {
+      border-bottom: none;
+    }
+    .col-num {
+      width: 38px;
+      text-align: center;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    .col-desc {
+      text-align: left;
+    }
+    .col-desc .item-title {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .col-desc .item-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .col-qty {
+      width: 80px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .col-rate {
+      width: 100px;
+      text-align: right;
+      font-family: ui-monospace, monospace;
+    }
+    .col-total {
+      width: 110px;
+      text-align: right;
+      font-weight: 700;
+      color: #0f172a;
+      font-family: ui-monospace, monospace;
+    }
+
+    /* Financial Summary & Remittance */
+    .bottom-section {
+      display: flex;
+      justify-content: space-between;
+      gap: 32px;
+      margin-top: 24px;
+      padding-top: 16px;
+    }
+    .instructions-col {
+      flex: 1.1;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .instructions-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #091b36;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .instructions-body {
+      font-size: 11.5px;
+      color: #475569;
+      line-height: 1.5;
+    }
+    .instructions-body strong {
+      color: #0f172a;
+    }
+    .contractor-statutory-notice {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px dashed #cbd5e1;
+      font-size: 9.5px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    .summary-col {
+      width: 280px;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .summary-table td {
+      padding: 5px 0;
+      font-size: 12.5px;
+    }
+    .sum-label {
+      color: #64748b;
+      text-align: left;
+    }
+    .sum-val {
+      text-align: right;
+      font-weight: 700;
+      color: #0f172a;
+      font-family: ui-monospace, monospace;
+    }
+    .sum-total-row td {
+      border-top: 2px solid #091b36;
+      padding-top: 8px;
+      font-size: 14px;
+      font-weight: 800;
+      color: #091b36;
+    }
+    .sum-paid-row td {
+      color: #059669;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .balance-callout {
+      margin-top: 12px;
+      background: linear-gradient(135deg, #091b36 0%, #1e3a5f 100%);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 10px rgba(9, 27, 54, 0.15);
+    }
+    .balance-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #7dd3fc;
+    }
+    .balance-amount {
+      font-size: 18px;
+      font-weight: 900;
+      color: #ffffff;
+      font-family: ui-monospace, monospace;
+    }
+
+    /* Footer */
+    .footer-bar {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10.5px;
+      color: #64748b;
+    }
+    .footer-right {
+      text-align: right;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div>
+      <!-- Header Row with Logo and Invoice Title -->
+      <div class="header-row">
+        <div class="logo-container">
+          {% if logo_data_uri %}
+            <img src="{{ logo_data_uri }}" alt="Rise Up Roofing Logo" class="logo-img" />
+          {% else %}
+            <div style="font-size: 22px; font-weight: 900; color: #091b36; letter-spacing: -0.5px;">RISE UP ROOFING</div>
+          {% endif %}
+          <div class="company-subtext">
+            Rise Up Roofing and Construction, Inc.<br>
+            1111 W El Norte Pkwy, Escondido, CA 92026<br>
+            Direct: (760) 622-1230 • info@riseuprac.com • riseuprac.com
+          </div>
+          <div class="company-license-badge">
+            CSLB LICENSE #1096492 • BONDED &amp; INSURED
+          </div>
+        </div>
+
+        <div class="invoice-title-col">
+          <h1 class="invoice-h1">Invoice</h1>
+          <div class="invoice-meta-top">{{ invoice.invoice_number }}</div>
+          {% set st = (invoice.status or 'pending') | lower %}
+          {% if st == 'paid' %}
+            <div class="status-badge status-paid">✓ Invoice Paid</div>
+          {% elif st == 'partially_paid' %}
+            <div class="status-badge status-partially-paid">Partially Paid</div>
+          {% elif st == 'overdue' %}
+            <div class="status-badge status-overdue">⚠ Payment Overdue</div>
+          {% else %}
+            <div class="status-badge status-pending">Invoice Pending</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Client & Project Metadata Grid -->
+      <div class="meta-grid">
+        <div class="meta-card">
+          <div class="meta-card-title">Invoiced To</div>
+          <div class="client-name">{{ client.name or 'Valued Customer' }}</div>
+          <div class="meta-text">
+            {% if client.property %}
+              {{ client.property }}<br>
+            {% elif client.address %}
+              {{ client.address }}{% if client.city %}, {{ client.city }}{% endif %}{% if client.zip %} {{ client.zip }}{% endif %}<br>
+            {% else %}
+              Property address on file<br>
+            {% endif %}
+            {% if client.phone %}Tel: {{ client.phone }}<br>{% endif %}
+            {% if client.email %}Email: {{ client.email }}{% endif %}
+          </div>
+        </div>
+
+        <div class="meta-card">
+          <div class="meta-card-title">Invoice Details</div>
+          <div class="meta-row">
+            <span class="meta-label">Invoice Date:</span>
+            <span class="meta-val">{{ invoice.date }}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Payment Terms:</span>
+            <span class="meta-val">{{ invoice.payment_terms or 'Due Upon Receipt' }}</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Due Date:</span>
+            <span class="meta-val" style="color: #0284c7;">{{ invoice.due_date or 'Upon Receipt' }}</span>
+          </div>
+          {% if invoice.job_number or invoice.milestone_name %}
+          <div class="meta-row">
+            <span class="meta-label">Project / Scope:</span>
+            <span class="meta-val">{{ invoice.job_number or invoice.milestone_name }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Line Items Table -->
+      <div class="table-section">
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th class="col-num">#</th>
+              <th class="col-desc">Service / Scope of Work</th>
+              <th class="col-qty">Quantity</th>
+              <th class="col-rate">Unit Price</th>
+              <th class="col-total">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if invoice.line_items and invoice.line_items | length > 0 %}
+              {% for item in invoice.line_items %}
+                <tr>
+                  <td class="col-num">{{ loop.index }}</td>
+                  <td class="col-desc">
+                    <div class="item-title">{{ item.description }}</div>
+                    {% if item.notes %}
+                      <div class="item-subtitle">{{ item.notes }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="col-qty">{{ item.quantity }} {% if item.unit %}{{ item.unit }}{% endif %}</td>
+                  <td class="col-rate">{{ item.unit_price | format_price }}</td>
+                  <td class="col-total">{{ item.total | format_price }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td class="col-num">1</td>
+                <td class="col-desc">
+                  <div class="item-title">{{ invoice.milestone_name or 'Roofing Materials & Labor Services' }}</div>
+                  <div class="item-subtitle">Full project scope as outlined in contractor agreement</div>
+                </td>
+                <td class="col-qty">1</td>
+                <td class="col-rate">{{ (invoice.amount or invoice.total_amount or 0) | format_price }}</td>
+                <td class="col-total">{{ (invoice.amount or invoice.total_amount or 0) | format_price }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Bottom Section: Payment Remittance & Summary -->
+    <div>
+      <div class="bottom-section">
+        <div class="instructions-col">
+          <div>
+            <div class="instructions-title">
+              <span>💳</span> Remittance &amp; Payment Instructions
+            </div>
+            <div class="instructions-body">
+              {% if invoice.accepted_methods %}
+                <div style="margin-bottom:8px;">
+                  <div style="font-weight:700;margin-bottom:4px;">Ways to pay</div>
+                  {% for m in invoice.accepted_methods %}
+                  <div style="margin-bottom:5px;">
+                    <strong>{{ m.label }}</strong>
+                    {% for line in m.lines %}<div style="color:#475569;white-space:pre-line;">{{ line }}</div>{% endfor %}
+                  </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {% if invoice.payment_instructions %}
+                <div style="white-space:pre-line;margin-bottom:6px;">{{ invoice.payment_instructions }}</div>
+              {% endif %}
+              {% if invoice.notes %}
+                {{ invoice.notes | replace('\\n', '<br>') }}
+              {% elif not invoice.payment_instructions %}
+                Please make all checks payable to:<br>
+                <strong>Rise Up Roofing and Construction, Inc.</strong><br>
+                Mail checks to: 1111 W El Norte Pkwy, Escondido, CA 92026.<br>
+                For Wire, ACH, or Credit Card payments, please contact our billing department at <strong>(760) 622-1230</strong> or <strong>billing@riseuprac.com</strong>.
+              {% endif %}
+            </div>
+          </div>
+          <div class="contractor-statutory-notice">
+            State Law requires contractors to be licensed and regulated by the Contractors State License Board (CSLB). Any questions concerning a contractor may be referred to the Registrar, Contractors State License Board.
+          </div>
+        </div>
+
+        <div class="summary-col">
+          <table class="summary-table">
+            <tr>
+              <td class="sum-label">Subtotal:</td>
+              <td class="sum-val">{{ (invoice.subtotal or invoice.amount or invoice.total_amount or 0) | format_price }}</td>
+            </tr>
+            {% if invoice.discount and invoice.discount > 0 %}
+            <tr>
+              <td class="sum-label">Discounts / Credits:</td>
+              <td class="sum-val" style="color: #059669;">-{{ invoice.discount | format_price }}</td>
+            </tr>
+            {% endif %}
+            {% if invoice.tax_amount and invoice.tax_amount > 0 %}
+            <tr>
+              <td class="sum-label">Tax ({{ '%g' % invoice.tax_rate }}%):</td>
+              <td class="sum-val">{{ invoice.tax_amount | format_price }}</td>
+            </tr>
+            {% endif %}
+            <tr class="sum-total-row">
+              <td class="sum-label">Total Invoiced:</td>
+              <td class="sum-val">{{ (invoice.amount or invoice.total_amount or 0) | format_price }}</td>
+            </tr>
+            {% if invoice.paid_amount and invoice.paid_amount > 0 %}
+            <tr class="sum-paid-row">
+              <td class="sum-label">Payments Applied:</td>
+              <td class="sum-val">-{{ invoice.paid_amount | format_price }}</td>
+            </tr>
+            {% endif %}
+            {% if invoice.deposit_amount and invoice.deposit_amount > 0 and not (invoice.paid_amount and invoice.paid_amount >= invoice.deposit_amount) %}
+            <tr>
+              <td class="sum-label"><strong>Deposit Due Now:</strong></td>
+              <td class="sum-val"><strong>{{ invoice.deposit_amount | format_price }}</strong></td>
+            </tr>
+            {% endif %}
+          </table>
+
+          <div class="balance-callout">
+            <span class="balance-label">Balance Due</span>
+            <span class="balance-amount">{{ (invoice.balance if invoice.balance is defined and invoice.balance is not none else (invoice.balance_due if invoice.balance_due is defined and invoice.balance_due is not none else (invoice.amount or invoice.total_amount or 0))) | format_price }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="footer-bar">
+        <div>
+          <strong>Rise Up Roofing and Construction, Inc.</strong> • CSLB #1096492 • Licensed General Contractor
+        </div>
+        <div class="footer-right">
+          Thank you for choosing Rise Up Roofing!
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

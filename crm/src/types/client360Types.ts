@@ -61,13 +61,50 @@ export interface CompletedJob {
   nextAnnualInspectionDate: string;
 }
 
+export type InvoiceItemType = 'service' | 'material' | 'labor' | 'fee' | 'discount';
+
+export interface InvoiceLineItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  unit?: string;
+  item_type?: InvoiceItemType;
+  taxable?: boolean;
+  notes?: string;
+}
+
+export interface InvoicePaymentRecord {
+  id: number | string;
+  amount: number;
+  payment_method: string;
+  transaction_id?: string | null;
+  status: string;
+  payment_date: string;
+  recorded_by_name?: string | null;
+  notes?: string | null;
+  created_at?: string;
+}
+
 export interface ClientInvoice {
   id: string;
   invoiceNumber: string;
   date: string;
+  dueDate?: string;
   amount: number;
-  status: 'paid' | 'pending' | 'overdue';
+  balance?: number;
+  status: 'paid' | 'pending' | 'partially_paid' | 'overdue' | 'sent' | 'draft' | 'cancelled';
   description: string;
+  milestoneName?: string;
+  jobNumber?: string;
+  paymentTerms?: string;
+  notes?: string;
+  pdfUrl?: string | null;
+  sentAt?: string | null;
+  sentToEmail?: string | null;
+  lineItems?: InvoiceLineItem[];
+  payments?: InvoicePaymentRecord[];
 }
 
 export interface BillingSummary {
@@ -136,6 +173,17 @@ export interface ClientQuote {
   tierOptions?: { name: string; price: number; selected: boolean }[];
 }
 
+export interface ClientMediaItem {
+  id: string;
+  name: string;
+  url: string;
+  fileType: string;
+  fileSize: string;
+  uploadedBy: string;
+  createdAt: string;
+  mediaType: 'photo' | 'video';
+}
+
 export interface Client360Record {
   id: string;
   name: string;
@@ -155,9 +203,11 @@ export interface Client360Record {
   billingSummary: BillingSummary;
   warrantySummary: WarrantySummary;
   inspectionPhotos?: InspectionPhoto[];
+  media?: ClientMediaItem[];
   tasks: ClientTask[];
   timeline: TimelineEvent[];
   quotes: ClientQuote[];
+  jobs?: any[];
   notes?: string;
   createdAt?: string;
   updatedAt?: string;

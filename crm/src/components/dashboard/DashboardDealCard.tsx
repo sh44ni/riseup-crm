@@ -11,20 +11,9 @@ export interface DashboardDealCardProps {
   canClaimLead: boolean;
   canReassignLead: boolean;
   isDark: boolean;
-  editingAddressCardId: string | null;
-  addressFormStreet: string;
-  addressFormCity: string;
-  addressFormZip: string;
-  isSavingAddress: boolean;
   onDragStart: (cardId: string, colId: string) => void;
   onDragEnd: () => void;
   onClick: () => void;
-  onStartEditAddress: (card: DealCard, e: React.SyntheticEvent) => void;
-  onSaveAddress: (card: DealCard, e: React.SyntheticEvent) => void;
-  onCancelEditAddress: (e?: React.SyntheticEvent) => void;
-  onStreetChange: (v: string) => void;
-  onCityChange: (v: string) => void;
-  onZipChange: (v: string) => void;
   onClaimLead: (card: DealCard) => void;
   onReassignLead: (card: DealCard) => void;
   onFollowUp: (card: DealCard) => void;
@@ -39,20 +28,9 @@ function DashboardDealCardComponent({
   canClaimLead,
   canReassignLead,
   isDark,
-  editingAddressCardId,
-  addressFormStreet,
-  addressFormCity,
-  addressFormZip,
-  isSavingAddress,
   onDragStart,
   onDragEnd,
   onClick,
-  onStartEditAddress,
-  onSaveAddress,
-  onCancelEditAddress,
-  onStreetChange,
-  onCityChange,
-  onZipChange,
   onClaimLead,
   onReassignLead,
   onFollowUp,
@@ -128,17 +106,6 @@ function DashboardDealCardComponent({
       onReassignDeal={() => onReassignLead(card)}
       onFollowUpDeal={() => onFollowUp(card)}
       getServiceBadgeClass={getServiceBadgeClass}
-      editingAddressCardId={editingAddressCardId}
-      addressFormStreet={addressFormStreet}
-      addressFormCity={addressFormCity}
-      addressFormZip={addressFormZip}
-      isSavingAddress={isSavingAddress}
-      onStartEditAddress={(_item, e) => onStartEditAddress(card, e)}
-      onSaveAddress={(_item, e) => onSaveAddress(card, e)}
-      onCancelEditAddress={onCancelEditAddress}
-      onStreetChange={onStreetChange}
-      onCityChange={onCityChange}
-      onZipChange={onZipChange}
     />
   );
 }
@@ -167,7 +134,6 @@ function areDashboardDealCardPropsEqual(
   if (prev.card.assignedToUserId !== next.card.assignedToUserId) return false;
   if (prev.card.assignedToName !== next.card.assignedToName) return false;
   if (prev.card.leadSource !== next.card.leadSource) return false;
-  if (prev.editingAddressCardId !== next.editingAddressCardId) return false;
   if (prev.canAdvanceStage !== next.canAdvanceStage) return false;
   if (prev.canViewFinances !== next.canViewFinances) return false;
   if (prev.canClaimLead !== next.canClaimLead) return false;
@@ -175,12 +141,6 @@ function areDashboardDealCardPropsEqual(
   if (prev.isDark !== next.isDark) return false;
   if (prev.col.id !== next.col.id) return false;
   if (prev.col.accentColor !== next.col.accentColor) return false;
-  if (prev.isSavingAddress !== next.isSavingAddress) return false;
-  if (prev.editingAddressCardId === prev.card.id) {
-    if (prev.addressFormStreet !== next.addressFormStreet) return false;
-    if (prev.addressFormCity !== next.addressFormCity) return false;
-    if (prev.addressFormZip !== next.addressFormZip) return false;
-  }
   return true;
 }
 

@@ -784,3 +784,144 @@ async def send_otp_verification_email(
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+async def send_invoice_email(
+    to_email: str,
+    customer_name: str,
+    invoice_number: str,
+    amount_due: float,
+    due_date: str,
+    pdf_bytes: bytes,
+    pdf_filename: Optional[str] = None,
+    subject: Optional[str] = None,
+    custom_message: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Sends an official invoice email with the PDF attached using the Resend API.
+    """
+    key = api_key or getattr(settings, "RESEND_API_KEY", "") or os.environ.get("RESEND_API_KEY", "")
+    if not key:
+        return {
+            "success": False,
+            "missing_key": True,
+            "error": "Resend API key is not configured in server environment (RESEND_API_KEY).",
+            "recipient": to_email,
+        }
+
+    customer_name = html.escape(str(customer_name or "Valued Homeowner"))
+    clean_custom_msg = html.escape(str(custom_message.strip())) if custom_message and custom_message.strip() else ""
+    invoice_number = html.escape(str(invoice_number or ""))
+    due_date_str = html.escape(str(due_date or "Upon Receipt"))
+    formatted_amount = f"${float(amount_due):,.2f}"
+
+    if not pdf_filename:
+        pdf_filename = f"RiseUp_Roofing_Invoice_{invoice_number}.pdf"
+    else:
+        pdf_filename = html.escape(str(pdf_filename))
+
+    if not subject:
+        subject = f"Invoice {invoice_number} from Rise Up Roofing ({formatted_amount})"
+
+    encoded_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    custom_note_block = ""
+    if clean_custom_msg:
+        custom_note_block = f"""
+        <div style="background-color: #f8fafc; border-left: 4px solid #00b0ed; padding: 14px 18px; margin: 20px 0; border-radius: 4px; color: #334155; font-size: 14px;">
+            {clean_custom_msg}
+        </div>
+        """
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>{subject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #0f172a; margin: 0; padding: 24px; background-color: #f1f5f9;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        <div style="background: linear-gradient(135deg, #091b36 0%, #1e3a5f 100%); padding: 32px 36px; text-align: left; border-bottom: 3px solid #00b0ed;">
+          <div style="font-size: 24px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px;">RISE UP ROOFING</div>
+          <div style="font-size: 11px; font-weight: 700; color: #7dd3fc; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px;">
+            &amp; CONSTRUCTION, INC. • CSLB #1096492
+          </div>
+        </div>
+
+        <div style="padding: 36px 36px 28px 36px;">
+          <h2 style="font-size: 20px; font-weight: 800; color: #091b36; margin-top: 0; margin-bottom: 8px;">
+            Invoice {invoice_number}
+          </h2>
+          <p style="font-size: 14.5px; color: #334155; margin-top: 0; margin-bottom: 20px;">
+            Dear {customer_name},
+          </p>
+          <p style="font-size: 14px; color: #475569; margin-bottom: 24px;">
+            Please find your official invoice attached for roofing services. A summary is provided below for your records:
+          </p>
+
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <tr>
+                <td style="color: #64748b; padding: 6px 0;">Invoice Number:</td>
+                <td style="text-align: right; font-weight: 700; color: #091b36; font-family: monospace;">{invoice_number}</td>
+              </tr>
+              <tr>
+                <td style="color: #64748b; padding: 6px 0;">Due Date:</td>
+                <td style="text-align: right; font-weight: 700; color: #0284c7;">{due_date_str}</td>
+              </tr>
+              <tr style="border-top: 1px solid #cbd5e1;">
+                <td style="color: #091b36; font-weight: 800; padding: 10px 0 4px 0; font-size: 15px;">Amount Due:</td>
+                <td style="text-align: right; font-weight: 900; color: #091b36; font-size: 18px; font-family: monospace;">{formatted_amount}</td>
+              </tr>
+            </table>
+          </div>
+
+          {custom_note_block}
+
+          <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin-bottom: 24px; font-size: 13px; color: #0369a1;">
+            <strong>Payment Instructions:</strong> Checks can be made payable to <strong>Rise Up Roofing and Construction, Inc.</strong> and mailed to 1111 W El Norte Pkwy, Escondido, CA 92026. For credit card or direct electronic payment, please contact our billing department.
+          </div>
+
+          <p style="font-size: 13.5px; color: #64748b; margin-top: 24px; margin-bottom: 0;">
+            Thank you for your business. Please reach out if you have any questions regarding your invoice.
+          </p>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 20px 36px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: left;">
+          <strong>Rise Up Roofing and Construction, Inc.</strong><br>
+          1111 W El Norte Pkwy, Escondido, CA 92026<br>
+          Phone: (760) 622-1230 &bull; Email: billing@riseuprac.com &bull; Website: riseuprac.com
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    from_email = getattr(settings, "RESEND_FROM_EMAIL", "Rise Up Roofing <billing@riseuprac.com>")
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "attachments": [
+            {
+                "filename": pdf_filename,
+                "content": encoded_pdf,
+            }
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(RESEND_API_URL, json=payload, headers=headers)
+            if resp.status_code in (200, 201):
+                return {"success": True, "data": resp.json(), "recipient": to_email}
+            return {"success": False, "status_code": resp.status_code, "error": resp.text}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Calendar, Plus } from 'lucide-react';
-import { Client360Record } from '@/types/client360Types';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryKeys';
+import { Client360Record, ClientInvoice } from '@/types/client360Types';
 import { ClientProfileHeader, ClientProfileTab } from './ClientProfileHeader';
 import { ClientHeroBanner } from '@/components/clients/ClientHeroBanner';
 import { ClientSpecsCard } from '@/components/clients/ClientSpecsCard';
@@ -11,6 +13,9 @@ import { ClientTimelineTab } from '@/components/clients/ClientTimelineTab';
 import { ClientQuotesJobsTab } from '@/components/clients/ClientQuotesJobsTab';
 import { ClientBillingTab } from '@/components/clients/ClientBillingTab';
 import { ClientWarrantiesTab } from '@/components/clients/ClientWarrantiesTab';
+import { ClientMediaSection } from '@/components/clients/ClientMediaSection';
+import { CreateInvoiceModal } from '@/components/clients/invoices/CreateInvoiceModal';
+import { RecordPaymentModal } from '@/components/clients/invoices/RecordPaymentModal';
 
 interface ClientProfileViewProps {
   client: Client360Record;
@@ -28,6 +33,8 @@ interface ClientProfileViewProps {
   onOpenMarkLost: () => void;
   onToggleTask: (taskId: string) => void;
   onAddTask: () => void;
+  onUploadMedia: (files: File[]) => Promise<void>;
+  onDeleteMedia: (mediaId: string) => Promise<void>;
 }
 
 export function ClientProfileView({
@@ -46,7 +53,17 @@ export function ClientProfileView({
   onOpenMarkLost,
   onToggleTask,
   onAddTask,
+  onUploadMedia,
+  onDeleteMedia,
 }: ClientProfileViewProps) {
+  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState<ClientInvoice | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.clients.all() });
+  };
+
   return (
     <div className="space-y-3.5">
       <ClientProfileHeader
@@ -61,6 +78,7 @@ export function ClientProfileView({
         onOpenLogModal={onOpenLogModal}
         onOpenEditSpecs={onOpenEditSpecs}
         onOpenEditContact={onOpenEditContact}
+        onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
         onReactivateDeal={onReactivateDeal}
         onOpenMarkLost={onOpenMarkLost}
       />
@@ -85,9 +103,14 @@ export function ClientProfileView({
             {canViewFinances && (
               <ClientBillingCard
                 billing={client.billingSummary}
+                clientEmail={client.email}
+                clientName={client.name}
                 onViewAll={() => onTabChange('billing')}
                 onOpenHub={() => onTabChange('billing')}
+                onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
+                onRecordPayment={(inv) => setPaymentTarget(inv)}
               />
+
             )}
 
             <ClientWarrantyCard
@@ -96,6 +119,15 @@ export function ClientProfileView({
               onOpenHub={() => onTabChange('warranties')}
             />
           </div>
+
+          {/* Photos & Videos Section */}
+          <ClientMediaSection
+            clientId={String(client.id)}
+            clientName={client.name}
+            media={client.media || []}
+            onUploadMedia={onUploadMedia}
+            onDeleteMedia={onDeleteMedia}
+          />
 
           {/* Bottom Row: Next Follow-ups & Reminders */}
           <ClientRemindersCard
@@ -122,6 +154,9 @@ export function ClientProfileView({
       {activeTab === 'billing' && canViewFinances && (
         <ClientBillingTab
           billing={client.billingSummary}
+          client={client}
+          onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
+          onRefresh={handleRefresh}
         />
       )}
 
@@ -130,6 +165,18 @@ export function ClientProfileView({
         <ClientWarrantiesTab
           warranty={client.warrantySummary}
           specs={client.roofSpecs}
+        />
+      )}
+
+      {/* TAB: PHOTOS & VIDEOS */}
+      {activeTab === 'media' && (
+        <ClientMediaSection
+          clientId={String(client.id)}
+          clientName={client.name}
+          media={client.media || []}
+          onUploadMedia={onUploadMedia}
+          onDeleteMedia={onDeleteMedia}
+          isFullTab={true}
         />
       )}
 
@@ -156,6 +203,32 @@ export function ClientProfileView({
             onAddTask={onAddTask}
           />
         </div>
+      )}
+
+      {/* Create Invoice Modal */}
+      {isCreateInvoiceOpen && (
+        <CreateInvoiceModal
+          isOpen={isCreateInvoiceOpen}
+          onClose={() => setIsCreateInvoiceOpen(false)}
+          client={client}
+          onInvoiceCreated={() => {
+            handleRefresh();
+          }}
+        />
+      )}
+
+      {/* Record Payment (launched from the Billing card) */}
+      {paymentTarget && (
+        <RecordPaymentModal
+          isOpen={Boolean(paymentTarget)}
+          onClose={() => setPaymentTarget(null)}
+          invoice={paymentTarget}
+          clientName={client.name}
+          onPaymentRecorded={() => {
+            setPaymentTarget(null);
+            handleRefresh();
+          }}
+        />
       )}
     </div>
   );

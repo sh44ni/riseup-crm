@@ -9,17 +9,14 @@ import {
   UserCog,
   PhoneCall,
   ArrowRight,
-  Pencil,
 } from 'lucide-react';
 import {
   PipelineDealItem,
   StageDefinition,
   PipelineStageId,
-  DealCard as PipelineDealCard,
 } from '@/components/pipeline/pipelineTypes';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
 import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
-import { LeadAddressEditor } from '@/components/pipeline/LeadAddressEditor';
 import { KanbanColumn } from './types';
 
 export interface DealCardComponentProps {
@@ -39,17 +36,6 @@ export interface DealCardComponentProps {
   onReassignDeal?: (deal: PipelineDealItem) => void;
   onFollowUpDeal?: (deal: PipelineDealItem) => void;
   getServiceBadgeClass?: (color?: string) => string;
-  editingAddressCardId?: string | null;
-  addressFormStreet?: string;
-  addressFormCity?: string;
-  addressFormZip?: string;
-  isSavingAddress?: boolean;
-  onStartEditAddress?: (card: PipelineDealItem, e: React.SyntheticEvent) => void;
-  onSaveAddress?: (card: PipelineDealItem, e: React.SyntheticEvent) => void;
-  onCancelEditAddress?: (e?: React.SyntheticEvent) => void;
-  onStreetChange?: (v: string) => void;
-  onCityChange?: (v: string) => void;
-  onZipChange?: (v: string) => void;
 }
 
 const defaultBadgeClass = (color?: string) => {
@@ -99,22 +85,10 @@ function DealCardComponent({
   onReassignDeal,
   onFollowUpDeal,
   getServiceBadgeClass = defaultBadgeClass,
-  editingAddressCardId,
-  addressFormStreet = '',
-  addressFormCity = '',
-  addressFormZip = '',
-  isSavingAddress = false,
-  onStartEditAddress,
-  onSaveAddress,
-  onCancelEditAddress,
-  onStreetChange,
-  onCityChange,
-  onZipChange,
 }: DealCardComponentProps) {
   const isOverdue = Boolean(deal.isFollowupOverdue);
   const isEstimateSent = deal.stageId === 'estimate_sent';
   const isFollowUpStage = deal.stageId === 'follow_up';
-  const isEditingAddress = editingAddressCardId === deal.id;
 
   return (
     <div
@@ -233,40 +207,13 @@ function DealCardComponent({
         </div>
       </div>
 
-      {/* Row 2: Location & Address In-Place Editor */}
-      {isEditingAddress && onSaveAddress && onCancelEditAddress && onStreetChange && onCityChange && onZipChange ? (
-        <div onClick={(e) => e.stopPropagation()}>
-          <LeadAddressEditor
-            card={deal as unknown as PipelineDealCard}
-            street={addressFormStreet}
-            city={addressFormCity}
-            zip={addressFormZip}
-            isSaving={isSavingAddress}
-            onStreetChange={onStreetChange}
-            onCityChange={onCityChange}
-            onZipChange={onZipChange}
-            onSave={(_c, e) => onSaveAddress(deal, e)}
-            onCancel={onCancelEditAddress}
-          />
-        </div>
-      ) : (
-        <div className="flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate">
-          <MapPin size={8.5} className="text-slate-400 shrink-0" />
-          <span className="truncate">
-            {deal.address ? `${deal.address}, ${deal.city}` : deal.city || 'No address set'}
-          </span>
-          {onStartEditAddress && (
-            <button
-              type="button"
-              aria-label="Edit address"
-              onClick={(e) => onStartEditAddress(deal, e)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:text-sky-600 dark:hover:text-sky-400"
-            >
-              <Pencil size={8.5} />
-            </button>
-          )}
-        </div>
-      )}
+      {/* Row 2: Location */}
+      <div className="flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate">
+        <MapPin size={8.5} className="text-slate-400 shrink-0" />
+        <span className="truncate">
+          {deal.address ? `${deal.address}, ${deal.city}` : deal.city || 'No address set'}
+        </span>
+      </div>
 
       {/* Row 3: Service Badge, Roof Sq Ft & Lead Source Micro-Badges */}
       <div className="flex items-center gap-1 flex-wrap min-w-0">
@@ -426,7 +373,6 @@ function areDealCardPropsEqual(
   if (prev.deal.assignedToUserId !== next.deal.assignedToUserId) return false;
   if (prev.deal.estimator?.name !== next.deal.estimator?.name) return false;
   if (prev.deal.photosCount !== next.deal.photosCount) return false;
-  if (prev.editingAddressCardId !== next.editingAddressCardId) return false;
   if (prev.canAdvanceStage !== next.canAdvanceStage) return false;
   if (prev.canViewFinances !== next.canViewFinances) return false;
   if (prev.canClaimLead !== next.canClaimLead) return false;
@@ -435,12 +381,6 @@ function areDealCardPropsEqual(
   if (prev.stage.id !== next.stage.id) return false;
   if (prev.stage.accentColor !== next.stage.accentColor) return false;
   if (prev.nextStageDef?.id !== next.nextStageDef?.id) return false;
-  if (prev.isSavingAddress !== next.isSavingAddress) return false;
-  if (prev.editingAddressCardId === prev.deal.id) {
-    if (prev.addressFormStreet !== next.addressFormStreet) return false;
-    if (prev.addressFormCity !== next.addressFormCity) return false;
-    if (prev.addressFormZip !== next.addressFormZip) return false;
-  }
   return true;
 }
 

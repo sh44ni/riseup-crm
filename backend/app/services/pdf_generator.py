@@ -17,16 +17,20 @@ jinja_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True)
 
 def _format_price(value):
     try:
-        if value is None or value == "":
+        if value is None or value == "" or "Undefined" in type(value).__name__:
             return "$0"
         if isinstance(value, str):
             value = value.strip().replace("$", "").replace(",", "")
-        v = int(value) if float(value) == int(float(value)) else float(value)
-        if isinstance(v, int):
-            return f"${v:,}"
-        return f"${v:,.2f}"
-    except (ValueError, TypeError):
-        return str(value)
+        if not value:
+            return "$0"
+        v = float(value)
+        sign = "-" if v < 0 else ""
+        v = abs(v)
+        if v == int(v):
+            return f"{sign}${int(v):,}"
+        return f"{sign}${v:,.2f}"
+    except Exception:
+        return "$0"
 jinja_env.filters['format_price'] = _format_price
 
 import mimetypes
@@ -521,3 +525,64 @@ def save_estimate_pdf_file(estimate_identifier: str, pdf_bytes: bytes) -> str:
         f.write(pdf_bytes)
         
     return f"/static/uploads/estimates/{filename}"
+
+
+# ── Invoice PDF Generation ─────────────────────────────────────────────
+
+INVOICE_TEMPLATES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "templates", "invoices"))
+INVOICE_UPLOADS_DIR = os.path.join(STATIC_DIR, "uploads", "invoices")
+os.makedirs(INVOICE_UPLOADS_DIR, exist_ok=True)
+
+invoice_jinja_env = Environment(loader=FileSystemLoader(INVOICE_TEMPLATES_DIR), autoescape=True)
+invoice_jinja_env.filters['format_price'] = _format_price
+
+def get_invoice_logo_data_uri() -> str:
+    REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    candidates = [
+        os.path.join(REPO_ROOT, 'crm', 'public', 'logo.svg'),
+        os.path.join(REPO_ROOT, 'branding2.0', 'logo_logo_for_estimates.svg'),
+        os.path.join(REPO_ROOT, 'branding2.0', 'logo_logo_for_light_bg.svg'),
+        os.path.join(STATIC_DIR, 'images', 'estimates', 'riseup_arch_logo.svg'),
+        os.path.join(REPO_ROOT, 'branding2.0', 'logo.svg'),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            with open(p, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            return f"data:image/svg+xml;base64,{b64}"
+    return ""
+
+async def render_invoice_html(invoice_data: Dict[str, Any], client_data: Optional[Dict[str, Any]] = None) -> str:
+    template = invoice_jinja_env.get_template("invoice_template.html")
+    logo_data_uri = get_invoice_logo_data_uri()
+    client = client_data or invoice_data.get("client") or {}
+    return template.render(
+        invoice=invoice_data,
+        client=client,
+        logo_data_uri=logo_data_uri,
+    )
+
+async def generate_invoice_pdf(invoice_data: Dict[str, Any], client_data: Optional[Dict[str, Any]] = None) -> bytes:
+    """
+    Renders high-fidelity Letter PDF for an invoice using Playwright headless Chromium.
+    """
+    html_content = await render_invoice_html(invoice_data, client_data)
+    sem = _get_pdf_semaphore()
+    async with sem:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            _PDF_EXECUTOR,
+            lambda: _sync_generate_pdf_worker(html_content)
+        )
+
+def save_invoice_pdf_file(invoice_number: str, pdf_bytes: bytes) -> str:
+    """
+    Saves Invoice PDF bytes to static uploads directory and returns public relative URL.
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    clean_id = str(invoice_number).replace("/", "_").replace("\\", "_").replace(" ", "_")
+    filename = f"Invoice_{clean_id}_{timestamp}_{secrets.token_urlsafe(12)}.pdf"
+    file_path = os.path.join(INVOICE_UPLOADS_DIR, filename)
+    with open(file_path, "wb") as f:
+        f.write(pdf_bytes)
+    return f"/static/uploads/invoices/{filename}"

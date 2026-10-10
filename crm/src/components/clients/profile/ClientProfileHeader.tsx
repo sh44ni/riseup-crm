@@ -8,13 +8,15 @@ import {
   Edit3,
   RotateCcw,
   AlertTriangle,
+  Image as ImageIcon,
+  Receipt,
 } from 'lucide-react';
 import { Client360Record } from '@/types/client360Types';
 import { getTelUrl, getMailtoUrl, getSmsUrl } from '@/utils/contactValidation';
 import { ClientStatusBadge } from '@/components/clients/ClientStatusBadge';
 import { CrmSelect } from '@/components/common/CrmSelect';
 
-export type ClientProfileTab = 'overview' | 'timeline' | 'quotes' | 'billing' | 'warranties' | 'tasks';
+export type ClientProfileTab = 'overview' | 'timeline' | 'quotes' | 'billing' | 'warranties' | 'tasks' | 'media';
 
 interface ClientProfileHeaderProps {
   client: Client360Record;
@@ -28,6 +30,7 @@ interface ClientProfileHeaderProps {
   onOpenLogModal: () => void;
   onOpenEditSpecs: () => void;
   onOpenEditContact: () => void;
+  onOpenCreateInvoice?: () => void;
   onReactivateDeal: () => void;
   onOpenMarkLost: () => void;
 }
@@ -44,6 +47,7 @@ export function ClientProfileHeader({
   onOpenLogModal,
   onOpenEditSpecs,
   onOpenEditContact,
+  onOpenCreateInvoice,
   onReactivateDeal,
   onOpenMarkLost,
 }: ClientProfileHeaderProps) {
@@ -210,6 +214,19 @@ export function ClientProfileHeader({
                 <span>Edit Contact</span>
               </button>
 
+              {/* Create Invoice button */}
+              {canViewFinances && onOpenCreateInvoice && (
+                <button
+                  type="button"
+                  onClick={onOpenCreateInvoice}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-600 dark:hover:bg-emerald-600 border border-emerald-200 dark:border-emerald-800/60 hover:border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                  title="Create Invoice for this Client"
+                >
+                  <Receipt size={13} />
+                  <span>+ Create Invoice</span>
+                </button>
+              )}
+
               {/* Reactivate button for lost clients */}
               {client.status === 'closed_lost' && (
                 <button
@@ -287,13 +304,22 @@ export function ClientProfileHeader({
           {canViewFinances && (
             <button
               onClick={() => onTabChange('billing')}
-              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                 activeTab === 'billing'
                   ? 'bg-slate-900 dark:bg-sky-500 text-white shadow-xs'
                 : 'bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200/60 dark:border-white/10'
               }`}
             >
-              Billing & Invoices
+              <span>Billing & Invoices</span>
+              {client.billingSummary.invoices.length > 0 && (
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    activeTab === 'billing' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {client.billingSummary.invoices.length}
+                </span>
+              )}
             </button>
           )}
 
@@ -306,6 +332,27 @@ export function ClientProfileHeader({
             }`}
           >
             Warranties & Inspections
+          </button>
+
+          <button
+            onClick={() => onTabChange('media')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              activeTab === 'media'
+                ? 'bg-slate-900 dark:bg-sky-500 text-white shadow-xs'
+                : 'bg-white/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 border border-slate-200/60 dark:border-white/10'
+            }`}
+          >
+            <ImageIcon size={14} className={activeTab === 'media' ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
+            <span>Photos & Videos</span>
+            {Boolean(client.media && client.media.length > 0) && (
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  activeTab === 'media' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {client.media?.length}
+              </span>
+            )}
           </button>
 
           <button

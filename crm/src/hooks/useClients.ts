@@ -22,6 +22,8 @@ import {
   useUpdateClientMutation,
   useAddClientActivityMutation,
   useMarkClientLostMutation,
+  useUploadClientMediaMutation,
+  useDeleteClientMediaMutation,
 } from '@/entities/client/mutations';
 
 export interface UseClientsOptions {
@@ -55,6 +57,8 @@ export function useClients() {
   const updateClientMutation = useUpdateClientMutation();
   const addActivityMutation = useAddClientActivityMutation();
   const markLostMutation = useMarkClientLostMutation();
+  const uploadMediaMutation = useUploadClientMediaMutation();
+  const deleteMediaMutation = useDeleteClientMediaMutation();
 
   const rawClients: BackendClient[] = useMemo(() => data?.clients || [], [data?.clients]);
 
@@ -219,6 +223,20 @@ export function useClients() {
     return httpClient.delete(`/admin/clients/${clientId}/documents/${documentId}`);
   }, []);
 
+  const uploadMedia = useCallback(
+    async (clientId: string | number, files: File[]) => {
+      return await uploadMediaMutation.mutateAsync({ clientId, files });
+    },
+    [uploadMediaMutation]
+  );
+
+  const deleteMedia = useCallback(
+    async (clientId: string | number, mediaId: string | number) => {
+      return await deleteMediaMutation.mutateAsync({ clientId, mediaId });
+    },
+    [deleteMediaMutation]
+  );
+
   return {
     clients,
     setClients,
@@ -249,5 +267,7 @@ export function useClients() {
     fetchDocuments,
     uploadDocument,
     deleteDocument,
+    uploadMedia,
+    deleteMedia,
   };
 }

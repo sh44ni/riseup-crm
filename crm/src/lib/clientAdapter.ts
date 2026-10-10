@@ -8,12 +8,14 @@ import {
   TimelineEvent,
   RoofSpecs,
   BillingSummary,
+  ClientInvoice,
   WarrantySummary,
   ClientTask,
   ClientQuote,
   ActiveJob,
   CompletedJob,
   LossPostMortem,
+  ClientMediaItem,
 } from '@/types/client360Types';
 import { Client360ApiResponse } from '@/api/clientsApi';
 
@@ -153,14 +155,40 @@ export function backendClientToClient360(
   }
 
   // Invoices & Billing Summary
-  const invoiceList = invoices.map((inv: any) => ({
-    id: String(inv.id),
-    invoiceNumber: inv.invoice_number || `INV-${inv.id}`,
-    date: inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'Recent',
-    amount: Number(inv.amount || 0),
-    status: (inv.status || 'paid') as 'paid' | 'pending' | 'overdue',
-    description: inv.description || 'Roofing Materials & Labor',
-  }));
+  const invoiceList: ClientInvoice[] = invoices.map((inv: any) => {
+    const rawLines = Array.isArray(inv.line_items) ? inv.line_items : [];
+    const invAmount = Number(inv.amount || 0);
+    const payments = Array.isArray(inv.payments) ? inv.payments : [];
+    const paidSum = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+    const balance =
+      inv.balance !== undefined && inv.balance !== null
+        ? Number(inv.balance)
+        : Math.max(0, invAmount - paidSum);
+
+    return {
+      id: String(inv.id),
+      invoiceNumber: inv.invoice_number || `INV-${inv.id}`,
+      date: inv.created_at
+        ? new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Recent',
+      dueDate: inv.due_date
+        ? new Date(inv.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : undefined,
+      amount: invAmount,
+      balance,
+      status: ((['sent', 'draft'].includes(inv.status) ? 'pending' : inv.status) || (balance <= 0 ? 'paid' : 'pending')) as any,
+      description: inv.milestone_name || inv.description || 'Roofing Materials & Labor',
+      milestoneName: inv.milestone_name || 'Roofing Scope & Services',
+      jobNumber: inv.job_number,
+      paymentTerms: inv.payment_terms || 'Due Upon Receipt',
+      notes: inv.notes,
+      pdfUrl: inv.pdf_url,
+      sentAt: inv.sent_at,
+      sentToEmail: inv.sent_to_email,
+      lineItems: rawLines,
+      payments,
+    };
+  });
 
   const totalBilled = raw.total_billed ?? invoiceList.reduce((sum: number, i: any) => sum + i.amount, 0);
   const totalPaid = raw.total_paid ?? raw.total_revenue ?? totalBilled;
@@ -234,6 +262,44 @@ export function backendClientToClient360(
     date: est.created_at ? new Date(est.created_at).toLocaleDateString() : 'Recently',
   }));
 
+  // Media (Photos & Videos)
+  const rawDocuments = (detail?.documents || detail?.media || (raw as any)?.documents || (raw as any)?.media || []) as any[];
+  const mediaList: ClientMediaItem[] = rawDocuments.map((doc: any) => {
+    const url = doc.file_url || doc.url || '';
+    const name = doc.name || 'Media File';
+    const fileType = doc.file_type || '';
+    const isVideo =
+      doc.doc_type === 'video' ||
+      fileType.startsWith('video/') ||
+      /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(name) ||
+      /\.(mp4|webm|mov|m4v|ogg|ogv)$/i.test(url);
+
+    const rawSize = Number(doc.file_size);
+    let formattedSize = '';
+    if (!isNaN(rawSize) && rawSize > 0) {
+      if (rawSize >= 1048576) {
+        formattedSize = `${(rawSize / 1048576).toFixed(1)} MB`;
+      } else if (rawSize >= 1024) {
+        formattedSize = `${Math.round(rawSize / 1024)} KB`;
+      } else {
+        formattedSize = `${rawSize} B`;
+      }
+    } else if (typeof doc.file_size === 'string') {
+      formattedSize = doc.file_size;
+    }
+
+    return {
+      id: String(doc.id),
+      name,
+      url,
+      fileType: fileType || (isVideo ? 'video/mp4' : 'image/jpeg'),
+      fileSize: formattedSize,
+      uploadedBy: doc.uploaded_by || 'Staff',
+      createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : new Date().toISOString(),
+      mediaType: isVideo ? 'video' : 'photo',
+    };
+  });
+
   return {
     id: String(raw.id),
     name: raw.full_name || 'Homeowner',
@@ -258,9 +324,11 @@ export function backendClientToClient360(
     billingSummary,
     warrantySummary,
     inspectionPhotos,
+    media: mediaList,
     tasks: clientTasks,
     timeline,
     quotes,
+    jobs,
     notes: raw.notes || '',
     createdAt: raw.created_at || '',
     updatedAt: raw.updated_at || '',
