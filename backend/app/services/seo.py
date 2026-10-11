@@ -34,25 +34,30 @@ def classify_tier(position: float, impressions: int, ctr_percent: float) -> str:
 
 async def ensure_seo_tables():
     """Ensure the seo_query_snapshots table exists in PostgreSQL."""
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS seo_query_snapshots (
+            id BIGSERIAL PRIMARY KEY,
+            snapshot_date TIMESTAMPTZ NOT NULL,
+            query TEXT NOT NULL,
+            clicks INTEGER NOT NULL DEFAULT 0,
+            impressions INTEGER NOT NULL DEFAULT 0,
+            ctr_percent DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            position DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            tier TEXT NOT NULL DEFAULT 'standard',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_sqs_date_query ON seo_query_snapshots (snapshot_date, query)",
+        "CREATE INDEX IF NOT EXISTS idx_sqs_tier_date ON seo_query_snapshots (tier, snapshot_date)",
+    ]
     try:
         async with engine.begin() as conn:
-            await conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS seo_query_snapshots (
-                    id BIGSERIAL PRIMARY KEY,
-                    snapshot_date TIMESTAMPTZ NOT NULL,
-                    query TEXT NOT NULL,
-                    clicks INTEGER NOT NULL DEFAULT 0,
-                    impressions INTEGER NOT NULL DEFAULT 0,
-                    ctr_percent DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                    position DOUBLE PRECISION NOT NULL DEFAULT 0.0,
-                    tier TEXT NOT NULL DEFAULT 'standard',
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-                CREATE INDEX IF NOT EXISTS idx_sqs_date_query ON seo_query_snapshots (snapshot_date, query);
-                CREATE INDEX IF NOT EXISTS idx_sqs_tier_date ON seo_query_snapshots (tier, snapshot_date);
-            """))
+            for stmt in statements:
+                await conn.execute(text(stmt))
     except Exception as e:
-        logger.warning(f"Failed to ensure seo_query_snapshots table: {e}")
+        logger.error(f"Failed to ensure seo_query_snapshots table: {e}")
+        raise
 
 
 async def seed_baseline_if_empty(db: AsyncSession):
