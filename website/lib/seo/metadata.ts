@@ -122,7 +122,7 @@ export function buildServiceJsonLd(service: { name: string; shortDescription: st
     description: service.shortDescription,
     url: `${BASE_URL}/services/${service.slug}`,
     provider: {
-      '@type': 'RoofingContractor',
+      '@type': ['RoofingContractor', 'GeneralContractor'],
       name: COMPANY_NAME,
       url: BASE_URL,
       telephone: '+17606221230',

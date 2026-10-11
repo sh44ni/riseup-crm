@@ -37,18 +37,12 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
   const faqJsonLd = faqs.length > 0 ? buildFAQJsonLd(faqs) : null;
   const cityJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'RoofingContractor',
-    name: `${COMPANY_NAME} - ${area.name}`,
+    '@type': ['RoofingContractor', 'GeneralContractor'],
+    name: COMPANY_NAME,
     url: `https://riseuprac.com/service-area/${area.slug}`,
     telephone: '+17606221230',
-    areaServed: {
-      '@type': 'City',
-      name: area.name,
-      containedInPlace: {
-        '@type': 'State',
-        name: 'California',
-      },
-    },
+    priceRange: '$$',
+    openingHours: 'Mo-Su 00:00-24:00',
     address: {
       '@type': 'PostalAddress',
       streetAddress: '2182 S El Camino Real',
@@ -57,8 +51,32 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
       postalCode: '92054',
       addressCountry: 'US',
     },
-    priceRange: '$$',
-    openingHours: 'Mo-Su 00:00-24:00',
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: 33.1812,
+      longitude: -117.3395,
+    },
+    areaServed: {
+      '@type': 'City',
+      name: area.name,
+      containedInPlace: {
+        '@type': 'State',
+        name: 'California',
+      },
+    },
+    hasOfferCatalog: {
+      '@type': 'OfferCatalog',
+      name: `Roofing & Construction Services in ${area.name}`,
+      itemListElement: services.map((s) => ({
+        '@type': 'Offer',
+        itemOffered: {
+          '@type': 'Service',
+          name: s.name,
+          url: `https://riseuprac.com/services/${s.slug}`,
+          description: s.shortDescription,
+        },
+      })),
+    },
   };
 
   return (

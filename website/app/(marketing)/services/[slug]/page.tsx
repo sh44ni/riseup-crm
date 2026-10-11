@@ -33,7 +33,18 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
   const service = getServiceBySlug(slug);
   if (!service) notFound();
 
-  const relatedProjects = projects.filter((p) => p.category.toLowerCase().includes(slug.toLowerCase()) || slug.includes(p.category.toLowerCase())).slice(0, 3);
+  const relatedProjects = (
+    service.relatedProjectSlugs && service.relatedProjectSlugs.length > 0
+      ? service.relatedProjectSlugs
+          .map((pSlug) => projects.find((p) => p.slug === pSlug))
+          .filter((p): p is (typeof projects)[0] => Boolean(p))
+      : projects.filter(
+          (p) =>
+            (service.category && p.category.toLowerCase() === service.category.toLowerCase()) ||
+            p.category.toLowerCase().includes(slug.toLowerCase()) ||
+            slug.includes(p.category.toLowerCase())
+        )
+  ).slice(0, 3);
   const serviceJsonLd = buildServiceJsonLd(service);
   const faqJsonLd = service.faqs.length > 0 ? buildFAQJsonLd(service.faqs) : null;
 
@@ -112,7 +123,15 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
             </div>
             <div className="flex items-center gap-2">
               <Icon name="award" className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>Owens Corning Preferred</span>
+              <span>
+                {service.category === 'construction'
+                  ? 'Licensed Class B Builder'
+                  : service.category === 'commercial'
+                  ? 'Carlisle & GAF Commercial'
+                  : service.category === 'solar'
+                  ? 'Unified Solar & Roof Pro'
+                  : 'Owens Corning Preferred'}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <Icon name="star" className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -410,7 +429,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           <SectionHeading
             label="Common Questions"
             title={`${service.name} FAQ`}
-            subtitle="Answers to the most frequently asked questions about this roofing service."
+            subtitle={`Answers to the most frequently asked questions about our ${service.name.toLowerCase()} services in San Diego.`}
             centered={true}
           />
           <FAQAccordion items={service.faqs} />
@@ -428,6 +447,11 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
           {services
             .filter((s) => s.slug !== slug)
+            .sort((a, b) => {
+              const aSame = service.category && a.category === service.category ? 1 : 0;
+              const bSame = service.category && b.category === service.category ? 1 : 0;
+              return bSame - aSame;
+            })
             .slice(0, 4)
             .map((s) => (
               <Link
@@ -449,6 +473,53 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
                 </div>
               </Link>
             ))}
+        </div>
+      </Section>
+
+      {/* Local Communities We Serve Internal Linking Mesh */}
+      <Section alternate={true} className="py-12 border-t border-slate-200/80">
+        <div className="max-w-5xl mx-auto">
+          <SectionHeading
+            label="Service Coverage"
+            title={`${service.name} Across San Diego County`}
+            subtitle={`We provide licensed ${service.name.toLowerCase()} services across all coastal and inland North County communities.`}
+            centered={true}
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-8">
+            {[
+              { slug: 'oceanside', name: 'Oceanside', highlight: 'HQ & Rapid Dispatch' },
+              { slug: 'carlsbad', name: 'Carlsbad', highlight: 'Coastal & Aviara' },
+              { slug: 'vista', name: 'Vista', highlight: 'Shadowridge & Inland' },
+              { slug: 'encinitas', name: 'Encinitas', highlight: 'Leucadia & Cardiff' },
+              { slug: 'san-marcos', name: 'San Marcos', highlight: 'Lake San Marcos' },
+              { slug: 'san-diego', name: 'San Diego', highlight: 'Metro & Coastal' },
+              { slug: 'rancho-san-diego', name: 'Rancho San Diego', highlight: 'East County & Foothills' },
+              { slug: 'escondido', name: 'Escondido', highlight: 'Inland Valley' },
+            ].map((loc) => (
+              <Link
+                key={loc.slug}
+                href={`/service-area/${loc.slug}`}
+                className="group p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs hover:border-brand-blue/60 hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-[var(--text-primary)] group-hover:text-brand-blue transition-colors">
+                    {loc.name}
+                  </span>
+                  <Icon name="map-pin" className="w-3.5 h-3.5 text-brand-blue opacity-70 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <p className="text-[11px] text-[var(--text-muted)] line-clamp-1">{loc.highlight}</p>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-6 text-center">
+            <Link
+              href="/service-area"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-blue hover:text-[#1C88DD] transition-colors"
+            >
+              <span>View all 22+ San Diego service locations</span>
+              <Icon name="arrow-right" className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       </Section>
 
