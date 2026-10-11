@@ -15,9 +15,11 @@ from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Root path for baseline CSV
+# Root path for baseline CSV (check bundled first, then local repo root)
+BUNDLED_CSV = Path(__file__).resolve().parent / "baseline_queries.csv"
 REPO_ROOT = Path(__file__).resolve().parents[3]
-BASELINE_CSV = REPO_ROOT / "search_console_reports" / "11-oct-2026" / "Queries.csv"
+REPO_CSV = REPO_ROOT / "search_console_reports" / "11-oct-2026" / "Queries.csv"
+BASELINE_CSV = BUNDLED_CSV if BUNDLED_CSV.exists() else REPO_CSV
 
 
 def classify_tier(position: float, impressions: int, ctr_percent: float) -> str:
