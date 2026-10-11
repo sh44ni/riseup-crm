@@ -63,10 +63,10 @@ export const BUSINESS_ADDRESS = {
   addressCountry: 'US',
 };
 
-export function buildLocalBusinessJsonLd() {
+export function buildLocalBusinessJsonLd(stats?: { totalCount: number; averageRating: number }) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'RoofingContractor',
+    '@type': ['RoofingContractor', 'GeneralContractor'],
     name: COMPANY_NAME,
     url: BASE_URL,
     telephone: '+17606221230',
@@ -77,6 +77,17 @@ export function buildLocalBusinessJsonLd() {
       latitude: 33.1812,
       longitude: -117.3395,
     },
+    ...(stats && stats.totalCount > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: stats.averageRating.toFixed(1),
+            reviewCount: stats.totalCount,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     areaServed: [
       { '@type': 'County', name: 'San Diego County' },
       { '@type': 'City', name: 'San Diego' },
@@ -114,7 +125,10 @@ export function buildLocalBusinessJsonLd() {
   };
 }
 
-export function buildServiceJsonLd(service: { name: string; shortDescription: string; slug: string }) {
+export function buildServiceJsonLd(
+  service: { name: string; shortDescription: string; slug: string },
+  stats?: { totalCount: number; averageRating: number }
+) {
   return {
     '@context': 'https://schema.org',
     '@type': 'Service',
@@ -127,7 +141,29 @@ export function buildServiceJsonLd(service: { name: string; shortDescription: st
       url: BASE_URL,
       telephone: '+17606221230',
       address: BUSINESS_ADDRESS,
+      ...(stats && stats.totalCount > 0
+        ? {
+            aggregateRating: {
+              '@type': 'AggregateRating',
+              ratingValue: stats.averageRating.toFixed(1),
+              reviewCount: stats.totalCount,
+              bestRating: 5,
+              worstRating: 1,
+            },
+          }
+        : {}),
     },
+    ...(stats && stats.totalCount > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: stats.averageRating.toFixed(1),
+            reviewCount: stats.totalCount,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     areaServed: {
       '@type': 'County',
       name: 'San Diego County',

@@ -11,6 +11,7 @@ import { SectionHeading } from '@/components/shared/SectionHeading';
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs';
 import { FAQAccordion } from '@/components/shared/FAQAccordion';
 import { PHONE_HREF, PHONE_NUMBER } from '@/lib/utils';
+import { getReviewStats } from '@/lib/reviews-server';
 
 export async function generateStaticParams() {
   return getAllServiceSlugs().map((slug) => ({ slug }));
@@ -33,6 +34,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
   const service = getServiceBySlug(slug);
   if (!service) notFound();
 
+  const [stats] = await Promise.all([getReviewStats()]);
+
   const relatedProjects = (
     service.relatedProjectSlugs && service.relatedProjectSlugs.length > 0
       ? service.relatedProjectSlugs
@@ -45,7 +48,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
             slug.includes(p.category.toLowerCase())
         )
   ).slice(0, 3);
-  const serviceJsonLd = buildServiceJsonLd(service);
+  const serviceJsonLd = buildServiceJsonLd(service, stats);
   const faqJsonLd = service.faqs.length > 0 ? buildFAQJsonLd(service.faqs) : null;
 
   return (
@@ -73,6 +76,85 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
               { label: service.name }
             ]}
           />
+
+          {/* Context-Aware Conversion Banners */}
+          {(service.slug === 'roof-repair' || service.slug === 'roof-inspection') && (
+            <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-red-950/80 border border-red-500/40 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3.5 w-3.5 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500"></span>
+                </span>
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                    24/7 Active Storm Leak Dispatch • 60-Min North County Window
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-red-200/90 mt-0.5">
+                    Same-day emergency tarping, infrared thermal leak tracing &amp; insurance photo documentation
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <a
+                  href={PHONE_HREF}
+                  className="w-full sm:w-auto text-center px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-red-600/40 transition-all active:scale-95 flex items-center justify-center gap-2 flex-shrink-0"
+                >
+                  <Icon name="phone" className="w-4 h-4" />
+                  <span>Emergency Dispatch: (760) 622-1230</span>
+                </a>
+              </div>
+            </div>
+          )}
+
+          {service.category === 'commercial' && (
+            <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-amber-950/70 border border-amber-500/30 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 flex-shrink-0">
+                  <Icon name="building" className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                    Commercial Facility Managers &amp; HOA Boards
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-amber-200/90 mt-0.5">
+                    20 to 30-Year NDL (No Dollar Limit) manufacturer warranties • Title 24 cool-roof engineering • Zero tenant disruption
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/contact"
+                className="w-full sm:w-auto text-center px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#07131F] font-extrabold text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 flex-shrink-0"
+              >
+                <Icon name="file-text" className="w-4 h-4" />
+                <span>Request Commercial RFQ</span>
+              </Link>
+            </div>
+          )}
+
+          {service.slug === 'deck-builder' && (
+            <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-orange-950/70 border border-orange-500/30 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-orange-500/20 border border-orange-400/30 flex items-center justify-center text-orange-300 flex-shrink-0">
+                  <Icon name="hammer" className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                    Rancho San Diego, Carlsbad &amp; Coastal Custom Deck Builders
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-orange-200/90 mt-0.5">
+                    Certified Trex® composite installers • California WUI Class A fire-rated framing • 25-year non-fade warranty
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/contact"
+                className="w-full sm:w-auto text-center px-5 py-2.5 rounded-xl bg-[#C85A2A] hover:bg-[#D96B3B] text-white font-extrabold text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 flex-shrink-0"
+              >
+                <span>Schedule 3D Deck Design</span>
+              </Link>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {service.highlightBadge && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-brand-blue text-white shadow-md shadow-brand-blue/30">
@@ -135,7 +217,9 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
             </div>
             <div className="flex items-center gap-2">
               <Icon name="star" className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>4.8/5 Star Local Rating</span>
+              <span>
+                {stats?.averageRating ? stats.averageRating.toFixed(1) : '5.0'}/5 ({stats?.totalCount || 9} Verified Reviews)
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <Icon name="check-circle" className="w-4 h-4 text-emerald-400 flex-shrink-0" />

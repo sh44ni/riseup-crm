@@ -93,7 +93,7 @@ export default async function ReviewsPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-[var(--text-secondary)] bg-slate-50 hover:bg-red-50 hover:text-red-700 hover:border-red-200 border border-slate-200/60 uppercase tracking-wider transition-all"
-                          title="View verified review on Yelp"
+                          title={`View verified review on ${isGoogle ? 'Google' : 'Yelp'}`}
                         >
                           {isGoogle ? <GoogleIcon className="w-3 h-3" /> : <YelpIcon className="w-3 h-3" />}
                           <span>via {isGoogle ? 'Google' : 'Yelp'}</span>

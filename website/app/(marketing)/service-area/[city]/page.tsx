@@ -9,6 +9,7 @@ import { Section } from '@/components/shared/Container';
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs';
 import { FAQAccordion } from '@/components/shared/FAQAccordion';
 import { COMPANY_NAME, PHONE_NUMBER, PHONE_HREF, LICENSE_NUMBER } from '@/lib/utils';
+import { getReviewStats, getPublicReviews } from '@/lib/reviews-server';
 
 export async function generateStaticParams() {
   return getAllServiceAreaSlugs().map((city) => ({ city }));
@@ -33,6 +34,15 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
   const area = getServiceAreaBySlug(city);
   if (!area) notFound();
 
+  const [stats, allReviews] = await Promise.all([getReviewStats(), getPublicReviews()]);
+
+  const localReviews = allReviews.filter(
+    (r) =>
+      r.location.toLowerCase().includes(area.name.toLowerCase()) ||
+      (r.neighborhood && r.neighborhood.toLowerCase().includes(area.name.toLowerCase()))
+  );
+  const displayReviews = localReviews.length > 0 ? localReviews : allReviews.slice(0, 2);
+
   const faqs = area.faqs || [];
   const faqJsonLd = faqs.length > 0 ? buildFAQJsonLd(faqs) : null;
   const cityJsonLd = {
@@ -56,6 +66,17 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
       latitude: 33.1812,
       longitude: -117.3395,
     },
+    ...(stats && stats.totalCount > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: stats.averageRating.toFixed(1),
+            reviewCount: stats.totalCount,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
     areaServed: {
       '@type': 'City',
       name: area.name,
@@ -102,8 +123,16 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
         />
 
         <div className="max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 glass-chip px-3.5 py-1 rounded-full mb-4 text-xs font-bold uppercase tracking-wider text-brand-blue">
-            <span>Serving {area.name}, California</span>
+          <div className="flex flex-wrap items-center gap-2.5 mb-4">
+            <div className="inline-flex items-center gap-2 glass-chip px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-brand-blue">
+              <span>Serving {area.name}, California</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-900">
+              <Icon name="star" className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+              <span>
+                {stats?.averageRating ? stats.averageRating.toFixed(1) : '5.0'}/5.0 Google Rating ({stats?.totalCount || 9} Verified Reviews)
+              </span>
+            </div>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[var(--text-primary)] mb-4 tracking-tight">
@@ -181,6 +210,66 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
               <p>
                 From premium synthetic felt underlayment relays on classic concrete tile roofs to complete Owens Corning architectural shingle replacements and commercial flat roof membranes, we back our work with non-prorated manufacturer warranties and Rise Up&apos;s ironclad workmanship guarantee. We also offer certified solar detach-and-reset services so your solar investment remains protected throughout your roof project.
               </p>
+            </div>
+          </div>
+
+          {/* Verified Local Reviews Section */}
+          <div className="mb-12">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-blue">Local Proof</span>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary)]">
+                  Verified Client Reviews in {area.name} &amp; San Diego County
+                </h2>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-900 text-xs font-bold w-fit">
+                <Icon name="star" className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span>
+                  {stats?.averageRating ? stats.averageRating.toFixed(1) : '5.0'} / 5.0 Star Rated ({stats?.totalCount || 9} Verified Reviews)
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {displayReviews.map((review, idx) => (
+                <div
+                  key={`${review.author}-${idx}`}
+                  className="glass-card-interactive rounded-2xl p-5 border border-slate-200/80 shadow-xs flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex gap-0.5 text-amber-400 text-sm select-none" aria-label={`${review.rating} out of 5 stars`}>
+                        {'★'.repeat(review.rating)}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {review.projectType || 'Verified Project'}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-[var(--text-secondary)] italic leading-relaxed mb-4">
+                      &ldquo;{review.text}&rdquo;
+                    </p>
+                  </div>
+                  <div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-[var(--text-primary)]">{review.author}</p>
+                        <p className="text-[11px] text-[var(--text-muted)]">{review.location}</p>
+                      </div>
+                      <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Verified Google Review
+                      </span>
+                    </div>
+                    {review.ownerReply && (
+                      <div className="mt-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200/60 text-[11px] text-slate-600">
+                        <p className="font-bold text-slate-800 mb-0.5 flex items-center gap-1.5">
+                          <span>Owner Response (Edith):</span>
+                        </p>
+                        <p className="line-clamp-3">{review.ownerReply}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

@@ -378,7 +378,7 @@ export const services: Service[] = [
   {
     slug: 'home-additions',
     name: 'Custom Home & Room Additions',
-    seoTitle: 'Room Addition Contractors San Diego | Home Expansions | 4.8★',
+    seoTitle: 'Room Addition Contractors San Diego | Second Story & Home Expansions',
     seoDescription: 'Top room addition contractors in San Diego. Second-story expansions, primary suites, bump-outs & roofline framing. Licensed Class B Builder. Free consult.',
     shortDescription: 'Premier home additions and room addition contractors in San Diego. Second-story vertical builds, primary suite expansions, living room bump-outs, and seamless architectural framing.',
     heroImage: '/images/services/home-additions.jpg',
@@ -944,8 +944,8 @@ export const services: Service[] = [
   {
     slug: 'deck-builder',
     name: 'Custom Deck Builder & Balconies',
-    seoTitle: 'Custom Deck Builder San Diego | Trex® & Wood Decks | 4.8★',
-    seoDescription: 'Custom deck builder in San Diego County. Certified Trex® composite, redwood decks, hillside caissons & balconies. Free 3D design & quote. CSLB Lic #1096492.',
+    seoTitle: 'Deck Builder San Diego & Rancho San Diego | Trex® Composite Decks',
+    seoDescription: 'Premier custom deck builder serving Rancho San Diego, Carlsbad & San Diego County. Certified Trex® composite, redwood, hillside view decks & fire-safe balconies. Free quote.',
     shortDescription: 'Licensed custom deck builder serving San Diego County, Carlsbad, Rancho San Diego & Del Mar. Certified Trex® composite, hillside caissons, view balconies & patio covers.',
     heroImage: '/images/services/deck-builder.jpg',
     icon: 'Hammer',

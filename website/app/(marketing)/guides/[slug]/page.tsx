@@ -14,6 +14,7 @@ import { Section, Container } from '@/components/shared/Container';
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs';
 import { FAQAccordion } from '@/components/shared/FAQAccordion';
 import { PHONE_HREF, PHONE_NUMBER, BASE_URL } from '@/lib/utils';
+import { getReviewStats } from '@/lib/reviews-server';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -46,6 +47,8 @@ export default async function GuideDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const [stats] = await Promise.all([getReviewStats()]);
+
   const articleJsonLd = buildTechArticleJsonLd({
     headline: guide.title,
     description: guide.seoDescription,
@@ -56,7 +59,7 @@ export default async function GuideDetailPage({ params }: PageProps) {
   });
 
   const faqJsonLd = guide.faqs.length > 0 ? buildFAQJsonLd(guide.faqs) : null;
-  const localBusinessJsonLd = buildLocalBusinessJsonLd();
+  const localBusinessJsonLd = buildLocalBusinessJsonLd(stats);
 
   const otherGuides = GUIDES.filter((g) => g.slug !== guide.slug).slice(0, 3);
 
