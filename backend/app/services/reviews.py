@@ -183,10 +183,14 @@ async def sync_google_reviews(db: AsyncSession) -> Dict[str, Any]:
                     customer_name = EXCLUDED.customer_name,
                     rating = EXCLUDED.rating,
                     feedback = EXCLUDED.feedback,
-                    author_photo = EXCLUDED.author_photo,
+                    author_photo = COALESCE(EXCLUDED.author_photo, reviews.author_photo),
                     original_time = EXCLUDED.original_time,
                     owner_reply = EXCLUDED.owner_reply,
                     updated_at = NOW()
+                WHERE reviews.feedback IS DISTINCT FROM EXCLUDED.feedback
+                   OR reviews.rating IS DISTINCT FROM EXCLUDED.rating
+                   OR reviews.owner_reply IS DISTINCT FROM EXCLUDED.owner_reply
+                   OR (reviews.author_photo IS NULL AND EXCLUDED.author_photo IS NOT NULL)
             """)
             await db.execute(stmt, {
                 "name": name,
@@ -198,6 +202,8 @@ async def sync_google_reviews(db: AsyncSession) -> Dict[str, Any]:
                 "reply": owner_reply,
             })
             synced_count += 1
+
+        await db.commit()
 
         now_iso = datetime.now(timezone.utc).isoformat()
         await save_google_auth_settings(db, {

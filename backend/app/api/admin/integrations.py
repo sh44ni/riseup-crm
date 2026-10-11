@@ -30,14 +30,12 @@ def _google_redirect_uri() -> str:
     """Callback URL comes from configuration only, never from request headers."""
     if settings.GOOGLE_REDIRECT_URI:
         return settings.GOOGLE_REDIRECT_URI
-    if settings.PUBLIC_BACKEND_URL:
-        return f"{settings.PUBLIC_BACKEND_URL.rstrip('/')}/api/admin/google-callback"
-    return ""
+    return "https://riseuprac.com/api/admin/google-callback"
 
 
 def _reviews_url(**query: str) -> str:
     base = settings.CRM_FRONTEND_URL.rstrip("/")
-    return f"{base}/admin/reviews?{urlencode(query, quote_via=quote)}"
+    return f"{base}/marketing?{urlencode(query, quote_via=quote)}"
 
 
 @router.get("/google-auth")
@@ -78,7 +76,7 @@ async def google_auth_callback(
     stored_user_id = await cache_pop(f"{OAUTH_STATE_PREFIX}{state}") if state else None
     if stored_user_id is None:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state.")
-    if user is None or str(user.id) != stored_user_id or not has_permission(user, "reviews:manage"):
+    if user is not None and (str(user.id) != stored_user_id or not has_permission(user, "reviews:manage")):
         raise HTTPException(status_code=400, detail="OAuth state does not match the signed-in user.")
 
     if error:
@@ -119,7 +117,7 @@ async def google_auth_callback(
             "expires_at": expires_at,
             "last_sync_status": "pending",
             "last_error": None,
-            "connected_by_user_id": user.id,
+            "connected_by_user_id": user.id if user else (int(stored_user_id) if stored_user_id and stored_user_id.isdigit() else None),
         }
         if token_data.get("refresh_token"):
             update_payload["refresh_token"] = token_data["refresh_token"]

@@ -20,18 +20,17 @@ async def get_public_reviews_and_stats(db: AsyncSession = Depends(get_db)):
     # 1. Fetch published reviews
     reviews_sql = text("""
         SELECT id, customer_name, customer_city, rating, feedback, service_type, source,
-               status, created_at
+               status, author_photo, owner_reply, original_time, created_at
         FROM reviews
         WHERE status = 'published'
-        ORDER BY created_at DESC
-        LIMIT 50
+        ORDER BY COALESCE(original_time, created_at::text) DESC
     """)
     rows = (await db.execute(reviews_sql)).mappings().all()
 
     enriched_reviews: List[Dict[str, Any]] = []
     for r in rows:
         is_yelp = r["source"] == "yelp"
-        date_source = r.get("created_at")
+        date_source = r.get("original_time") or r.get("created_at")
         formatted_date = "Recent"
         if date_source:
             try:
@@ -54,8 +53,8 @@ async def get_public_reviews_and_stats(db: AsyncSession = Depends(get_db)):
             "source": "yelp" if is_yelp else "google",
             "serviceCategory": (r.get("service_type") or "residential").lower(),
             "date": formatted_date,
-            "authorPhoto": None,
-            "ownerReply": None,
+            "authorPhoto": r.get("author_photo"),
+            "ownerReply": r.get("owner_reply"),
             "reviewUrl": YELP_REVIEWS_URL if is_yelp else GOOGLE_REVIEWS_URL,
         })
 
