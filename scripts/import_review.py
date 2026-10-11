@@ -77,15 +77,15 @@ def main():
         )
         if resp.status_code == 200:
             res_data = resp.json()
-            print(" SUCCESS! Review published immediately to live website.")
+            print("[SUCCESS] Review published immediately to live website.")
             print(f"Review ID: {res_data.get('reviewId')}")
             stats = res_data.get('updatedStats', {})
             print(f"Updated Total Reviews: {stats.get('totalCount')}")
             print(f"Updated Dynamic Average Rating: {stats.get('averageRating')} / 5.0")
         else:
-            print(f"❌ Failed ({resp.status_code}): {resp.text}")
+            print(f"[FAILED] ({resp.status_code}): {resp.text}")
     except Exception as e:
-        print(f"❌ Connection error: {e}")
+        print(f"[ERROR] Connection error: {e}")
 
 if __name__ == "__main__":
     main()
