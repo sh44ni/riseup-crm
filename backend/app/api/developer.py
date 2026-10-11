@@ -1262,8 +1262,9 @@ async def api_upload_gsc_csv(
 @router.post("/seo/check-serp")
 async def api_check_live_serp(
     payload: SerpCheckRequest,
-    token: str = Depends(require_developer_session)
+    token: str = Depends(require_developer_session),
+    db: AsyncSession = Depends(get_db),
 ):
     """Perform on-demand live SERP verification for a target query."""
-    return await check_live_serp_query(payload.query)
+    return await check_live_serp_query(payload.query, db)
 
