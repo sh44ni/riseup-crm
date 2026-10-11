@@ -150,9 +150,12 @@ export function generateContractHtml(data: ContractStudioData, page: number | 'a
     contractorSignatureName: escapeHtml(data.contractorSignatureName || ''),
     contractorSignatureData,
     contractorSignatureTitle: escapeHtml(data.contractorTitle || 'Project Manager'),
-    isRepresentativeSignatory: Boolean(data.isRepresentativeSignatory),
-    representativeName: escapeHtml(data.representativeName || data.preparedByName || data.salespersonName || ''),
-    representativeTitle: escapeHtml(data.representativeTitle || data.preparedByTitle || 'Project Manager'),
+    contractorSignatoryName: escapeHtml(
+      data.contractorSignatoryName || (isCounterSigned ? data.contractorSignatureName || '' : '')
+    ),
+    contractorSignatoryTitle: escapeHtml(
+      data.contractorSignatoryTitle || (isCounterSigned ? data.contractorTitle || '' : '')
+    ),
     projectAddress: escapeHtml(formattedAddr),
     contractDate: escapeHtml(data.contractDate),
     contractDateShort: escapeHtml(data.contractDateShort || data.contractDate),

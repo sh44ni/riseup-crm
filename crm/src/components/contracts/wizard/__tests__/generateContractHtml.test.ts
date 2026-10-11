@@ -18,8 +18,10 @@ const completeContractData: ContractStudioData = {
   contractDate: 'October 15, 2026',
   contractDateShort: '10/15/2026',
   contractTitle: 'HOME IMPROVEMENT CONTRACT',
-  preparedByName: 'Edith Guerrero',
+  preparedByName: 'Maria Lopez',
   preparedByTitle: 'Project Manager',
+  contractorSignatoryName: 'Edith Guerrero',
+  contractorSignatoryTitle: 'President',
   approxStartDate: 'November 1, 2026',
   substantialCommencementDate: 'November 4, 2026',
   approxCompletionDate: 'November 10, 2026',
@@ -86,7 +88,7 @@ describe('generateContractHtml', () => {
     const html = generateContractHtml(completeContractData, 1);
     expect(html).toContain('section class="page cover"');
     expect(html).toContain('Jane Smith');
-    expect(html).toContain('Edith Guerrero');
+    expect(html).toContain('Maria Lopez');
     expect(html).toContain('CONTRACT DATE');
     expect(html).toContain('October 15, 2026');
     expect(html).toContain('cover-status-badge draft');
@@ -101,6 +103,24 @@ describe('generateContractHtml', () => {
     const fullyHtml = generateContractHtml({ ...completeContractData, isSigned: true, isCounterSigned: true }, 1);
     expect(fullyHtml).toContain('cover-status-badge fully-executed');
     expect(fullyHtml).toContain('FULLY EXECUTED');
+  });
+
+  it('names the company signature signer as the Contractor signatory', () => {
+    const html = generateContractHtml(completeContractData, 'all');
+    expect(html).toContain('Rise Up Roofing and Construction, Inc. Edith Guerrero (the “Contractor”)');
+    expect(html).toContain('By: Edith Guerrero • Title: President');
+    // Not counter-signed yet → no contractor signature image
+    expect(html).not.toContain('alt="Contractor Signature"');
+  });
+
+  it('leaves the signatory blank when no company signer is known', () => {
+    const html = generateContractHtml(
+      { ...completeContractData, contractorSignatoryName: '', contractorSignatoryTitle: '' },
+      'all'
+    );
+    expect(html).toContain('Rise Up Roofing and Construction, Inc. (the “Contractor”)');
+    expect(html).toContain('By: ____________________ • Title: ____________________');
+    expect(html).not.toContain('By: Maria Lopez');
   });
 
   it('renders Page 2 Scope with Page 2 of 7 footer', () => {

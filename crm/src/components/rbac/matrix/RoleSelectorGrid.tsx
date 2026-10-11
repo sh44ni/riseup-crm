@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, Lock, PenTool } from 'lucide-react';
 import { Role } from '../types';
+import { SIGNATURE_ACCESS_LABELS, hasSignatureAccess, normalizeSignatureAccess } from '@/lib/signatureAccess';
 
 interface RoleSelectorGridProps {
   roles: Role[];
@@ -39,8 +40,11 @@ export function RoleSelectorGrid({
                     {r.name}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
-                    {r.is_authorized_signatory && (
-                      <span title="Authorized Signatory Role" className="text-purple-600 dark:text-purple-400">
+                    {hasSignatureAccess(r.signature_access, 'use') && (
+                      <span
+                        title={`Company signature: ${SIGNATURE_ACCESS_LABELS[normalizeSignatureAccess(r.signature_access)]}`}
+                        className="text-purple-600 dark:text-purple-400"
+                      >
                         <PenTool size={11} />
                       </span>
                     )}

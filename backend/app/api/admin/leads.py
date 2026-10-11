@@ -466,6 +466,7 @@ async def get_lead_detail(lead_id: int, db: AsyncSession = Depends(get_db), user
     return {"lead": res_dict}
 
 @router.put("/{lead_id}", dependencies=[Depends(require_permission("leads:edit"))])
+@router.patch("/{lead_id}", dependencies=[Depends(require_permission("leads:edit"))])
 async def update_lead(lead_id: int, payload: LeadUpdate, request: Request, db: AsyncSession = Depends(get_db), user: AuthUser = Depends(require_auth)):
     target = (await db.execute(text("""
         SELECT l.*,

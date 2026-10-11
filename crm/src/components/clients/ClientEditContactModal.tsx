@@ -146,23 +146,42 @@ export function ClientEditContactModal({
 
     setIsSubmitting(true);
 
-    // Pre-flight check contact conflict against other clients
-    try {
-      const checkRes = await checkClientContact({
-        email: formData.email.trim() || undefined,
-        phone: formData.phone.trim() || undefined,
-        excludeClientId: clientId ? Number(clientId) : undefined,
-      });
-      if (checkRes.exists && checkRes.client) {
-        const msg = checkRes.field === 'phone'
-          ? `A client with this phone number already exists: "${checkRes.client.full_name}" (Client #${checkRes.client.id}). Please use a unique phone number.`
-          : `A client with this email already exists: "${checkRes.client.full_name}" (Client #${checkRes.client.id}). Please use a unique email.`;
-        setSubmitError(msg);
-        setIsSubmitting(false);
-        return;
+    // Only run pre-flight conflict check if email or phone was actually modified by the user
+    const emailChanged = Boolean(
+      formData.email.trim() &&
+      formData.email.trim().toLowerCase() !== (initialData.email || '').trim().toLowerCase()
+    );
+    const initialPhoneDigits = (initialData.phone || '').replace(/\D/g, '');
+    const formPhoneDigits = (formData.phone || '').replace(/\D/g, '');
+    const phoneChanged = Boolean(
+      formPhoneDigits &&
+      formPhoneDigits !== initialPhoneDigits &&
+      formPhoneDigits.length >= 7
+    );
+
+    if (emailChanged || phoneChanged) {
+      try {
+        const checkRes = await checkClientContact({
+          email: emailChanged ? formData.email.trim() : undefined,
+          phone: phoneChanged ? formData.phone.trim() : undefined,
+          excludeClientId: clientId ? Number(clientId) : undefined,
+        });
+
+        const currentCid = clientId != null && !isNaN(Number(clientId)) ? Number(clientId) : null;
+        const matchedCid = checkRes.client?.id != null ? Number(checkRes.client.id) : null;
+
+        // Conflict only applies if it belongs to a different client record
+        if (checkRes.exists && checkRes.client && (!currentCid || matchedCid !== currentCid)) {
+          const msg = checkRes.field === 'phone'
+            ? `A client with this phone number already exists: "${checkRes.client.full_name}" (Client #${checkRes.client.id}). Please use a unique phone number.`
+            : `A client with this email already exists: "${checkRes.client.full_name}" (Client #${checkRes.client.id}). Please use a unique email.`;
+          setSubmitError(msg);
+          setIsSubmitting(false);
+          return;
+        }
+      } catch {
+        // Backend enforces check
       }
-    } catch (e) {
-      // Backend enforces check
     }
 
     try {

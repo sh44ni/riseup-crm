@@ -12,7 +12,10 @@ from app.core.actor_context import actor_from_user, bind_actor_to_session, set_a
 from app.core.audit import get_client_ip
 from app.core.database import get_db
 from app.core.redis import cache_get, cache_set, cache_delete, check_rate_limit, get_redis, is_redis_available
-from app.core.permissions import AuthUser, has_permission, has_any_permission, get_user_effective_permissions
+from app.core.permissions import (
+    AuthUser, has_permission, has_any_permission, get_user_effective_permissions,
+    resolve_signature_access, has_signature_access, normalize_signature_level,
+)
 
 SESSION_CACHE_TTL = 120  # 2 minutes cache in Redis for rapid subsequent checks
 
@@ -49,14 +52,8 @@ async def resolve_auth_user(token: str, db: AsyncSession) -> Optional[AuthUser]:
         is_protected_owner = True
         perms["*"] = "all"
 
-    # Check authorized signatory status
-    sig_check = (await db.execute(text("""
-        SELECT 1 FROM user_roles ur
-        JOIN roles r ON ur.role_id = r.id
-        WHERE ur.user_id = :uid AND r.is_authorized_signatory = true
-        LIMIT 1
-    """), {"uid": row["id"]})).scalar()
-    is_authorized_signatory = bool(sig_check or (row["role"] == "owner") or is_protected_owner)
+    # Resolve company signature access (highest level across assigned roles)
+    signature_access = await resolve_signature_access(db, row["id"], row["role"], is_protected_owner)
 
     auth_user = AuthUser(
         id=row["id"],
@@ -68,7 +65,7 @@ async def resolve_auth_user(token: str, db: AsyncSession) -> Optional[AuthUser]:
         avatar_url=row.get("avatar_url"),
         permissions=perms,
         is_protected_owner=is_protected_owner,
-        is_authorized_signatory=is_authorized_signatory,
+        signature_access=signature_access,
     )
 
     # Cache user object in Redis
@@ -303,6 +300,25 @@ def require_any_permission(permissions: List[str]) -> Callable:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: Insufficient permissions for this resource"
+            )
+        return user
+    return dependency
+
+_SIGNATURE_DENIED_MESSAGES = {
+    "view": "Forbidden: your role does not have access to the company signature.",
+    "use": "Forbidden: your role is not allowed to apply the company signature to contracts.",
+    "edit": "Forbidden: your role is not allowed to change the company signature.",
+}
+
+def require_signature_access(level: str) -> Callable:
+    """Require at least ``level`` ('view' | 'use' | 'edit') access to the company signature."""
+    required = normalize_signature_level(level)
+
+    async def dependency(user: AuthUser = Depends(require_auth)) -> AuthUser:
+        if not has_signature_access(user, required):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_SIGNATURE_DENIED_MESSAGES.get(required, "Forbidden: insufficient signature access."),
             )
         return user
     return dependency

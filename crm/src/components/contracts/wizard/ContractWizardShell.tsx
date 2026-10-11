@@ -9,7 +9,7 @@ import { ContractScopeStep } from './steps/ContractScopeStep';
 import { ContractDatesPricingStep } from './steps/ContractDatesPricingStep';
 import { ContractPaymentScheduleStep } from './steps/ContractPaymentScheduleStep';
 import { ContractTermsStep } from './steps/ContractTermsStep';
-import { ContractSignaturesStep } from './steps/ContractSignaturesStep';
+import { ContractSignaturesStep, type WizardSignatureStatus } from './steps/ContractSignaturesStep';
 import { ContractCancellationStep } from './steps/ContractCancellationStep';
 import { ContractReviewSendStep } from './steps/ContractReviewSendStep';
 import { ArrowLeft, Check, AlertCircle } from 'lucide-react';
@@ -20,6 +20,7 @@ import {
   autoSaveContractDraft,
   buildContract,
 } from '@/api/contractApi';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import {
   WizardPrefill,
@@ -66,22 +67,65 @@ export function ContractWizardShell({ contractId, onBack, prefill, onSuccess }: 
     window.history.replaceState(null, '', url.toString());
   }, [currentStep]);
 
-  // Ensure salesperson and preparedBy are locked to current logged-in user / representative
+  // Salesperson / "Prepared by" = the logged-in CRM operator building the contract.
   useEffect(() => {
     if (user?.name) {
-      const isSignatory = Boolean(user.is_protected_owner || user.role === 'owner' || user.is_authorized_signatory);
-      const repTitle = user.signature_title || (user.role === 'owner' ? 'Owner / General Contractor' : 'Project Manager');
+      const preparedByTitle =
+        user.role === 'owner' || user.is_protected_owner ? 'Owner / General Contractor' : 'Project Manager';
       setData((prev) => ({
         ...prev,
         salespersonName: user.name,
         preparedByName: user.name,
-        preparedByTitle: repTitle,
-        isRepresentativeSignatory: isSignatory,
-        representativeName: user.name,
-        representativeTitle: repTitle,
+        preparedByTitle,
       }));
     }
   }, [user]);
+
+  // Company signature status — the Signatures step (and sending) is locked until it is configured.
+  const [signatureStatus, setSignatureStatus] = useState<WizardSignatureStatus>({
+    loading: true,
+    configured: false,
+    signerName: '',
+    signerTitle: '',
+    error: null,
+  });
+
+  const loadSignatureStatus = useCallback(async () => {
+    setSignatureStatus((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const status = await api.getCompanySignatureStatus();
+      const signerName = status.signer_name || '';
+      const signerTitle = status.signer_title || '';
+      setSignatureStatus({
+        loading: false,
+        configured: Boolean(status.configured),
+        signerName,
+        signerTitle,
+        error: null,
+      });
+    } catch (err) {
+      setSignatureStatus({
+        loading: false,
+        configured: false,
+        signerName: '',
+        signerTitle: '',
+        error: (err as Error | null)?.message || 'Request failed',
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSignatureStatus();
+  }, [loadSignatureStatus]);
+
+  // Keep the live company signatory stamped on the (not yet counter-signed) contract data — this also
+  // overrides stale values that may come back from an asynchronously restored draft.
+  useEffect(() => {
+    if (!signatureStatus.configured || data.isCounterSigned) return;
+    const { signerName, signerTitle } = signatureStatus;
+    if (data.contractorSignatoryName === signerName && data.contractorSignatoryTitle === signerTitle) return;
+    setData((prev) => ({ ...prev, contractorSignatoryName: signerName, contractorSignatoryTitle: signerTitle }));
+  }, [signatureStatus, data.isCounterSigned, data.contractorSignatoryName, data.contractorSignatoryTitle]);
 
   // Keep dbContractId in sync if data.id gets populated
   useEffect(() => {
@@ -266,6 +310,13 @@ export function ContractWizardShell({ contractId, onBack, prefill, onSuccess }: 
       )
   );
 
+  // Index of the Signatures step; from here on the company signature must exist.
+  const signaturesStepIndex = CONTRACT_WIZARD_STEPS.findIndex((s) => s.id === 'signatures');
+  const isSignatureLocked =
+    !data.isCounterSigned &&
+    currentStep >= signaturesStepIndex &&
+    (signatureStatus.loading || !signatureStatus.configured);
+
   const canProceed = (() => {
     if (currentStep === 0) {
       return Boolean(
@@ -273,6 +324,9 @@ export function ContractWizardShell({ contractId, onBack, prefill, onSuccess }: 
         data.clientName.trim().length > 0 &&
         clientValidation.isValid
       );
+    }
+    if (isSignatureLocked) {
+      return false;
     }
     if (currentStep === totalSteps - 1) {
       return isContractSent;
@@ -386,7 +440,12 @@ export function ContractWizardShell({ contractId, onBack, prefill, onSuccess }: 
               <ContractTermsStep data={data} onDataChange={handleDataChange} />
             )}
             {currentStep === 5 && (
-              <ContractSignaturesStep data={data} onDataChange={handleDataChange} />
+              <ContractSignaturesStep
+                data={data}
+                onDataChange={handleDataChange}
+                signatureStatus={signatureStatus}
+                onRetrySignatureStatus={() => void loadSignatureStatus()}
+              />
             )}
             {currentStep === 6 && (
               <ContractCancellationStep data={data} onDataChange={handleDataChange} />
@@ -415,7 +474,16 @@ export function ContractWizardShell({ contractId, onBack, prefill, onSuccess }: 
                 {!data.clientName ? 'Select a pipeline client to proceed →' : 'Complete client contact info required →'}
               </span>
             )}
-            {!canProceed && currentStep === totalSteps - 1 && (
+            {isSignatureLocked && !signatureStatus.loading && (
+              <span
+                data-testid="wizard-signature-lock-msg"
+                className="text-xs text-amber-600 font-semibold flex items-center gap-1.5"
+              >
+                <AlertCircle size={14} className="shrink-0 text-amber-500" />
+                <span>Company signature must be set up first →</span>
+              </span>
+            )}
+            {!canProceed && !isSignatureLocked && currentStep === totalSteps - 1 && (
               <span className="text-xs text-amber-600 font-semibold flex items-center gap-1.5 animate-pulse">
                 <AlertCircle size={14} className="shrink-0 text-amber-500" />
                 <span>Send contract to client before finishing →</span>

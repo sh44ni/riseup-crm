@@ -37,7 +37,7 @@ from app.api.admin.calendar_events import router as admin_calendar_events_router
 from app.api.admin.user_tasks import router as admin_user_tasks_router
 from app.api.admin.estimator import router as admin_estimator_router
 from app.api.admin.contracts import router as admin_contracts_router
-from app.api.admin.signatories import router as admin_signatories_router
+from app.api.admin.company_signature import router as admin_company_signature_router
 from app.api.admin.invoices import router as admin_invoices_router
 from app.api.developer import router as developer_router
 
@@ -87,5 +87,5 @@ api_router.include_router(admin_calendar_events_router, prefix="/api/admin", tag
 api_router.include_router(admin_user_tasks_router, prefix="/api/admin", tags=["User Personal Sticky Notes"])
 api_router.include_router(admin_estimator_router, prefix="/api/admin", tags=["Admin Estimator Pricing"])
 api_router.include_router(admin_contracts_router, prefix="/api/admin", tags=["Admin Contracts"])
-api_router.include_router(admin_signatories_router)
+api_router.include_router(admin_company_signature_router)
 api_router.include_router(admin_invoices_router, prefix="/api/admin", tags=["Admin Invoices"])

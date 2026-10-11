@@ -7,7 +7,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_scrypt_password, generate_session_token
-from app.core.permissions import get_user_effective_permissions
+from app.core.permissions import get_user_effective_permissions, resolve_signature_access
 from app.core.redis import invalidate_session_cache
 from app.core.audit import record_audit_log
 from app.core.invite_verification import get_verified_invite_email, clear_invite_verification
@@ -204,14 +204,8 @@ async def accept_invitation(
         is_protected = True
         perms["*"] = "all"
 
-    # Check authorized signatory status
-    sig_check = (await db.execute(text("""
-        SELECT 1 FROM user_roles ur
-        JOIN roles r ON ur.role_id = r.id
-        WHERE ur.user_id = :uid AND r.is_authorized_signatory = true
-        LIMIT 1
-    """), {"uid": user_id})).scalar()
-    is_auth_sig = bool(sig_check or primary_role_slug == "owner" or is_protected)
+    # Resolve company signature access (highest level across assigned roles)
+    signature_access = await resolve_signature_access(db, user_id, primary_role_slug, is_protected)
 
     return {
         "ok": True,
@@ -224,6 +218,6 @@ async def accept_invitation(
             "phone": phone,
             "permissions": perms,
             "is_protected_owner": is_protected,
-            "is_authorized_signatory": is_auth_sig,
+            "signature_access": signature_access,
         }
     }

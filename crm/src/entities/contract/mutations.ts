@@ -138,19 +138,8 @@ export function useCounterSignContractMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      contractId,
-      counterSignedBy,
-      counterSignatureUrl,
-    }: {
-      contractId: number;
-      counterSignedBy: string;
-      counterSignatureUrl?: string;
-    }) =>
-      counterSignContract(contractId, {
-        contractorName: counterSignedBy,
-        signatureData: counterSignatureUrl,
-      }),
+    // The server always applies the current company signature and records the caller as counter-signer.
+    mutationFn: ({ contractId }: { contractId: number }) => counterSignContract(contractId),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.contracts.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });

@@ -111,10 +111,13 @@ export function Step4SignatureCapture({
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400">Contractor Counter-Signature</div>
               <div className="font-extrabold text-sm text-slate-800">
-                {contract.isCounterSigned && contract.contractorName ? contract.contractorName : 'Rise Up Roofing and Construction, Inc.'}
+                Rise Up Roofing and Construction, Inc.
               </div>
               <div className="text-slate-500 text-[11px]">
-                Authorized Representative &bull; Lic #1096492 (B/C39/C46)
+                {contract.contractorSignatoryName
+                  ? `By: ${contract.contractorSignatoryName}${contract.contractorSignatoryTitle ? ` • ${contract.contractorSignatoryTitle}` : ''}`
+                  : 'Authorized Signatory'}{' '}
+                &bull; Lic #1096492 (B/C39/C46)
               </div>
             </div>
             <div className="text-left sm:text-right text-[11px]">

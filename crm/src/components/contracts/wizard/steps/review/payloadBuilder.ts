@@ -40,7 +40,7 @@ export function buildContractPayload(data: ContractStudioData, contractId?: numb
       // Cover Page
       contract_title: data.contractTitle || 'HOME IMPROVEMENT CONTRACT',
       property_photo_url: data.propertyPhotoUrl || '',
-      prepared_by_name: data.preparedByName || 'Edith Guerrero',
+      prepared_by_name: data.preparedByName || data.salespersonName || '',
       prepared_by_title: data.preparedByTitle || 'Project Manager',
 
       // Scope & Schedule
@@ -90,9 +90,9 @@ export function buildContractPayload(data: ContractStudioData, contractId?: numb
       five_day_notice_text: data.fiveDayNoticeText || '',
       jobsite_standards_text: data.jobsiteStandardsText || '',
       decking_allowance_text: data.deckingAllowanceText || '',
-      is_representative_signatory: Boolean(data.isRepresentativeSignatory),
-      representative_name: data.representativeName || data.preparedByName || data.salespersonName || '',
-      representative_title: data.representativeTitle || data.preparedByTitle || 'Project Manager',
+      // Company signature signer — the server re-stamps these from the configured signature.
+      contractor_signatory_name: data.contractorSignatoryName || '',
+      contractor_signatory_title: data.contractorSignatoryTitle || '',
     },
   };
 }

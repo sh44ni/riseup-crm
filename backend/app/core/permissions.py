@@ -17,6 +17,31 @@ def normalize_permission_key(key: str) -> str:
     norm = key.replace(":", ".")
     return PERMISSION_ALIASES.get(norm, PERMISSION_ALIASES.get(key, norm))
 
+
+# ── Company signature access ────────────────────────────────────────────────
+# Single company contractor signature (Edith Guerrero). Levels are hierarchical:
+# edit ⊃ use ⊃ view ⊃ none.
+SIGNATURE_LEVELS: Tuple[str, ...] = ("none", "view", "use", "edit")
+_SIGNATURE_RANK: Dict[str, int] = {lvl: i for i, lvl in enumerate(SIGNATURE_LEVELS)}
+
+
+def normalize_signature_level(level: Any) -> str:
+    val = str(level or "none").strip().lower()
+    return val if val in _SIGNATURE_RANK else "none"
+
+
+def signature_rank(level: Any) -> int:
+    return _SIGNATURE_RANK[normalize_signature_level(level)]
+
+
+def max_signature_level(levels) -> str:
+    best = "none"
+    for lvl in levels or []:
+        if signature_rank(lvl) > signature_rank(best):
+            best = normalize_signature_level(lvl)
+    return best
+
+
 class AuthUser:
     def __init__(
         self,
@@ -29,7 +54,7 @@ class AuthUser:
         avatar_url: Optional[str] = None,
         permissions: Optional[Dict[str, str]] = None,
         is_protected_owner: bool = False,
-        is_authorized_signatory: bool = False,
+        signature_access: str = "none",
         is_api_key: bool = False,
         api_key_id: Optional[int] = None,
         kind: Optional[str] = None,
@@ -38,7 +63,13 @@ class AuthUser:
         self.role, self.status, self.phone = role, status, phone
         self.avatar_url, self.permissions = avatar_url, permissions or {}
         self.is_protected_owner, self.is_api_key = is_protected_owner, is_api_key
-        self.is_authorized_signatory = bool(is_authorized_signatory or (role == "owner") or is_protected_owner)
+        # Owners always hold full (edit) access to the company signature; API keys never do.
+        if is_api_key:
+            self.signature_access = "none"
+        elif role == "owner" or is_protected_owner:
+            self.signature_access = "edit"
+        else:
+            self.signature_access = normalize_signature_level(signature_access)
         self.api_key_id = api_key_id
         self.kind = "api_key" if is_api_key else (kind or "user")
         self.user_id = None if self.kind == "api_key" else id
@@ -57,10 +88,43 @@ class AuthUser:
             "id": self.id, "name": self.name, "email": self.email, "role": self.role,
             "status": self.status, "phone": self.phone, "avatar_url": self.avatar_url,
             "permissions": self.permissions, "is_protected_owner": self.is_protected_owner,
-            "is_authorized_signatory": self.is_authorized_signatory,
+            "signature_access": self.signature_access,
             "is_api_key": self.is_api_key, "api_key_id": self.api_key_id,
             "kind": self.kind, "user_id": self.user_id,
         }
+
+
+def has_signature_access(user: Any, level: str) -> bool:
+    """True when ``user`` holds at least ``level`` access to the company signature."""
+    if not user:
+        return False
+    status = getattr(user, "status", None) if not isinstance(user, dict) else user.get("status")
+    if status and status != "active":
+        return False
+    getter = user.get if isinstance(user, dict) else (lambda k, d=None: getattr(user, k, d))
+    if getter("is_api_key", False):
+        return False
+    if getter("role") == "owner" or getter("is_protected_owner", False):
+        return True
+    return signature_rank(getter("signature_access", "none")) >= signature_rank(level)
+
+
+async def resolve_signature_access(
+    db: Any, user_id: int, role: Optional[str] = None, is_protected_owner: bool = False
+) -> str:
+    """Effective company-signature access = highest level across all of the user's roles."""
+    if role == "owner" or is_protected_owner:
+        return "edit"
+    rows = (await db.execute(
+        text("""
+            SELECT r.signature_access
+            FROM user_roles ur
+            JOIN roles r ON ur.role_id = r.id
+            WHERE ur.user_id = :uid
+        """),
+        {"uid": user_id},
+    )).scalars().all()
+    return max_signature_level(rows)
 
 
 def has_permission(
@@ -77,7 +141,14 @@ def has_permission(
     if user.role == "owner" or user.is_protected_owner:
         return True
 
-    user_scope = user.permissions.get("*") or user.permissions.get(norm_key) or user.permissions.get(permission)
+    perms = getattr(user, "permissions", {}) or {}
+    if isinstance(perms, dict):
+        user_scope = perms.get("*") or perms.get(norm_key) or perms.get(permission)
+    elif isinstance(perms, (list, tuple, set)):
+        user_scope = "all" if ("*" in perms or norm_key in perms or permission in perms) else None
+    else:
+        user_scope = None
+
     if not user_scope:
         return False
 
@@ -100,14 +171,21 @@ def get_permission_scope(user: Optional[AuthUser], permission: str) -> Optional[
     if not user or user.status != "active":
         return None
 
-    if user.role == "owner" or user.is_protected_owner:
+    if user.role == "owner" or getattr(user, "is_protected_owner", False):
         return "all"
 
     norm_key = normalize_permission_key(permission)
-    if user.permissions.get("*"):
-        return "all"
+    perms = getattr(user, "permissions", {}) or {}
+    if isinstance(perms, dict):
+        if perms.get("*"):
+            return "all"
+        return perms.get(norm_key) or perms.get(permission)
+    elif isinstance(perms, (list, tuple, set)):
+        if "*" in perms or norm_key in perms or permission in perms:
+            return "all"
+        return None
 
-    return user.permissions.get(norm_key) or user.permissions.get(permission)
+    return None
 
 class ScopeFilterResult(dict):
     """Dict that also supports tuple unpacking: allowed, clause, params = build_scope_filter(...)"""
@@ -387,18 +465,19 @@ async def seed_system_rbac(conn):
                 {"new_id": inserted_id},
             )
 
-    # Ensure Owner role exists
+    # Ensure Owner role exists (always holds full edit access to the company signature)
     await conn.execute(text("""
-        INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_at, updated_at)
-        VALUES ('Owner', 'Executive owner with unrestricted access across all systems', true, true, NOW(), NOW())
-        ON CONFLICT (name) DO UPDATE SET is_protected = true, is_authorized_signatory = true
+        INSERT INTO roles (name, description, is_protected, signature_access, created_at, updated_at)
+        VALUES ('Owner', 'Executive owner with unrestricted access across all systems', true, 'edit', NOW(), NOW())
+        ON CONFLICT (name) DO UPDATE SET is_protected = true, signature_access = 'edit'
     """))
 
-    # Ensure Administrator role exists
+    # Ensure Administrator role exists. New installs default to 'edit' signature access;
+    # an existing Administrator keeps whatever level the Owner configured.
     await conn.execute(text("""
-        INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_at, updated_at)
-        VALUES ('Administrator', 'System administrator with elevated operational privileges', true, true, NOW(), NOW())
-        ON CONFLICT (name) DO UPDATE SET is_protected = true, is_authorized_signatory = true
+        INSERT INTO roles (name, description, is_protected, signature_access, created_at, updated_at)
+        VALUES ('Administrator', 'System administrator with elevated operational privileges', true, 'edit', NOW(), NOW())
+        ON CONFLICT (name) DO UPDATE SET is_protected = true
     """))
 
     # Populate role_permissions for Administrator (preserving any custom scopes set by Owner)

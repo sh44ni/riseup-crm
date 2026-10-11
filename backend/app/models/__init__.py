@@ -25,6 +25,7 @@ from app.models.quote_banner import QuoteBanner, QuoteBannerSlide
 from app.models.calendar_event import CrewResource, CalendarEvent
 from app.models.crm_user_task import UserPersonalTask
 from app.models.daily_snapshot import DailyStatsSnapshot
+from app.models.company_signature import CompanySignatureVersion
 
 __all__ = [
     "Base",
@@ -79,5 +80,6 @@ __all__ = [
     "CalendarEvent",
     "UserPersonalTask",
     "DailyStatsSnapshot",
+    "CompanySignatureVersion",
 ]
 

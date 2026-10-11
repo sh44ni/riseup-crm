@@ -12,10 +12,24 @@ from app.core.audit import record_audit_log
 from app.core.redis import invalidate_session_cache
 from app.middlewares.auth import require_auth, require_permission
 from app.core.config import settings
+from app.core.permissions import SIGNATURE_LEVELS, normalize_signature_level, max_signature_level
 from app.services.email_service import send_team_invitation_email
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["RBAC & Users"])
+
+SIGNATURE_EDIT_OWNER_ONLY_DETAIL = "Only the Owner can grant or revoke Edit access to the company signature"
+
+
+def _parse_signature_access(value: Any) -> str:
+    """Validates a role's company-signature access level (none/view/use/edit)."""
+    level = str(value if value is not None else "none").strip().lower()
+    if level not in SIGNATURE_LEVELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid signature_access. Expected one of: {', '.join(SIGNATURE_LEVELS)}",
+        )
+    return level
 
 # ── Module Config Mapping for User-Friendly Role Studio ─────────────────────
 MODULE_CONFIG_MAP = {
@@ -172,7 +186,7 @@ async def list_permissions(db: AsyncSession = Depends(get_db)):
 @router.get("/roles", dependencies=[Depends(require_permission("roles.view"))])
 async def list_roles(db: AsyncSession = Depends(get_db)):
     sql = text("""
-        SELECT r.id, r.name, r.description, r.is_protected, r.is_authorized_signatory, r.created_at,
+        SELECT r.id, r.name, r.description, r.is_protected, r.signature_access, r.created_at,
                COALESCE(json_agg(json_build_object('permission_id', rp.permission_id, 'key', p.key, 'scope', rp.scope)) FILTER (WHERE p.id IS NOT NULL), '[]') as permissions
         FROM roles r
         LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -193,19 +207,21 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
     body = await request.json()
     name = (body.get("name") or "").strip()
     description = body.get("description")
-    is_authorized_signatory = bool(body.get("is_authorized_signatory", False))
+    signature_access = _parse_signature_access(body.get("signature_access", "none"))
     if not name:
         raise HTTPException(status_code=400, detail="Role name is required")
     if name.lower() in ("owner", "administrator", "admin"):
         raise HTTPException(status_code=400, detail="Cannot create role with reserved system name")
+    if signature_access == "edit" and not _is_owner(user):
+        raise HTTPException(status_code=403, detail=SIGNATURE_EDIT_OWNER_ONLY_DETAIL)
 
     insert_sql = text("""
-        INSERT INTO roles (name, description, is_protected, is_authorized_signatory, created_by, created_at, updated_at)
-        VALUES (:name, :desc, false, :auth_sig, :uid, NOW(), NOW())
-        RETURNING id, name, description, is_protected, is_authorized_signatory
+        INSERT INTO roles (name, description, is_protected, signature_access, created_by, created_at, updated_at)
+        VALUES (:name, :desc, false, :sig_access, :uid, NOW(), NOW())
+        RETURNING id, name, description, is_protected, signature_access
     """)
     try:
-        res = (await db.execute(insert_sql, {"name": name, "desc": description, "auth_sig": is_authorized_signatory, "uid": user.id})).mappings().first()
+        res = (await db.execute(insert_sql, {"name": name, "desc": description, "sig_access": signature_access, "uid": user.id})).mappings().first()
         role_id = res["id"]
 
         all_perms = (await db.execute(text("SELECT id, key FROM permissions"))).mappings().all()
@@ -230,7 +246,7 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
         await record_audit_log(db, "role.create", "role", role_id, user.id, user.email, user.role, body, request)
 
         sql = text("""
-            SELECT r.id, r.name, r.description, r.is_protected, r.is_authorized_signatory, r.created_at,
+            SELECT r.id, r.name, r.description, r.is_protected, r.signature_access, r.created_at,
                    COALESCE(json_agg(json_build_object('permission_id', rp.permission_id, 'key', p.key, 'scope', rp.scope)) FILTER (WHERE p.id IS NOT NULL), '[]') as permissions
             FROM roles r
             LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -250,7 +266,7 @@ async def create_role(request: Request, db: AsyncSession = Depends(get_db), user
 @router.put("/roles/{role_id}", dependencies=[Depends(require_permission("roles.edit"))])
 async def update_role(role_id: int, request: Request, db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
     body = await request.json()
-    role = (await db.execute(text("SELECT id, is_protected, name, description FROM roles WHERE id = :id"), {"id": role_id})).mappings().first()
+    role = (await db.execute(text("SELECT id, is_protected, name, description, signature_access FROM roles WHERE id = :id"), {"id": role_id})).mappings().first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
     
@@ -285,12 +301,20 @@ async def update_role(role_id: int, request: Request, db: AsyncSession = Depends
             raise HTTPException(status_code=403, detail="Only the owner can modify administrator role details")
         await db.execute(text("UPDATE roles SET description = :desc, updated_at = NOW() WHERE id = :id"), {"desc": description, "id": role_id})
 
-    if "is_authorized_signatory" in body:
-        if is_admin_role and not caller_is_owner:
-            raise HTTPException(status_code=403, detail="Only the owner can modify administrator signatory authority")
+    if "signature_access" in body:
+        new_level = _parse_signature_access(body.get("signature_access"))
+        # The Owner role always keeps Edit access to the company signature.
         if not is_owner_role:
-            is_auth = bool(body["is_authorized_signatory"])
-            await db.execute(text("UPDATE roles SET is_authorized_signatory = :is_auth, updated_at = NOW() WHERE id = :id"), {"is_auth": is_auth, "id": role_id})
+            current_level = normalize_signature_level(role.get("signature_access"))
+            if new_level != current_level:
+                if is_admin_role and not caller_is_owner:
+                    raise HTTPException(status_code=403, detail="Only the owner can modify administrator signature access")
+                if "edit" in (new_level, current_level) and not caller_is_owner:
+                    raise HTTPException(status_code=403, detail=SIGNATURE_EDIT_OWNER_ONLY_DETAIL)
+                await db.execute(
+                    text("UPDATE roles SET signature_access = :lvl, updated_at = NOW() WHERE id = :id"),
+                    {"lvl": new_level, "id": role_id},
+                )
 
     # 3. Resolve permissions for non-owner roles (if admin_role, caller_is_owner was already validated above)
     if not is_owner_role:
@@ -320,7 +344,7 @@ async def update_role(role_id: int, request: Request, db: AsyncSession = Depends
     await invalidate_session_cache()
 
     sql = text("""
-        SELECT r.id, r.name, r.description, r.is_protected, r.is_authorized_signatory, r.created_at,
+        SELECT r.id, r.name, r.description, r.is_protected, r.signature_access, r.created_at,
                COALESCE(json_agg(json_build_object('permission_id', rp.permission_id, 'key', p.key, 'scope', rp.scope)) FILTER (WHERE p.id IS NOT NULL), '[]') as permissions
         FROM roles r
         LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -354,9 +378,8 @@ async def delete_role(role_id: int, request: Request, db: AsyncSession = Depends
 async def list_users(db: AsyncSession = Depends(get_db)):
     sql = text("""
         SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.avatar_url,
-               u.signature_data, u.signature_type, u.signature_title,
                u.last_login_at, u.created_at,
-               COALESCE(json_agg(json_build_object('id', r.id, 'name', r.name, 'is_protected', r.is_protected, 'is_authorized_signatory', r.is_authorized_signatory)) FILTER (WHERE r.id IS NOT NULL), '[]') as roles
+               COALESCE(json_agg(json_build_object('id', r.id, 'name', r.name, 'is_protected', r.is_protected, 'signature_access', r.signature_access)) FILTER (WHERE r.id IS NOT NULL), '[]') as roles
         FROM users u
         LEFT JOIN user_roles ur ON u.id = ur.user_id
         LEFT JOIN roles r ON ur.role_id = r.id
@@ -368,8 +391,10 @@ async def list_users(db: AsyncSession = Depends(get_db)):
     for r in rows:
         d = dict(r)
         assigned_roles = d.get("roles") or []
-        d["is_authorized_signatory"] = any(bool(role.get("is_authorized_signatory")) for role in assigned_roles)
-        d["has_signature"] = bool(d.get("signature_data"))
+        if d.get("role") == "owner" or any(_is_owner_role(role) for role in assigned_roles):
+            d["signature_access"] = "edit"
+        else:
+            d["signature_access"] = max_signature_level(role.get("signature_access") for role in assigned_roles)
         users.append(d)
     return {"users": users}
 

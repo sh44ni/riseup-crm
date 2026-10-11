@@ -136,7 +136,7 @@ export function renderPage2(ctx: ContractRenderContext): string {
       ${ctx.contractTitle || 'HOME IMPROVEMENT CONTRACT'}
     </h1>
     <p>
-      This contract (“Contract”) is between ${ctx.clientName} (the “Client”) and Rise Up Roofing and Construction, Inc. Edith Guerrero (the “Contractor”).
+      This contract (“Contract”) is between ${ctx.clientName} (the “Client”) and Rise Up Roofing and Construction, Inc.${ctx.contractorSignatoryName ? ` ${ctx.contractorSignatoryName}` : ''} (the “Contractor”).
     </p>
     <div class="facts">
       <div>

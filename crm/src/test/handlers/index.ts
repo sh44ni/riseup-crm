@@ -3,6 +3,7 @@ import { leadHandlers } from './leads';
 import { estimateHandlers } from './estimates';
 import { contractHandlers } from './contracts';
 import { clientHandlers } from './clients';
+import { companySignatureHandlers } from './companySignature';
 
 export const handlers = [
   ...authHandlers,
@@ -10,4 +11,5 @@ export const handlers = [
   ...estimateHandlers,
   ...contractHandlers,
   ...clientHandlers,
+  ...companySignatureHandlers,
 ];

@@ -12,9 +12,9 @@ export interface ContractRenderContext {
   contractorSignatureName: string;
   contractorSignatureData: string;
   contractorSignatureTitle?: string;
-  isRepresentativeSignatory?: boolean;
-  representativeName?: string;
-  representativeTitle?: string;
+  /** Company signature signer (e.g. Edith Guerrero) — shown in the contract whenever known. */
+  contractorSignatoryName?: string;
+  contractorSignatoryTitle?: string;
   projectAddress: string;
   contractDate: string;
   contractDateShort: string;

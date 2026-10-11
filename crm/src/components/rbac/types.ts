@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   CheckSquare,
 } from 'lucide-react';
+import type { SignatureAccess } from '@/lib/signatureAccess';
 
 export interface ModuleConfig {
   view: 'none' | 'own' | 'assigned' | 'all';
@@ -26,7 +27,7 @@ export interface Role {
   name: string;
   description?: string;
   is_protected?: boolean;
-  is_authorized_signatory?: boolean;
+  signature_access?: SignatureAccess;
   user_count?: number;
   permissions?: Array<{ permission_id: number; key?: string; scope: string }>;
   modules?: Record<string, ModuleConfig>;

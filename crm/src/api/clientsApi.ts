@@ -175,7 +175,7 @@ export interface CheckContactResponse {
 export async function checkClientContact(params: {
   email?: string;
   phone?: string;
-  excludeClientId?: number;
+  excludeClientId?: number | string;
 }): Promise<CheckContactResponse> {
   const cleanEmail = params.email?.trim();
   const rawPhone = params.phone?.trim();
@@ -186,7 +186,9 @@ export async function checkClientContact(params: {
   const qs = new URLSearchParams();
   if (cleanEmail && cleanEmail.includes('@')) qs.append('email', cleanEmail);
   if (rawPhone && digits.length >= 7) qs.append('phone', rawPhone);
-  if (params.excludeClientId) qs.append('exclude_client_id', String(params.excludeClientId));
+  if (params.excludeClientId != null && !isNaN(Number(params.excludeClientId)) && Number(params.excludeClientId) > 0) {
+    qs.append('exclude_client_id', String(Number(params.excludeClientId)));
+  }
 
   try {
     return await httpClient.get<CheckContactResponse>(`/admin/clients/check-contact?${qs.toString()}`);

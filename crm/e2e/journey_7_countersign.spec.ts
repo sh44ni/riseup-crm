@@ -3,7 +3,9 @@ import path from 'path';
 
 const authDir = path.resolve(process.cwd(), 'playwright/.auth');
 
-test.describe('Journey 7: Authorized Signatory Counter-Signing', () => {
+// Counter-signing applies the single company signature (Edith Guerrero); only roles with
+// signature_access 'use' or 'edit' (and the Owner) may counter-sign.
+test.describe('Journey 7: Company Signature Counter-Signing', () => {
   test.use({ storageState: path.join(authDir, 'owner.json') });
 
   test('owner can access contracts list and view execution status', async ({ page }) => {

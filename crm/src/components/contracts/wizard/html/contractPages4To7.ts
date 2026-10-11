@@ -83,10 +83,11 @@ export function renderPage5(ctx: ContractRenderContext): string {
     : `<div style="height:26px;border-bottom:1px solid var(--navy);width:85%;margin:4px 0;"></div>`;
 
   let contractorSignatoryLine = '<span>By: ____________________ • Title: ____________________</span>';
-  if (ctx.isCounterSigned && ctx.contractorSignatureName) {
-    contractorSignatoryLine = `<span>By: ${ctx.contractorSignatureName} • Title: ${ctx.contractorSignatureTitle || 'Authorized Signatory'}</span>`;
-  } else if (ctx.isRepresentativeSignatory && ctx.representativeName) {
-    contractorSignatoryLine = `<span>By: ${ctx.representativeName} • Title: ${ctx.representativeTitle || 'Project Manager'}</span>`;
+  const signatoryName = ctx.contractorSignatoryName || (ctx.isCounterSigned ? ctx.contractorSignatureName : '');
+  if (signatoryName) {
+    const signatoryTitle =
+      ctx.contractorSignatoryTitle || (ctx.isCounterSigned ? ctx.contractorSignatureTitle : '') || 'Authorized Signatory';
+    contractorSignatoryLine = `<span>By: ${signatoryName} • Title: ${signatoryTitle}</span>`;
   }
 
   const clientSigHtml = ctx.isClientSigned && (ctx.clientSignatureData || ctx.clientSignatureName)

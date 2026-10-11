@@ -21,6 +21,7 @@ import { RoleSelectorGrid } from './matrix/RoleSelectorGrid';
 import { RoleStudioHeader } from './matrix/RoleStudioHeader';
 import { ModulePermissionRow } from './matrix/ModulePermissionRow';
 import { CreateRoleModal } from './matrix/CreateRoleModal';
+import { normalizeSignatureAccess, type SignatureAccess } from '@/lib/signatureAccess';
 
 export function TeamRolesPermissionMatrix() {
   const { isOwner, can } = useAuth();
@@ -45,8 +46,8 @@ export function TeamRolesPermissionMatrix() {
   // Create Role Modal State
   const [isCreateRoleOpen, setIsCreateRoleOpen] = useState<boolean>(false);
 
-  // Active Role Signatory State
-  const [activeIsSignatory, setActiveIsSignatory] = useState<boolean>(false);
+  // Active Role Company Signature Access State
+  const [activeSignatureAccess, setActiveSignatureAccess] = useState<SignatureAccess>('none');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -92,12 +93,12 @@ export function TeamRolesPermissionMatrix() {
         const defaultRole = augmentedRoles.find((r) => !r.is_protected) || augmentedRoles[0];
         setSelectedRoleId(defaultRole.id);
         setActiveModules(defaultRole.modules || {});
-        setActiveIsSignatory(Boolean(defaultRole.is_authorized_signatory));
+        setActiveSignatureAccess(normalizeSignatureAccess(defaultRole.signature_access));
       } else if (selectedRoleId) {
         const curr = augmentedRoles.find((r) => r.id === selectedRoleId);
         if (curr) {
           setActiveModules(curr.modules || {});
-          setActiveIsSignatory(Boolean(curr.is_authorized_signatory));
+          setActiveSignatureAccess(normalizeSignatureAccess(curr.signature_access));
         }
       }
     } catch (err: any) {
@@ -119,7 +120,7 @@ export function TeamRolesPermissionMatrix() {
   const applySelectRole = (role: Role) => {
     setSelectedRoleId(role.id);
     setActiveModules(role.modules || {});
-    setActiveIsSignatory(Boolean(role.is_authorized_signatory));
+    setActiveSignatureAccess(normalizeSignatureAccess(role.signature_access));
     setHasUnsavedChanges(false);
     setPendingSwitchRole(null);
   };
@@ -136,14 +137,19 @@ export function TeamRolesPermissionMatrix() {
   const isAdminRole = ['administrator', 'admin'].includes(activeRole?.name.toLowerCase() || '');
   const canEditActiveRole = Boolean(activeRole && !isOwnerRole && (isAdminRole ? isOwner : (can('roles.edit') || isOwner)));
 
-  const handleSignatoryChange = (val: boolean) => {
+  const handleSignatureAccessChange = (level: SignatureAccess) => {
     if (!activeRole || !canEditActiveRole) {
       if (isAdminRole && !isOwner) {
-        showToast('Only the Owner can modify Administrator signatory authority.');
+        showToast('Only the Owner can modify Administrator signature access.');
       }
       return;
     }
-    setActiveIsSignatory(val);
+    if (level === 'edit' && !isOwner) {
+      toast.warning('Only the Owner can grant edit access to the company signature.');
+      return;
+    }
+    if (level === activeSignatureAccess) return;
+    setActiveSignatureAccess(level);
     setHasUnsavedChanges(true);
   };
 
@@ -201,9 +207,9 @@ export function TeamRolesPermissionMatrix() {
     try {
       await api.updateRole(activeRole.id, {
         modules: activeModules,
-        is_authorized_signatory: activeIsSignatory,
+        signature_access: activeSignatureAccess,
       });
-      showToast(`Permissions and signatory status saved successfully for "${activeRole.name}".`);
+      showToast(`Permissions and signature access saved successfully for "${activeRole.name}".`);
       setHasUnsavedChanges(false);
       await loadRoles();
     } catch (err: any) {
@@ -213,7 +219,7 @@ export function TeamRolesPermissionMatrix() {
     }
   };
 
-  const handleCreateRole = async (name: string, description: string, isSignatory: boolean) => {
+  const handleCreateRole = async (name: string, description: string, signatureAccess: SignatureAccess) => {
     const initialModules: Record<string, ModuleConfig> = {};
     MODULE_DEFINITIONS.forEach((def) => {
       initialModules[def.id] = { view: 'none', manage: false };
@@ -223,7 +229,7 @@ export function TeamRolesPermissionMatrix() {
       const res = await api.createRole({
         name,
         description: description || 'Custom operational role',
-        is_authorized_signatory: isSignatory,
+        signature_access: signatureAccess,
         modules: initialModules,
       });
       showToast(`Role "${name}" created successfully! Configure its permissions below.`);
@@ -232,7 +238,7 @@ export function TeamRolesPermissionMatrix() {
       if (res.role?.id) {
         setSelectedRoleId(res.role.id);
         setActiveModules(res.role.modules || initialModules);
-        setActiveIsSignatory(Boolean(res.role.is_authorized_signatory));
+        setActiveSignatureAccess(normalizeSignatureAccess(res.role.signature_access ?? signatureAccess));
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to create role');
@@ -373,13 +379,13 @@ export function TeamRolesPermissionMatrix() {
             <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden backdrop-blur-md">
               <RoleStudioHeader
                 activeRole={activeRole}
-                activeIsSignatory={activeIsSignatory}
+                activeSignatureAccess={activeSignatureAccess}
                 hasUnsavedChanges={hasUnsavedChanges}
                 isSaving={isSaving}
                 isOwner={isOwner}
                 onSaveChanges={handleSaveChanges}
                 onPromptDeleteRole={promptDeleteRole}
-                onSignatoryChange={handleSignatoryChange}
+                onSignatureAccessChange={handleSignatureAccessChange}
               />
 
               {/* Module Search & Filter Bar */}
@@ -439,6 +445,7 @@ export function TeamRolesPermissionMatrix() {
                       type="button"
                       onClick={() => {
                         setActiveModules(activeRole.modules || {});
+                        setActiveSignatureAccess(normalizeSignatureAccess(activeRole.signature_access));
                         setHasUnsavedChanges(false);
                       }}
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-amber-100/60 dark:hover:bg-white/10 cursor-pointer"

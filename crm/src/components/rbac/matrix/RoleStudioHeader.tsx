@@ -1,32 +1,37 @@
 import React from 'react';
 import { Lock, PenTool, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { Role } from '../types';
+import { SIGNATURE_ACCESS_LABELS, type SignatureAccess } from '@/lib/signatureAccess';
+import { OWNER_ONLY_EDIT_REASON, SignatureAccessSelector } from './SignatureAccessSelector';
 
 interface RoleStudioHeaderProps {
   activeRole: Role;
-  activeIsSignatory: boolean;
+  activeSignatureAccess: SignatureAccess;
   hasUnsavedChanges: boolean;
   isSaving: boolean;
+  /** Whether the *current user* is the Owner. */
   isOwner: boolean;
   onSaveChanges: () => void;
   onPromptDeleteRole: (role: Role) => void;
-  onSignatoryChange: (val: boolean) => void;
+  onSignatureAccessChange: (level: SignatureAccess) => void;
 }
 
 export function RoleStudioHeader({
   activeRole,
-  activeIsSignatory,
+  activeSignatureAccess,
   hasUnsavedChanges,
   isSaving,
   isOwner,
   onSaveChanges,
   onPromptDeleteRole,
-  onSignatoryChange,
+  onSignatureAccessChange,
 }: RoleStudioHeaderProps) {
   const isOwnerRole = activeRole.name.toLowerCase() === 'owner';
   const isAdminRole = ['administrator', 'admin'].includes(activeRole.name.toLowerCase());
   const isPermanentSystemRole = Boolean(activeRole.is_protected) || isOwnerRole || isAdminRole;
   const canEdit = !isOwnerRole && (isAdminRole ? isOwner : true);
+  // The Owner role is always 'edit', regardless of what the payload says.
+  const effectiveAccess: SignatureAccess = isOwnerRole ? 'edit' : activeSignatureAccess;
 
   return (
     <>
@@ -48,9 +53,9 @@ export function RoleStudioHeader({
                 <Lock size={10} /> Protected Administrator
               </span>
             )}
-            {activeIsSignatory && (
+            {effectiveAccess !== 'none' && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 dark:bg-purple-950/50 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 flex items-center gap-1">
-                <PenTool size={10} /> Authorized Signatory
+                <PenTool size={10} /> Signature: {SIGNATURE_ACCESS_LABELS[effectiveAccess]}
               </span>
             )}
           </div>
@@ -120,68 +125,47 @@ export function RoleStudioHeader({
         </div>
       </div>
 
-      {/* Authorized Signatory Authority Radio Selector Banner */}
-      <div className="px-5 py-3.5 border-b border-slate-200/90 dark:border-white/10 bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-slate-50 dark:from-purple-950/25 dark:via-indigo-950/20 dark:to-slate-900/40">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0 mt-0.5">
-              <PenTool size={15} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Authorized Signatory Authority
-                </span>
-                {activeIsSignatory ? (
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/50">
-                    Authorized Signatory
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-white/10">
-                    Standard Role
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Designates members in this role with legal authority to counter-sign official California contracts &amp; agreements.
-              </p>
-            </div>
+      {/* Company Signature Access (4-level radio) */}
+      <div className="px-5 py-3.5 border-b border-slate-200/90 dark:border-white/10 bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-slate-50 dark:from-purple-950/25 dark:via-indigo-950/20 dark:to-slate-900/40 space-y-3">
+        <div className="flex items-start gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 flex items-center justify-center text-purple-700 dark:text-purple-300 shrink-0 mt-0.5">
+            <PenTool size={15} />
           </div>
-
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200/90 dark:border-white/10 shrink-0">
-            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-              !activeIsSignatory
-                ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-bold'
-                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
-            }`}>
-              <input
-                type="radio"
-                name="active_role_signatory"
-                checked={!activeIsSignatory}
-                disabled={!canEdit}
-                onChange={() => onSignatoryChange(false)}
-                className="text-sky-600 focus:ring-sky-500"
-              />
-              <span>Standard Role</span>
-            </label>
-
-            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-              activeIsSignatory
-                ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-900 dark:text-purple-200 shadow-2xs font-bold border border-purple-200 dark:border-purple-800/50'
-                : 'text-slate-500 hover:text-purple-700 dark:text-slate-400'
-            }`}>
-              <input
-                type="radio"
-                name="active_role_signatory"
-                checked={activeIsSignatory}
-                disabled={!canEdit}
-                onChange={() => onSignatoryChange(true)}
-                className="text-purple-600 focus:ring-purple-500"
-              />
-              <span>Authorized Signatory</span>
-            </label>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-900 dark:text-white">Company Signature Access</span>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/50">
+                {SIGNATURE_ACCESS_LABELS[effectiveAccess]}
+              </span>
+              {isOwnerRole && (
+                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                  <Lock size={10} /> Always “Can edit” for the Owner
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              What members of this role can do with the company contract signature. Each level includes the ones
+              before it.
+            </p>
           </div>
         </div>
+
+        <SignatureAccessSelector
+          name="active_role_signature_access"
+          value={effectiveAccess}
+          onChange={onSignatureAccessChange}
+          disabled={!canEdit}
+          disableEdit={!isOwner}
+          lockedReason={
+            isOwnerRole
+              ? 'The Owner role always has edit access'
+              : isAdminRole && !isOwner
+                ? 'Only the Owner can change Administrator access'
+                : !isOwner
+                  ? OWNER_ONLY_EDIT_REASON
+                  : undefined
+          }
+        />
       </div>
     </>
   );

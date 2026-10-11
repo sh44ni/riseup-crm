@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Shield, X, PenTool } from 'lucide-react';
+import { Shield, X } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import type { SignatureAccess } from '@/lib/signatureAccess';
+import { OWNER_ONLY_EDIT_REASON, SignatureAccessSelector } from './SignatureAccessSelector';
 
 interface CreateRoleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (name: string, description: string, isSignatory: boolean) => Promise<void>;
+  onSubmit: (name: string, description: string, signatureAccess: SignatureAccess) => Promise<void>;
 }
 
 export function CreateRoleModal({
@@ -13,9 +16,10 @@ export function CreateRoleModal({
   onClose,
   onSubmit,
 }: CreateRoleModalProps) {
+  const { isOwner } = useAuth();
   const [newRoleName, setNewRoleName] = useState<string>('');
   const [newRoleDesc, setNewRoleDesc] = useState<string>('');
-  const [newRoleIsSignatory, setNewRoleIsSignatory] = useState<boolean>(false);
+  const [signatureAccess, setSignatureAccess] = useState<SignatureAccess>('none');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
@@ -40,10 +44,10 @@ export function CreateRoleModal({
 
     setIsSubmitting(true);
     try {
-      await onSubmit(newRoleName.trim(), newRoleDesc.trim(), newRoleIsSignatory);
+      await onSubmit(newRoleName.trim(), newRoleDesc.trim(), signatureAccess);
       setNewRoleName('');
       setNewRoleDesc('');
-      setNewRoleIsSignatory(false);
+      setSignatureAccess('none');
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -108,58 +112,17 @@ export function CreateRoleModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-              Signatory Authority
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <label
-                className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
-                  !newRoleIsSignatory
-                    ? 'border-sky-400 dark:border-sky-500 bg-sky-50/60 dark:bg-sky-950/40 ring-1 ring-sky-400/20'
-                    : 'border-slate-200 dark:border-white/10 hover:border-slate-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="create_role_signatory"
-                  checked={!newRoleIsSignatory}
-                  onChange={() => setNewRoleIsSignatory(false)}
-                  className="mt-0.5 text-sky-600 focus:ring-sky-500"
-                />
-                <div>
-                  <span className="block text-xs font-bold text-slate-900 dark:text-white">
-                    Standard Role
-                  </span>
-                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                    Operational permissions only. Cannot execute contracts.
-                  </span>
-                </div>
-              </label>
-
-              <label
-                className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
-                  newRoleIsSignatory
-                    ? 'border-purple-500 bg-purple-50/80 dark:bg-purple-950/40 ring-1 ring-purple-500/20'
-                    : 'border-slate-200 dark:border-white/10 hover:border-purple-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="create_role_signatory"
-                  checked={newRoleIsSignatory}
-                  onChange={() => setNewRoleIsSignatory(true)}
-                  className="mt-0.5 text-purple-600 focus:ring-purple-500"
-                />
-                <div>
-                  <span className="block text-xs font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1">
-                    <PenTool size={12} className="text-purple-600" /> Authorized Signatory
-                  </span>
-                  <span className="block text-[11px] text-purple-700/80 dark:text-purple-300/80">
-                    Designated to counter-sign official CSLB contracts.
-                  </span>
-                </div>
-              </label>
-            </div>
+            <span className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              Company Signature Access
+            </span>
+            <SignatureAccessSelector
+              name="create_role_signature_access"
+              compact
+              value={signatureAccess}
+              onChange={setSignatureAccess}
+              disableEdit={!isOwner}
+              lockedReason={!isOwner ? OWNER_ONLY_EDIT_REASON : undefined}
+            />
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-white/10">

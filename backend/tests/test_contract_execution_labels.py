@@ -68,8 +68,12 @@ class TestContractExecutionLabelsAndSignatures:
             "client_initials": "GW",
             "is_counter_signed": True,
             "counter_signed_at": "September 25, 2026",
-            "contractor_name": "Edith Guerrero",
+            "contractor_name": "Rise Up Roofing and Construction, Inc.",
+            "contractor_signatory_name": "Edith Guerrero",
+            "contractor_signatory_title": "President",
             "contractor_signature_name": "Edith Guerrero",
+            "contractor_signature_type": "typed",
+            "contractor_signature_data": "Edith Guerrero",
         }
         html = _render_contract_html(data)
 
@@ -81,7 +85,35 @@ class TestContractExecutionLabelsAndSignatures:
 
         # Contractor signature is now displayed
         assert "Edith Guerrero" in html
+        assert "By: Edith Guerrero • Title: President" in html
 
         # Status badge appears on pages with footer
         assert html.count('class="tag fully-executed"') == 6
         assert html.count(">FULLY EXECUTED</span>") == 7
+
+    def test_configured_signatory_is_pre_printed_but_not_signed_on_draft(self):
+        data = {
+            "contract_number": "RU-1004",
+            "client_name": "Glen Woods",
+            "is_signed": False,
+            "contractor_signatory_name": "Edith Guerrero",
+            "contractor_signatory_title": "President",
+            "contractor_signature_data": "data:image/png;base64,AAAA",
+            "prepared_by_name": "Marc Operator",
+            "prepared_by_title": "Project Manager",
+        }
+        html = _render_contract_html(data)
+
+        # Intro and By/Title point to the configured company signatory
+        assert "Rise Up Roofing and Construction, Inc. Edith Guerrero (the “Contractor”)" in html
+        assert "By: Edith Guerrero • Title: President" in html
+        # The signature image itself only appears once counter-signed
+        assert 'alt="Contractor Signature"' not in html
+        # Prepared-by is the CRM operator
+        assert "Marc Operator" in html
+
+    def test_no_hardcoded_signatory_when_not_configured(self):
+        html = _render_contract_html({"contract_number": "RU-1005", "client_name": "Glen Woods"})
+        assert "Edith Guerrero" not in html
+        assert "By: ____________________ • Title: ____________________" in html
+        assert "Rise Up Roofing and Construction, Inc. (the “Contractor”)" in html

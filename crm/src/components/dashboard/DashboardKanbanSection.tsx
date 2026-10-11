@@ -20,6 +20,18 @@ export interface DashboardKanbanSectionProps {
   canViewFinances: boolean;
   canClaimLead: boolean;
   canReassignLead: boolean;
+  editingAddressCardId?: string | null;
+  addressFormStreet?: string;
+  addressFormCity?: string;
+  addressFormZip?: string;
+  isSavingAddress?: boolean;
+  addressSaveError?: string | null;
+  onStreetChange?: (val: string) => void;
+  onCityChange?: (val: string) => void;
+  onZipChange?: (val: string) => void;
+  onStartEditAddress?: (deal: any, e: React.SyntheticEvent) => void;
+  onCancelEditAddress?: (e?: React.SyntheticEvent) => void;
+  onSaveAddress?: (deal: any, e: React.SyntheticEvent) => void;
   onDragStart: (cardId: string, colId: string) => void;
   onDragEnd: () => void;
   onDragOver: (e: React.DragEvent, colId: string) => void;
@@ -46,6 +58,18 @@ export function DashboardKanbanSection({
   canViewFinances,
   canClaimLead,
   canReassignLead,
+  editingAddressCardId,
+  addressFormStreet,
+  addressFormCity,
+  addressFormZip,
+  isSavingAddress,
+  addressSaveError,
+  onStreetChange,
+  onCityChange,
+  onZipChange,
+  onStartEditAddress,
+  onCancelEditAddress,
+  onSaveAddress,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -204,6 +228,18 @@ export function DashboardKanbanSection({
                   canClaimLead={canClaimLead}
                   canReassignLead={canReassignLead}
                   isDark={isDark}
+                  isEditingAddress={editingAddressCardId === String(card.id)}
+                  addressFormStreet={addressFormStreet}
+                  addressFormCity={addressFormCity}
+                  addressFormZip={addressFormZip}
+                  isSavingAddress={isSavingAddress}
+                  addressSaveError={addressSaveError}
+                  onStreetChange={onStreetChange}
+                  onCityChange={onCityChange}
+                  onZipChange={onZipChange}
+                  onStartEditAddress={onStartEditAddress}
+                  onCancelEditAddress={onCancelEditAddress}
+                  onSaveAddress={onSaveAddress}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                   onClick={() => onSelectCard(card, col)}

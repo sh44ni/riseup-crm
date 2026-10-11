@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { SettingsTab } from '@/types/settingsTypes';
 import { useCompany } from '@/context/CompanyContext';
+import { useAuth } from '@/context/AuthContext';
 
 interface SettingsNavigationProps {
   activeTab: SettingsTab;
@@ -32,6 +33,7 @@ export function SettingsNavigation({
   userCount = 7,
 }: SettingsNavigationProps) {
   const { licenseNumber } = useCompany();
+  const { canSignature } = useAuth();
 
   const TABS: TabItem[] = [
     {
@@ -48,13 +50,17 @@ export function SettingsNavigation({
       badge: `${userCount} Members`,
       color: 'from-sky-500 to-blue-600',
     },
-    {
-      id: 'signatories',
-      label: 'Authorized Signatories',
-      icon: PenTool,
-      badge: 'CSLB Signatures',
-      color: 'from-purple-500 to-indigo-600',
-    },
+    ...(canSignature('view')
+      ? [
+          {
+            id: 'signature' as const,
+            label: 'Company Signature',
+            icon: PenTool,
+            badge: 'Contract Signature',
+            color: 'from-purple-500 to-indigo-600',
+          },
+        ]
+      : []),
     {
       id: 'company',
       label: 'Company & CSLB',

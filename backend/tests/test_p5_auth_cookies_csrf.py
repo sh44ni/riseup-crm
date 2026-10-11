@@ -308,42 +308,44 @@ async def test_login_pending_invite_requires_otp_and_verifies(client: AsyncClien
 
 
 @pytest.mark.asyncio
-async def test_owner_is_authorized_signatory_and_can_set_signature(client: AsyncClient, db: AsyncSession):
+async def test_owner_has_signature_edit_access_and_can_configure_company_signature(client: AsyncClient, db: AsyncSession):
+    from tests.factories import clear_company_signature
+
     owner = await make_user(db, role="owner", email="owner_sig_test@example.com")
+    await clear_company_signature(db)
     await db.commit()
 
     # Log in as owner
     login_res = await client.post("/api/admin/auth/login", json={"email": owner.email, "password": "TestPassword123!"})
     assert login_res.status_code == 200
     login_data = login_res.json()
-    assert login_data["user"]["is_authorized_signatory"] is True
+    assert login_data["user"]["signature_access"] == "edit"
+    assert "is_authorized_signatory" not in login_data["user"]
 
     session_token = login_data["token"]
     csrf_token = login_data["csrf_token"]
     headers = {"Authorization": f"Bearer {session_token}", "X-CSRF-Token": csrf_token}
 
-    # Verify owner appears in signatories list
-    sig_list_res = await client.get("/api/admin/signatories", headers=headers)
-    assert sig_list_res.status_code == 200
-    sigs = sig_list_res.json()["signatories"]
-    owner_sig = next((s for s in sigs if s["id"] == owner.id), None)
-    assert owner_sig is not None
-    assert owner_sig["is_self"] is True
+    # Company signature starts empty
+    status_res = await client.get("/api/admin/company-signature/status", headers=headers)
+    assert status_res.status_code == 200
+    assert status_res.json()["configured"] is False
 
-    # Configure signature for owner
+    # Configure the company signature
     set_sig_res = await client.put(
-        f"/api/admin/signatories/{owner.id}/signature",
+        "/api/admin/company-signature",
         headers=headers,
         json={
-            "signature_name": "Test Owner",
-            "signature_title": "Executive Owner",
+            "signer_name": "Edith Guerrero",
+            "signer_title": "President",
             "signature_type": "typed",
-            "signature_data": "Test Owner Signature"
-        }
+            "signature_data": "Edith Guerrero",
+        },
     )
     assert set_sig_res.status_code == 200
     assert set_sig_res.json()["ok"] is True
-    assert set_sig_res.json()["signatory"]["signature_data"] == "Test Owner Signature"
+    assert set_sig_res.json()["signature"]["signature_data"] == "Edith Guerrero"
+    assert set_sig_res.json()["signature"]["version"] == 1
 
 
 @pytest.mark.asyncio

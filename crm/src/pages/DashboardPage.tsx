@@ -16,6 +16,7 @@ import { useCompany } from '@/context/CompanyContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useDashboardStats } from '@/lib/dashboardStatsStore';
 import { usePipelineKanban } from '@/lib/pipelineStore';
+import { useDashboardAddressEdit } from '@/components/dashboard/useDashboardAddressEdit';
 import { updatePipelineDealStage, claimLead, logDealFollowUp } from '@/api/pipelineApi';
 import { getContracts, ContractRow } from '@/api/contractApi';
 import { api } from '@/lib/api';
@@ -51,14 +52,14 @@ const STAGE_MAP: Record<string, { granularStage: PipelineStageId; pipelineStage:
 };
 
 export function DashboardPage() {
-  const { user, can, isOwner } = useAuth();
+  const { user, can, isOwner, canSignature } = useAuth();
   const { companyName, licenseNumber, city } = useCompany();
   const canViewFinances = can('finances.view');
   const canAdvanceStage = can('pipeline.advance_stage');
   const canCreateLead = can('leads.create');
   const canClaimLead = isOwner || can('leads.claim');
   const canReassignLead = isOwner || can('leads.reassign');
-  const canCounterSign = can('contracts.counter_sign');
+  const canCounterSign = canSignature('use');
 
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -70,6 +71,7 @@ export function DashboardPage() {
     isLoading: pipelineLoading,
     refresh: refreshPipeline,
     moveCardOptimistically,
+    updateCardAddress,
   } = usePipelineKanban();
 
   const [omniSearch, setOmniSearch] = useState('');
@@ -116,6 +118,8 @@ export function DashboardPage() {
     setToastMessage(msg);
     toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 3500);
   }, []);
+
+  const addressEdit = useDashboardAddressEdit(updateCardAddress, showToast);
 
   const fetchPendingContracts = useCallback(async () => {
     if (!canCounterSign) return;
@@ -333,6 +337,18 @@ export function DashboardPage() {
           canViewFinances={canViewFinances}
           canClaimLead={canClaimLead}
           canReassignLead={canReassignLead}
+          editingAddressCardId={addressEdit.editingAddressCardId}
+          addressFormStreet={addressEdit.addressFormStreet}
+          addressFormCity={addressEdit.addressFormCity}
+          addressFormZip={addressEdit.addressFormZip}
+          isSavingAddress={addressEdit.isSavingAddress}
+          addressSaveError={addressEdit.addressSaveError}
+          onStreetChange={addressEdit.setAddressFormStreet}
+          onCityChange={addressEdit.setAddressFormCity}
+          onZipChange={addressEdit.setAddressFormZip}
+          onStartEditAddress={addressEdit.handleStartEdit}
+          onCancelEditAddress={addressEdit.handleCancelEdit}
+          onSaveAddress={addressEdit.handleSaveAddress}
           onDragStart={(id, colId) => { if (canAdvanceStage) { dragCardRef.current = { cardId: id, fromColId: colId }; } }}
           onDragEnd={() => { dragCardRef.current = null; setDragOverColId(null); }}
           onDragOver={(e, colId) => { e.preventDefault(); setDragOverColId(colId); }}
@@ -365,7 +381,12 @@ export function DashboardPage() {
             showToast('Stage advance not permitted.');
           }
         }}
-        onUpdateDeal={() => refreshPipeline(true)}
+        onUpdateDeal={(updatedDeal?: any) => {
+          if (updatedDeal) {
+            setSelectedDeal((prev) => (prev ? { ...prev, ...updatedDeal } : prev));
+          }
+          refreshPipeline(true);
+        }}
         isCreateLeadOpen={isCreateLeadOpen}
         createLeadStage={createLeadStage}
         onCloseCreateLead={() => setIsCreateLeadOpen(false)}

@@ -1,7 +1,9 @@
+import type { SignatureAccess } from '@/lib/signatureAccess';
+
 export type SettingsTab =
   | 'profile'
   | 'users'
-  | 'signatories'
+  | 'signature'
   | 'company'
   | 'pricing'
   | 'pipeline'
@@ -32,10 +34,7 @@ export interface TeamMember {
   lastActive: string;
   joinedDate: string;
   avatarUrl?: string;
-  signature_data?: string;
-  signature_type?: 'typed' | 'drawn';
-  signature_title?: string;
-  is_authorized_signatory?: boolean;
+  signature_access?: SignatureAccess;
 }
 
 export interface UserRole {
@@ -44,7 +43,7 @@ export interface UserRole {
   description: string;
   memberCount: number;
   badgeColor: string;
-  is_authorized_signatory?: boolean;
+  signature_access?: SignatureAccess;
   permissions: {
     viewFinancials: boolean;
     editPricingFormulas: boolean;

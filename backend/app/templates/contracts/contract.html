@@ -253,7 +253,7 @@ section.page:nth-of-type(7) .ln span:last-child{min-height:13px}
   <div class="a pc" style="left:48px">
     <small>Prepared by</small>
     <b>{{ contractor_name | default('Rise Up Roofing and Construction, Inc.') }}</b>
-    <span>{{ prepared_by_name | default('Edith Guerrero') }}{% if prepared_by_title or contractor_title %} • {{ prepared_by_title | default(contractor_title) | default('Project Manager') }}{% endif %}</span>
+    <span>{{ prepared_by_name or 'Rise Up Representative' }}{% if prepared_by_title or contractor_title %} • {{ prepared_by_title or contractor_title or 'Project Manager' }}{% endif %}</span>
   </div>
   <div class="a pc" style="left:416px">
     <small>Prepared for</small>
@@ -339,7 +339,8 @@ section.page:nth-of-type(7) .ln span:last-child{min-height:13px}
       {{ contract_title | default('HOME IMPROVEMENT CONTRACT') }}
     </h1>
     <p>
-      This contract (“Contract”) is between {{ client_name }} (the “Client”) and Rise Up Roofing and Construction, Inc. Edith Guerrero (the “Contractor”).
+      {% set _intro_signatory = contractor_signatory_name or (contractor_signature_name if is_counter_signed else '') %}
+      This contract (“Contract”) is between {{ client_name }} (the “Client”) and Rise Up Roofing and Construction, Inc.{% if _intro_signatory %} {{ _intro_signatory }}{% endif %} (the “Contractor”).
     </p>
     <div class="facts">
       <div>
@@ -617,17 +618,18 @@ section.page:nth-of-type(7) .ln span:last-child{min-height:13px}
         {% if is_counter_signed and (contractor_signature_data or contractor_signature_name) %}
           {% if contractor_signature_data and contractor_signature_data.startswith('data:image') %}
             <img src="{{ contractor_signature_data }}" alt="Contractor Signature" style="max-height:36px;max-width:220px;display:inline-block;object-fit:contain;" />
+          {% elif contractor_signature_type == 'typed' and contractor_signature_data %}
+            <span class="sig">{{ contractor_signature_data }}</span>
           {% else %}
-            <span class="sig">{{ contractor_signature_name | default(contractor_name) }}</span>
+            <span class="sig">{{ contractor_signature_name | default(contractor_signatory_name) }}</span>
           {% endif %}
         {% else %}
           <div style="height:26px;border-bottom:1px solid var(--navy);width:85%;margin:4px 0;"></div>
         {% endif %}
         <span><b>Rise Up Roofing and Construction, Inc.</b></span>
-        {% if is_counter_signed and contractor_signature_name %}
-          <span>By: {{ contractor_signature_name }} • Title: {{ contractor_title | default('Authorized Signatory') }}</span>
-        {% elif is_representative_signatory and representative_name %}
-          <span>By: {{ representative_name }} • Title: {{ representative_title | default('Project Manager') }}</span>
+        {% set _signatory_name = contractor_signatory_name or (contractor_signature_name if is_counter_signed else '') %}
+        {% if _signatory_name %}
+          <span>By: {{ _signatory_name }} • Title: {{ contractor_signatory_title or contractor_title or 'Authorized Signatory' }}</span>
         {% else %}
           <span>By: ____________________ • Title: ____________________</span>
         {% endif %}

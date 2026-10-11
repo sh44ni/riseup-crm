@@ -1652,7 +1652,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponse"
+                }
               }
             }
           }
@@ -1698,6 +1700,84 @@
         }
       }
     },
+    "/api/admin/auth/verify-otp": {
+      "post": {
+        "tags": [
+          "Admin Auth"
+        ],
+        "summary": "Verify Otp",
+        "operationId": "verify_otp_api_admin_auth_verify_otp_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/auth/resend-otp": {
+      "post": {
+        "tags": [
+          "Admin Auth"
+        ],
+        "summary": "Resend Otp",
+        "operationId": "resend_otp_api_admin_auth_resend_otp_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendOtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/auth/logout": {
       "post": {
         "tags": [
@@ -1710,7 +1790,91 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/auth/sessions": {
+      "get": {
+        "tags": [
+          "Admin Auth"
+        ],
+        "summary": "List User Sessions",
+        "operationId": "list_user_sessions_api_admin_auth_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin Auth"
+        ],
+        "summary": "Revoke Other Sessions",
+        "operationId": "revoke_other_sessions_api_admin_auth_sessions_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/auth/sessions/{session_id}": {
+      "delete": {
+        "tags": [
+          "Admin Auth"
+        ],
+        "summary": "Revoke Session",
+        "operationId": "revoke_session_api_admin_auth_sessions__session_id__delete",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -3914,6 +4078,153 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/clients/{client_id}/upload": {
+      "post": {
+        "tags": [
+          "Admin Clients"
+        ],
+        "summary": "Upload Client Media",
+        "operationId": "upload_client_media_api_admin_clients__client_id__upload_post",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_client_media_api_admin_clients__client_id__upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/clients/{client_id}/media/upload": {
+      "post": {
+        "tags": [
+          "Admin Clients"
+        ],
+        "summary": "Upload Client Media",
+        "operationId": "upload_client_media_api_admin_clients__client_id__media_upload_post",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_client_media_api_admin_clients__client_id__media_upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/clients/{client_id}/media/{document_id}": {
+      "delete": {
+        "tags": [
+          "Admin Clients"
+        ],
+        "summary": "Delete Client Document",
+        "operationId": "delete_client_document_api_admin_clients__client_id__media__document_id__delete",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Document Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8612,6 +8923,711 @@
         }
       }
     },
+    "/api/admin/me/customizations": {
+      "get": {
+        "tags": [
+          "My Customizations",
+          "My Customizations"
+        ],
+        "summary": "Get My Customizations",
+        "operationId": "get_my_customizations_api_admin_me_customizations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomizationsMapResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/me/customizations/upload": {
+      "post": {
+        "tags": [
+          "My Customizations",
+          "My Customizations"
+        ],
+        "summary": "Upload Customization Image",
+        "operationId": "upload_customization_image_api_admin_me_customizations_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_customization_image_api_admin_me_customizations_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Upload Customization Image Api Admin Me Customizations Upload Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/me/customizations/{slot_key}": {
+      "put": {
+        "tags": [
+          "My Customizations",
+          "My Customizations"
+        ],
+        "summary": "Save My Customization",
+        "operationId": "save_my_customization_api_admin_me_customizations__slot_key__put",
+        "parameters": [
+          {
+            "name": "slot_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slot Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomizationPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomizationSaveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "My Customizations",
+          "My Customizations"
+        ],
+        "summary": "Reset My Customization",
+        "operationId": "reset_my_customization_api_admin_me_customizations__slot_key__delete",
+        "parameters": [
+          {
+            "name": "slot_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slot Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomizationSaveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/activity": {
+      "get": {
+        "tags": [
+          "Staff Activity",
+          "Staff Activity"
+        ],
+        "summary": "List Activity",
+        "operationId": "list_activity_api_admin_activity_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Employee Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "client",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "record_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Record Type"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "ip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ip"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/activity/filters": {
+      "get": {
+        "tags": [
+          "Staff Activity",
+          "Staff Activity"
+        ],
+        "summary": "Activity Filter Options",
+        "operationId": "activity_filter_options_api_admin_activity_filters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFilterOptions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/activity/summary": {
+      "get": {
+        "tags": [
+          "Staff Activity",
+          "Staff Activity"
+        ],
+        "summary": "Activity Summary",
+        "operationId": "activity_summary_api_admin_activity_summary_get",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "default": 7,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivitySummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/activity/export.csv": {
+      "get": {
+        "tags": [
+          "Staff Activity",
+          "Staff Activity"
+        ],
+        "summary": "Export Activity Csv",
+        "operationId": "export_activity_csv_api_admin_activity_export_csv_get",
+        "parameters": [
+          {
+            "name": "employee_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Employee Id"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "name": "client",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "record_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Record Type"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "ip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ip"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/activity/{entry_id}": {
+      "get": {
+        "tags": [
+          "Staff Activity",
+          "Staff Activity"
+        ],
+        "summary": "Get Activity Entry",
+        "operationId": "get_activity_entry_api_admin_activity__entry_id__get",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/calendar/events/weather": {
       "get": {
         "tags": [
@@ -9393,7 +10409,7 @@
           "Admin Contracts"
         ],
         "summary": "Preview Contract",
-        "description": "Return a redirect to the stored PDF file for browser-based preview.\nIf no PDF is stored, returns 404.",
+        "description": "Return a redirect to the stored PDF file for browser-based preview or version-specific download.\nSupports versions: 'draft', 'partially_executed', 'fully_executed'.",
         "operationId": "preview_contract_api_admin_contracts__contract_id__preview_get",
         "parameters": [
           {
@@ -9404,6 +10420,24 @@
               "type": "integer",
               "title": "Contract Id"
             }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional version to download: draft, partially_executed, fully_executed",
+              "title": "Version"
+            },
+            "description": "Optional version to download: draft, partially_executed, fully_executed"
           }
         ],
         "responses": {
@@ -9480,7 +10514,7 @@
           "Admin Contracts"
         ],
         "summary": "Get Draft By Lead",
-        "description": "Return the single active unarchived draft contract for a lead, if one exists.",
+        "description": "Return the single active unarchived draft contract for a lead, if one exists.\nAlso checks contracts associated with the lead's client_id.",
         "operationId": "get_draft_by_lead_api_admin_contracts_draft_by_lead__lead_id__get",
         "parameters": [
           {
@@ -9501,6 +10535,139 @@
                 "schema": {
                   "type": "object",
                   "title": "Response Get Draft By Lead Api Admin Contracts Draft By Lead  Lead Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/contracts/draft-by-client/{client_id}": {
+      "get": {
+        "tags": [
+          "Admin Contracts",
+          "Admin Contracts"
+        ],
+        "summary": "Get Draft By Client",
+        "description": "Return the single active unarchived draft contract for a client, if one exists.\nChecks contracts with matching client_id OR matching lead that belongs to this client.",
+        "operationId": "get_draft_by_client_api_admin_contracts_draft_by_client__client_id__get",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Draft By Client Api Admin Contracts Draft By Client  Client Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/contracts/{contract_id}": {
+      "get": {
+        "tags": [
+          "Admin Contracts",
+          "Admin Contracts"
+        ],
+        "summary": "Get Contract By Id",
+        "description": "Return a single contract record including parsed contract_data.",
+        "operationId": "get_contract_by_id_api_admin_contracts__contract_id__get",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Get Contract By Id Api Admin Contracts  Contract Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin Contracts",
+          "Admin Contracts"
+        ],
+        "summary": "Delete Contract",
+        "description": "Delete a contract draft. Only draft contracts can be hard-deleted.\nExecuted/sent contracts must be archived instead.",
+        "operationId": "delete_contract_api_admin_contracts__contract_id__delete",
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Delete Contract Api Admin Contracts  Contract Id  Delete"
                 }
               }
             }
@@ -9556,51 +10723,6 @@
                 "schema": {
                   "type": "object",
                   "title": "Response Autosave Contract Draft Api Admin Contracts  Contract Id  Draft Put"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/admin/contracts/{contract_id}": {
-      "delete": {
-        "tags": [
-          "Admin Contracts",
-          "Admin Contracts"
-        ],
-        "summary": "Delete Contract",
-        "description": "Delete a contract draft. Only draft contracts can be hard-deleted.\nExecuted/sent contracts must be archived instead.",
-        "operationId": "delete_contract_api_admin_contracts__contract_id__delete",
-        "parameters": [
-          {
-            "name": "contract_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Contract Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Delete Contract Api Admin Contracts  Contract Id  Delete"
                 }
               }
             }
@@ -9767,7 +10889,7 @@
           "Admin Contracts"
         ],
         "summary": "Counter Sign Contract",
-        "description": "Contractor counter-signs a contract, transitioning it from 1-Party Signed ('client_signed')\nto Fully Executed ('signed').\n\nActions executed:\n1. Sets contracts.status \u2192 'signed'\n2. Sets contracts.counter_signed_at \u2192 now() and counter_signed_by \u2192 current_user.id\n3. Merges contractor signature into contract_data and compiles the final executed PDF\n4. Advances leads.pipeline_stage \u2192 'contract_signed', contract_signed_at \u2192 now(), status \u2192 'won'\n5. Sends transactional email with the final executed PDF attached to the homeowner\n6. Dispatches SMS with direct download link for the executed PDF\n7. Logs audit trail and system activity",
+        "description": "Contractor counter-signs a contract, transitioning it from 1-Party Signed ('client_signed')\nto Fully Executed ('signed').\n\nThe contractor signature is always the single company signature (configured in\nSettings \u2192 Company Signature). Any user whose role grants signature access 'use' (or higher)\nmay apply it; the applying user is recorded as ``counter_signed_by``.\n\nActions executed:\n1. Sets contracts.status \u2192 'signed'\n2. Sets contracts.counter_signed_at \u2192 now() and counter_signed_by \u2192 current_user.id\n3. Merges the company signature into contract_data and compiles the final executed PDF\n4. Advances leads.pipeline_stage \u2192 'contract_signed', contract_signed_at \u2192 now(), status \u2192 'won'\n5. Sends transactional email with the final executed PDF attached to the homeowner\n6. Dispatches SMS with direct download link for the executed PDF\n7. Logs audit trail and system activity",
         "operationId": "counter_sign_contract_api_admin_contracts__contract_id__counter_sign_post",
         "parameters": [
           {
@@ -9781,11 +10903,18 @@
           }
         ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CounterSignContractRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CounterSignContractRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
               }
             }
           }
@@ -9812,14 +10941,14 @@
         }
       }
     },
-    "/api/admin/signatories": {
+    "/api/admin/company-signature/status": {
       "get": {
         "tags": [
-          "Authorized Signatories"
+          "Company Signature"
         ],
-        "summary": "List Authorized Signatories",
-        "description": "Returns all active users who are assigned to at least one role with\n`is_authorized_signatory = true`.\n\nSECURITY: The raw `signature_data` (ink/calligraphy) is returned ONLY to the\nsignatory themselves (is_self=True). For all other users (even admins and owners),\n`signature_data` is masked to null to protect signature privacy and prevent copying.",
-        "operationId": "list_authorized_signatories_api_admin_signatories_get",
+        "summary": "Get Company Signature Status",
+        "description": "Image-free status. Any signed-in user may check whether the signature is configured.",
+        "operationId": "get_company_signature_status_api_admin_company_signature_status_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9832,22 +10961,176 @@
         }
       }
     },
-    "/api/admin/signatories/{user_id}/signature": {
+    "/api/admin/company-signature": {
+      "get": {
+        "tags": [
+          "Company Signature"
+        ],
+        "summary": "Get Company Signature",
+        "operationId": "get_company_signature_api_admin_company_signature_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
-          "Authorized Signatories"
+          "Company Signature"
         ],
-        "summary": "Update Signatory Signature",
-        "description": "Sets or updates the official signature, calligraphy type, and title for a designated signatory.\n\nSECURITY ENFORCEMENT:\n1. Users can ONLY configure their OWN signature (`current_user.id == user_id`).\n   No other account (not even the company owner or admins) can set or edit someone else's signature.\n2. The user MUST hold an active role with `is_authorized_signatory = true`.",
-        "operationId": "update_signatory_signature_api_admin_signatories__user_id__signature_put",
+        "summary": "Update Company Signature",
+        "operationId": "update_company_signature_api_admin_company_signature_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCompanySignatureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/company-signature/history": {
+      "get": {
+        "tags": [
+          "Company Signature"
+        ],
+        "summary": "Get Company Signature History",
+        "operationId": "get_company_signature_history_api_admin_company_signature_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/company-signature/history/{version}": {
+      "get": {
+        "tags": [
+          "Company Signature"
+        ],
+        "summary": "Get Company Signature History Version",
+        "operationId": "get_company_signature_history_version_api_admin_company_signature_history__version__get",
         "parameters": [
           {
-            "name": "user_id",
+            "name": "version",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "User Id"
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/clients/{client_id}/invoices": {
+      "get": {
+        "tags": [
+          "Admin Invoices"
+        ],
+        "summary": "List Client Invoices",
+        "description": "List all invoices for a client, complete with line items and payment records.",
+        "operationId": "list_client_invoices_api_admin_clients__client_id__invoices_get",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Client Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Admin Invoices"
+        ],
+        "summary": "Create Client Invoice",
+        "description": "Create a new invoice directly attached to a Client 360 profile.\nAutomatically assigns invoice number, calculates amounts, line items, and payment terms.",
+        "operationId": "create_client_invoice_api_admin_clients__client_id__invoices_post",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Client Id"
             }
           }
         ],
@@ -9856,11 +11139,52 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateSignatorySignatureRequest"
+                "$ref": "#/components/schemas/CreateClientInvoicePayload"
               }
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/invoices/{invoice_id}": {
+      "get": {
+        "tags": [
+          "Admin Invoices"
+        ],
+        "summary": "Get Invoice Detail",
+        "description": "Get invoice details along with client metadata and full payment transaction history.",
+        "operationId": "get_invoice_detail_api_admin_invoices__invoice_id__get",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invoice Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9884,22 +11208,172 @@
       },
       "delete": {
         "tags": [
-          "Authorized Signatories"
+          "Admin Invoices"
         ],
-        "summary": "Delete Signatory Signature",
-        "description": "Clears the stored signature for a signatory.\nSECURITY: Only the signatory themselves can delete their signature.",
-        "operationId": "delete_signatory_signature_api_admin_signatories__user_id__signature_delete",
+        "summary": "Delete Invoice",
+        "description": "Delete or void an invoice.",
+        "operationId": "delete_invoice_api_admin_invoices__invoice_id__delete",
         "parameters": [
           {
-            "name": "user_id",
+            "name": "invoice_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "User Id"
+              "title": "Invoice Id"
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/invoices/{invoice_id}/render-pdf": {
+      "get": {
+        "tags": [
+          "Admin Invoices"
+        ],
+        "summary": "Render Invoice Pdf Endpoint",
+        "description": "Renders high-fidelity Letter PDF with official vector logo and saves to static uploads.",
+        "operationId": "render_invoice_pdf_endpoint_api_admin_invoices__invoice_id__render_pdf_get",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/invoices/{invoice_id}/send": {
+      "post": {
+        "tags": [
+          "Admin Invoices"
+        ],
+        "summary": "Send Invoice Email Endpoint",
+        "description": "Generates PDF and sends the official invoice via email with attachment.",
+        "operationId": "send_invoice_email_endpoint_api_admin_invoices__invoice_id__send_post",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SendInvoicePayload"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/invoices/{invoice_id}/payments": {
+      "post": {
+        "tags": [
+          "Admin Invoices"
+        ],
+        "summary": "Record Invoice Payment",
+        "description": "Record a payment against an invoice, automatically updating remaining balance and status.",
+        "operationId": "record_invoice_payment_api_admin_invoices__invoice_id__payments_post",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPaymentPayload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -10018,7 +11492,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
               }
             }
           }
@@ -10037,7 +11513,30 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness Check",
+        "operationId": "readiness_check_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessCheckResponse"
+                }
               }
             }
           }
@@ -10047,6 +11546,501 @@
   },
   "components": {
     "schemas": {
+      "ActivityActor": {
+        "properties": {
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "system"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          }
+        },
+        "type": "object",
+        "title": "ActivityActor"
+      },
+      "ActivityDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "events": {
+            "type": "integer",
+            "title": "Events",
+            "default": 0
+          },
+          "creates": {
+            "type": "integer",
+            "title": "Creates",
+            "default": 0
+          },
+          "updates": {
+            "type": "integer",
+            "title": "Updates",
+            "default": 0
+          },
+          "deletes": {
+            "type": "integer",
+            "title": "Deletes",
+            "default": 0
+          },
+          "security": {
+            "type": "integer",
+            "title": "Security",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "ActivityDay"
+      },
+      "ActivityDetail": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActivityActor"
+          },
+          "record": {
+            "$ref": "#/components/schemas/ActivityRecord"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Fields",
+            "default": []
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories",
+            "default": []
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes"
+          },
+          "old_values": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Values"
+          },
+          "new_values": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurred_at",
+          "source",
+          "action",
+          "actor",
+          "record"
+        ],
+        "title": "ActivityDetail"
+      },
+      "ActivityDetailResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActivityDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ActivityDetailResponse"
+      },
+      "ActivityEmployee": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "ActivityEmployee"
+      },
+      "ActivityEntry": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActivityActor"
+          },
+          "record": {
+            "$ref": "#/components/schemas/ActivityRecord"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Fields",
+            "default": []
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories",
+            "default": []
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "occurred_at",
+          "source",
+          "action",
+          "actor",
+          "record"
+        ],
+        "title": "ActivityEntry"
+      },
+      "ActivityFilterOptions": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "employees": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEmployee"
+            },
+            "type": "array",
+            "title": "Employees"
+          },
+          "record_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Record Types"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employees",
+          "record_types",
+          "categories",
+          "actions"
+        ],
+        "title": "ActivityFilterOptions"
+      },
+      "ActivityPage": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEntry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ActivityPage"
+      },
+      "ActivityRecord": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "ActivityRecord"
+      },
+      "ActivitySummary": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "events": {
+            "type": "integer",
+            "title": "Events"
+          },
+          "previous_events": {
+            "type": "integer",
+            "title": "Previous Events"
+          },
+          "creates": {
+            "type": "integer",
+            "title": "Creates"
+          },
+          "updates": {
+            "type": "integer",
+            "title": "Updates"
+          },
+          "deletes": {
+            "type": "integer",
+            "title": "Deletes"
+          },
+          "security": {
+            "type": "integer",
+            "title": "Security"
+          },
+          "active_employees": {
+            "type": "integer",
+            "title": "Active Employees"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_days",
+          "events",
+          "previous_events",
+          "creates",
+          "updates",
+          "deletes",
+          "security",
+          "active_employees",
+          "daily"
+        ],
+        "title": "ActivitySummary"
+      },
       "AddClientActivityPayload": {
         "properties": {
           "title": {
@@ -10344,6 +12338,72 @@
         ],
         "title": "Body_upload_and_send_estimate_api_admin_estimates_upload_and_send_post"
       },
+      "Body_upload_client_media_api_admin_clients__client_id__media_upload_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "binary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "title": "Body_upload_client_media_api_admin_clients__client_id__media_upload_post"
+      },
+      "Body_upload_client_media_api_admin_clients__client_id__upload_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "binary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "title": "Body_upload_client_media_api_admin_clients__client_id__upload_post"
+      },
       "Body_upload_current_avatar_api_admin_profile_avatar_post": {
         "properties": {
           "file": {
@@ -10372,6 +12432,20 @@
         },
         "type": "object",
         "title": "Body_upload_current_avatar_api_admin_profile_avatar_post"
+      },
+      "Body_upload_customization_image_api_admin_me_customizations_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_customization_image_api_admin_me_customizations_upload_post"
       },
       "Body_upload_estimate_client_photo_api_admin_estimates_upload_photo_post": {
         "properties": {
@@ -10427,6 +12501,17 @@
               }
             ],
             "title": "Lead Id"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
           },
           "contract_id": {
             "anyOf": [
@@ -11164,30 +13249,14 @@
         "title": "CompleteJobPayload"
       },
       "CounterSignContractRequest": {
+        "properties": {},
+        "type": "object",
+        "title": "CounterSignContractRequest",
+        "description": "Optional, ignored body. The company contractor signature is always applied server-side."
+      },
+      "CreateClientInvoicePayload": {
         "properties": {
-          "contractor_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contractor Name"
-          },
-          "contractor_title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contractor Title"
-          },
-          "signatory_id": {
+          "clientId": {
             "anyOf": [
               {
                 "type": "integer"
@@ -11196,9 +13265,31 @@
                 "type": "null"
               }
             ],
-            "title": "Signatory Id"
+            "title": "Clientid"
           },
-          "signature_data": {
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          },
+          "estimateId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimateid"
+          },
+          "invoiceNumber": {
             "anyOf": [
               {
                 "type": "string"
@@ -11207,9 +13298,9 @@
                 "type": "null"
               }
             ],
-            "title": "Signature Data"
+            "title": "Invoicenumber"
           },
-          "signature_type": {
+          "milestoneName": {
             "anyOf": [
               {
                 "type": "string"
@@ -11218,11 +13309,154 @@
                 "type": "null"
               }
             ],
-            "title": "Signature Type"
+            "title": "Milestonename",
+            "default": "Roofing Scope & Services"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "dueDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duedate"
+          },
+          "paymentTerms": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentterms",
+            "default": "Due Upon Receipt"
+          },
+          "lineItems": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lineitems"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "default": "pending"
+          },
+          "taxRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxrate",
+            "default": 0.0
+          },
+          "discountType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discounttype",
+            "default": "flat"
+          },
+          "discountValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discountvalue",
+            "default": 0.0
+          },
+          "depositAmount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depositamount",
+            "default": 0.0
+          },
+          "acceptedMethods": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptedmethods"
+          },
+          "paymentInstructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentinstructions"
           }
         },
         "type": "object",
-        "title": "CounterSignContractRequest"
+        "title": "CreateClientInvoicePayload"
       },
       "CreateClientPayload": {
         "properties": {
@@ -12849,6 +15083,60 @@
         ],
         "title": "CreateWarrantyPayload"
       },
+      "CustomizationPayload": {
+        "properties": {},
+        "additionalProperties": true,
+        "type": "object",
+        "title": "CustomizationPayload",
+        "description": "Slot-specific body; the strict per-slot model validates it in the service layer."
+      },
+      "CustomizationSaveResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Data"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Customization saved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CustomizationSaveResponse"
+      },
+      "CustomizationsMapResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "data": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "CustomizationsMapResponse"
+      },
       "DeveloperLoginRequest": {
         "properties": {
           "seedphrase": {
@@ -13747,6 +16035,45 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthCheckResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "env": {
+            "type": "string",
+            "title": "Env"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "redis": {
+            "type": "string",
+            "title": "Redis"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "env",
+          "database",
+          "redis",
+          "timestamp"
+        ],
+        "title": "HealthCheckResponse"
       },
       "HeroBannerSaveRequest": {
         "properties": {
@@ -15263,9 +17590,21 @@
             "minLength": 1,
             "title": "Password",
             "description": "Account password"
+          },
+          "remember_me": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remember Me",
+            "description": "Extend session duration across browser sessions",
+            "default": true
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "email",
@@ -15455,14 +17794,10 @@
           },
           "workCategory": {
             "type": "string",
-            "enum": [
-              "Rise Up",
-              "Content Creation",
-              "Marketing"
-            ],
+            "maxLength": 50,
             "title": "Workcategory",
-            "description": "Rise Up, Content Creation, Marketing",
-            "default": "Rise Up"
+            "description": "Custom category label",
+            "default": ""
           },
           "dueDate": {
             "anyOf": [
@@ -15577,14 +17912,10 @@
           },
           "workCategory": {
             "type": "string",
-            "enum": [
-              "Rise Up",
-              "Content Creation",
-              "Marketing"
-            ],
+            "maxLength": 50,
             "title": "Workcategory",
-            "description": "Rise Up, Content Creation, Marketing",
-            "default": "Rise Up"
+            "description": "Custom category label",
+            "default": ""
           },
           "dueDate": {
             "anyOf": [
@@ -15713,12 +18044,7 @@
           "workCategory": {
             "anyOf": [
               {
-                "type": "string",
-                "enum": [
-                  "Rise Up",
-                  "Content Creation",
-                  "Marketing"
-                ]
+                "type": "string"
               },
               {
                 "type": "null"
@@ -16050,6 +18376,45 @@
         ],
         "title": "QuoteSlidePayload"
       },
+      "ReadinessCheckResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "redis": {
+            "type": "string",
+            "title": "Redis"
+          },
+          "migrations": {
+            "type": "string",
+            "title": "Migrations"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status",
+          "ready",
+          "database",
+          "redis",
+          "migrations",
+          "timestamp"
+        ],
+        "title": "ReadinessCheckResponse"
+      },
       "ReassignLeadPayload": {
         "properties": {
           "new_user_id": {
@@ -16073,6 +18438,74 @@
           "new_user_id"
         ],
         "title": "ReassignLeadPayload"
+      },
+      "RecordPaymentPayload": {
+        "properties": {
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Amount"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "title": "Paymentmethod",
+            "default": "check"
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transactionid"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "paymentDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentdate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "title": "RecordPaymentPayload"
+      },
+      "ResendOtpRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Email",
+            "description": "Staff or applicant email address"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ResendOtpRequest"
       },
       "SavePhotoPayload": {
         "properties": {
@@ -16303,6 +18736,45 @@
         ],
         "title": "SendEstimateEmailPayload"
       },
+      "SendInvoicePayload": {
+        "properties": {
+          "customerEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customeremail"
+          },
+          "customerName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customername"
+          },
+          "customMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custommessage"
+          }
+        },
+        "type": "object",
+        "title": "SendInvoicePayload"
+      },
       "SendTwoOptionsEstimatePayload": {
         "properties": {
           "customerEmail": {
@@ -16341,6 +18813,125 @@
         },
         "type": "object",
         "title": "SendTwoOptionsEstimatePayload"
+      },
+      "SessionActionResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "revoked_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked Count"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "SessionActionResponse"
+      },
+      "SessionItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "SessionItem"
+      },
+      "SessionListResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionItem"
+            },
+            "type": "array",
+            "title": "Sessions"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "title": "SessionListResponse"
       },
       "SignContractRequest": {
         "properties": {
@@ -16965,6 +19556,68 @@
         "type": "object",
         "title": "UpdateClientPayload"
       },
+      "UpdateCompanySignatureRequest": {
+        "properties": {
+          "signer_name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 2,
+            "title": "Signer Name"
+          },
+          "signer_title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Signer Title"
+          },
+          "signature_type": {
+            "type": "string",
+            "enum": [
+              "typed",
+              "drawn"
+            ],
+            "title": "Signature Type"
+          },
+          "signature_data": {
+            "type": "string",
+            "maxLength": 700000,
+            "minLength": 1,
+            "title": "Signature Data"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signer_name",
+          "signer_title",
+          "signature_type",
+          "signature_data"
+        ],
+        "title": "UpdateCompanySignatureRequest"
+      },
       "UpdateCrewPayload": {
         "properties": {
           "id": {
@@ -17206,51 +19859,6 @@
           "value"
         ],
         "title": "UpdateSettingsPayload"
-      },
-      "UpdateSignatorySignatureRequest": {
-        "properties": {
-          "signature_name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 150
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Signature Name"
-          },
-          "signature_title": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Signature Title",
-            "default": "Project Manager"
-          },
-          "signature_type": {
-            "type": "string",
-            "pattern": "^(typed|drawn)$",
-            "title": "Signature Type",
-            "default": "typed"
-          },
-          "signature_data": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Signature Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "signature_data"
-        ],
-        "title": "UpdateSignatorySignatureRequest"
       },
       "UpdateTaskPayload": {
         "properties": {
@@ -17658,6 +20266,30 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifyOtpRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Email",
+            "description": "Staff or applicant email address"
+          },
+          "otp": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 4,
+            "title": "Otp",
+            "description": "6-digit verification code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "otp"
+        ],
+        "title": "VerifyOtpRequest"
       }
     }
   }

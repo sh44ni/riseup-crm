@@ -147,9 +147,13 @@ export function usePipelineDealData(
     }
   };
 
+  const resolvedClientId =
+    leadDetail?.client_id || (deal as any)?.clientId || (deal as any)?.client_id;
+
   const handleSaveContact = async (data: ClientContactData) => {
     if (!deal?.id) return;
     try {
+      // 1. Update lead via leads API
       await api.updateLead(deal.id, {
         full_name: data.name,
         email: data.email,
@@ -158,6 +162,24 @@ export function usePipelineDealData(
         city: data.city,
         zip: data.zip,
       });
+
+      // 2. Directly sync to Client 360 record if client ID is known
+      const targetClientId =
+        leadDetail?.client_id || (deal as any)?.clientId || (deal as any)?.client_id;
+      if (targetClientId) {
+        try {
+          await api.updateClient(targetClientId, {
+            full_name: data.name,
+            email: data.email,
+            phone: data.phone,
+            address: data.address,
+            city: data.city,
+            zip: data.zip,
+          });
+        } catch {
+          // Backend lead sync already synchronizes to clients table
+        }
+      }
 
       queryClient.invalidateQueries({ queryKey: queryKeys.pipeline.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all() });
@@ -172,6 +194,26 @@ export function usePipelineDealData(
         zip: data.zip,
       });
 
+      setLeadDetail((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              full_name: data.name,
+              phone: data.phone,
+              email: data.email,
+              address: data.address,
+              city: data.city,
+              zip: data.zip,
+            }
+          : prev
+      );
+
+      const locationStr = data.address
+        ? `${data.address}${data.city ? `, ${data.city}` : ''}`
+        : data.city
+        ? `${data.city}, CA`
+        : 'No address provided';
+
       if (onUpdateDeal) {
         onUpdateDeal({
           ...deal,
@@ -180,9 +222,11 @@ export function usePipelineDealData(
           email: data.email,
           address: data.address,
           city: data.city,
+          zip: data.zip,
+          location: locationStr,
         });
       }
-      toast.success('Contact info updated');
+      toast.success('Contact info updated and saved to Client 360');
     } catch (err: unknown) {
       toast.error('Failed to update contact info');
       throw err;
@@ -418,6 +462,7 @@ export function usePipelineDealData(
 
   return {
     leadDetail,
+    resolvedClientId,
     activities,
     isLoadingDetails,
     notes,

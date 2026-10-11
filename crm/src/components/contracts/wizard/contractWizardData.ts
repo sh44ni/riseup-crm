@@ -219,9 +219,9 @@ export function getContractDataPayload(data: ContractStudioData, stepOverride?: 
     five_day_notice_text: data.fiveDayNoticeText || DEFAULT_FIVE_DAY_NOTICE_TEXT,
     jobsite_standards_text: data.jobsiteStandardsText || DEFAULT_JOBSITE_STANDARDS_TEXT,
     decking_allowance_text: data.deckingAllowanceText || DEFAULT_DECKING_ALLOWANCE_TEXT,
-    is_representative_signatory: Boolean(data.isRepresentativeSignatory),
-    representative_name: data.representativeName || data.preparedByName || data.salespersonName || '',
-    representative_title: data.representativeTitle || data.preparedByTitle || 'Project Manager',
+    // Company contractor signatory (server re-stamps these from the current company signature).
+    contractor_signatory_name: data.contractorSignatoryName || '',
+    contractor_signatory_title: data.contractorSignatoryTitle || '',
     wizard_step: stepOverride !== undefined ? stepOverride : (data.wizardStep ?? 0),
     wizardStep: stepOverride !== undefined ? stepOverride : (data.wizardStep ?? 0),
   };
@@ -260,11 +260,8 @@ export function restoreFromContractData(
   if (data.property_photo_url) updates.propertyPhotoUrl = String(data.property_photo_url);
   if (data.prepared_by_name) updates.preparedByName = String(data.prepared_by_name);
   if (data.prepared_by_title) updates.preparedByTitle = String(data.prepared_by_title);
-  if (data.is_representative_signatory !== undefined) {
-    updates.isRepresentativeSignatory = Boolean(data.is_representative_signatory);
-  }
-  if (data.representative_name) updates.representativeName = String(data.representative_name);
-  if (data.representative_title) updates.representativeTitle = String(data.representative_title);
+  if (data.contractor_signatory_name) updates.contractorSignatoryName = String(data.contractor_signatory_name);
+  if (data.contractor_signatory_title) updates.contractorSignatoryTitle = String(data.contractor_signatory_title);
   if (data.client_name || contractRow.customer_name) {
     updates.clientName = String(data.client_name || contractRow.customer_name);
   }

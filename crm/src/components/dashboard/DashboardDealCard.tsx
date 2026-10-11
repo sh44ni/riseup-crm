@@ -11,6 +11,18 @@ export interface DashboardDealCardProps {
   canClaimLead: boolean;
   canReassignLead: boolean;
   isDark: boolean;
+  isEditingAddress?: boolean;
+  addressFormStreet?: string;
+  addressFormCity?: string;
+  addressFormZip?: string;
+  isSavingAddress?: boolean;
+  addressSaveError?: string | null;
+  onStreetChange?: (val: string) => void;
+  onCityChange?: (val: string) => void;
+  onZipChange?: (val: string) => void;
+  onStartEditAddress?: (deal: PipelineDealItem, e: React.SyntheticEvent) => void;
+  onCancelEditAddress?: (e?: React.SyntheticEvent) => void;
+  onSaveAddress?: (deal: PipelineDealItem, e: React.SyntheticEvent) => void;
   onDragStart: (cardId: string, colId: string) => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -28,6 +40,18 @@ function DashboardDealCardComponent({
   canClaimLead,
   canReassignLead,
   isDark,
+  isEditingAddress,
+  addressFormStreet,
+  addressFormCity,
+  addressFormZip,
+  isSavingAddress,
+  addressSaveError,
+  onStreetChange,
+  onCityChange,
+  onZipChange,
+  onStartEditAddress,
+  onCancelEditAddress,
+  onSaveAddress,
   onDragStart,
   onDragEnd,
   onClick,
@@ -39,6 +63,7 @@ function DashboardDealCardComponent({
   // Adapt Dashboard DealCard to PipelineDealItem
   const dealItem: PipelineDealItem = {
     id: card.id,
+    clientId: card.clientId != null ? Number(card.clientId) : undefined,
     name: card.name || 'Unnamed Lead',
     address: card.address || (card.location ? card.location : ''),
     city: card.city || '',
@@ -99,6 +124,18 @@ function DashboardDealCardComponent({
       canClaimLead={canClaimLead}
       canReassignLead={canReassignLead}
       isDark={isDark}
+      isEditingAddress={isEditingAddress}
+      addressFormStreet={addressFormStreet}
+      addressFormCity={addressFormCity}
+      addressFormZip={addressFormZip}
+      isSavingAddress={isSavingAddress}
+      addressSaveError={addressSaveError}
+      onStreetChange={onStreetChange}
+      onCityChange={onCityChange}
+      onZipChange={onZipChange}
+      onStartEditAddress={onStartEditAddress}
+      onCancelEditAddress={onCancelEditAddress}
+      onSaveAddress={onSaveAddress}
       onSelectDeal={() => onClick()}
       onDragStart={(id, stageId) => onDragStart(id, stageId)}
       onDragEnd={onDragEnd}
@@ -128,6 +165,7 @@ function areDashboardDealCardPropsEqual(
   if (prev.card.address !== next.card.address) return false;
   if (prev.card.location !== next.card.location) return false;
   if (prev.card.city !== next.card.city) return false;
+  if (prev.card.zip !== next.card.zip) return false;
   if (prev.card.service !== next.card.service) return false;
   if (prev.card.serviceColor !== next.card.serviceColor) return false;
   if (prev.card.roofSqf !== next.card.roofSqf) return false;
@@ -141,6 +179,14 @@ function areDashboardDealCardPropsEqual(
   if (prev.isDark !== next.isDark) return false;
   if (prev.col.id !== next.col.id) return false;
   if (prev.col.accentColor !== next.col.accentColor) return false;
+  if (prev.isEditingAddress !== next.isEditingAddress) return false;
+  if (next.isEditingAddress) {
+    if (prev.addressFormStreet !== next.addressFormStreet) return false;
+    if (prev.addressFormCity !== next.addressFormCity) return false;
+    if (prev.addressFormZip !== next.addressFormZip) return false;
+    if (prev.isSavingAddress !== next.isSavingAddress) return false;
+    if (prev.addressSaveError !== next.addressSaveError) return false;
+  }
   return true;
 }
 

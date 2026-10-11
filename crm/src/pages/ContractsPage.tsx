@@ -26,8 +26,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 
 export function ContractsPage() {
-  const { user, isOwner } = useAuth();
-  const canCounterSign = isOwner || Boolean(user?.is_authorized_signatory);
+  const { canSignature } = useAuth();
+  const canCounterSign = canSignature('use');
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();

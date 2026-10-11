@@ -48,6 +48,7 @@ export function PipelineDealModal({
 
   const {
     leadDetail,
+    resolvedClientId,
     activities,
     isLoadingDetails,
     notes,
@@ -293,7 +294,7 @@ export function PipelineDealModal({
           isOpen={isEditContactOpen}
           onClose={() => setIsEditContactOpen(false)}
           clientName={displayName}
-          clientId={(deal as any).clientId || (deal as any).client_id || leadDetail?.client_id}
+          clientId={resolvedClientId || (deal as any)?.clientId || (deal as any)?.client_id || leadDetail?.client_id}
           initialData={{
             name: displayName,
             email: displayEmail,

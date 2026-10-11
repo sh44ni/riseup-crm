@@ -42,7 +42,7 @@ DEFAULT_CONTRACT_DATA: Dict[str, Any] = {
     "contract_date_short": "Oct 1, 2026",
     "contract_title": "HOME IMPROVEMENT CONTRACT",
     "property_photo_url": "",
-    "prepared_by_name": "Edith Guerrero",
+    "prepared_by_name": "",
     "prepared_by_title": "Project Manager",
     "scope_title": "TILE ROOF LIFT & RELAY",
     "scope_intro": "Rise Up Roofing & Construction, Inc. will complete the following roofing, preventative maintenance, exterior waterproofing, and interior repair work at the property:",
@@ -138,9 +138,9 @@ DEFAULT_CONTRACT_DATA: Dict[str, Any] = {
     "five_day_notice_text": "The Client has the right to cancel this contract within five business days. You may cancel by e-mailing, mailing, faxing, or delivering a written notice to the Contractor at the Contractor’s place of business by midnight of the fifth business day after you received a signed and dated copy of the contract that includes this notice. Include your name, your address, and the date you received the signed copy of the contract and this notice.",
     "jobsite_standards_text": "Contractor warrants that all jobsite safety protocols, property protection tarps, landscape barriers, and magnetic sweeps of driveways and walkways are conducted daily. All roofing work adheres strictly to manufacturer specifications and California Building Standards Code (Title 24).",
     "decking_allowance_text": "Pricing is based on the existing roof structure being in serviceable condition. Concealed structural damage, deteriorated wood, or framing repairs will be reviewed before proceeding and documented via written change order.",
-    "is_representative_signatory": False,
-    "representative_name": "",
-    "representative_title": "Project Manager",
+    # Company contractor signatory (configured in Settings → Company Signature; stamped server-side)
+    "contractor_signatory_name": "",
+    "contractor_signatory_title": "",
 }
 
 
@@ -197,9 +197,8 @@ def merge_contract_defaults(user_data: Dict[str, Any]) -> Dict[str, Any]:
         "fiveDayNoticeText": "five_day_notice_text",
         "jobsiteStandardsText": "jobsite_standards_text",
         "deckingAllowanceText": "decking_allowance_text",
-        "isRepresentativeSignatory": "is_representative_signatory",
-        "representativeName": "representative_name",
-        "representativeTitle": "representative_title",
+        "contractorSignatoryName": "contractor_signatory_name",
+        "contractorSignatoryTitle": "contractor_signatory_title",
     }
 
     normalized_user_data = dict(user_data)

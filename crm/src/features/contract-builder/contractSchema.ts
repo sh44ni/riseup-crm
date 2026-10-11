@@ -95,6 +95,8 @@ export const ContractFormSchema = z.object({
   clientSignatureData: z.string().optional().default(''),
   clientSignatureType: z.enum(['typed', 'drawn']).optional(),
   clientSignatureTime: z.string().optional(),
+  contractorSignatoryName: z.string().optional().default(''),
+  contractorSignatoryTitle: z.string().optional().default(''),
   contractorSignatureName: z.string().optional().default(''),
   contractorSignatureData: z.string().optional().default(''),
   contractor_signature_data: z.string().optional().default(''),

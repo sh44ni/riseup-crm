@@ -7,7 +7,7 @@ Build Contract → Send Contract → Client Digital Signature → Contractor Cou
 import pytest
 from datetime import datetime, timezone
 from sqlalchemy import text
-from tests.factories import make_user, login_as
+from tests.factories import make_user, login_as, clear_company_signature, TEST_SIGNATURE_PNG
 
 
 @pytest.mark.asyncio
@@ -23,18 +23,24 @@ async def test_full_lead_to_contract_journey(client, db):
     7. Authorized Company Signatory reviews and counter-signs, fully executing the contract
     """
     # ── Setup Staff Users ──
-    owner = await make_user(db, role="owner", name="Edith Signatory", email="edith@test.local")
-    # Grant authorized signatory role & configure signature
-    await db.execute(text("UPDATE roles SET is_authorized_signatory = true WHERE name = 'Owner'"))
-    await db.execute(text("""
-        UPDATE users
-        SET signature_data = 'data:image/png;base64,mock_edith_sig',
-            signature_type = 'drawn',
-            signature_title = 'President'
-        WHERE id = :uid
-    """), {"uid": owner.id})
+    owner = await make_user(db, role="owner", name="Owner Operator", email="owner-op@test.local")
+    await clear_company_signature(db)
     await db.commit()
     auth_owner = await login_as(owner, db)
+
+    # Configure the company contractor signature (Edith Guerrero) through Settings
+    setup_res = await client.put(
+        "/api/admin/company-signature",
+        json={
+            "signer_name": "Edith Guerrero",
+            "signer_title": "President",
+            "signature_type": "drawn",
+            "signature_data": TEST_SIGNATURE_PNG,
+        },
+        headers=auth_owner,
+    )
+    assert setup_res.status_code == 200, setup_res.text
+    assert setup_res.json()["action"] == "configured"
 
     # ── Step 1: Create Lead ──
     lead_payload = {
@@ -136,6 +142,8 @@ async def test_full_lead_to_contract_journey(client, db):
     pub_view = await client.get(f"/api/contract/{signing_token}")
     assert pub_view.status_code == 200
     assert pub_view.json()["contract"]["clientName"] == "Eleanor Vance"
+    assert pub_view.json()["contract"]["contractorSignatoryName"] == "Edith Guerrero"
+    assert pub_view.json()["contract"]["contractorSignatoryTitle"] == "President"
 
     # Homeowner signs with California CSLB statutory acknowledgments
     sign_payload = {
@@ -165,23 +173,19 @@ async def test_full_lead_to_contract_journey(client, db):
     est_check = await db.execute(text("SELECT status FROM estimates WHERE id = :id"), {"id": estimate_id})
     assert est_check.scalar() == "accepted"
 
-    # ── Step 7: Authorized Signatory Counter-Signs ──
-    counter_payload = {
-        "contractor_name": "Edith Signatory",
-        "contractor_title": "President",
-        "signature_data": "data:image/png;base64,mock_edith_sig",
-        "signature_type": "drawn",
-    }
-    counter_res = await client.post(f"/api/admin/contracts/{contract_id}/counter-sign", json=counter_payload, headers=auth_owner)
+    # ── Step 7: Company signature is applied (counter-sign) ──
+    counter_res = await client.post(f"/api/admin/contracts/{contract_id}/counter-sign", json={}, headers=auth_owner)
     assert counter_res.status_code == 200
     assert counter_res.json()["success"] is True
     assert counter_res.json()["status"] == "signed"
+    assert counter_res.json()["contractor_signatory_name"] == "Edith Guerrero"
 
     # Verify contract fully executed
-    final_contract = await db.execute(text("SELECT status, counter_signed_at FROM contracts WHERE id = :id"), {"id": contract_id})
+    final_contract = await db.execute(text("SELECT status, counter_signed_at, counter_signed_by FROM contracts WHERE id = :id"), {"id": contract_id})
     fc_row = final_contract.mappings().first()
     assert fc_row["status"] == "signed"
     assert fc_row["counter_signed_at"] is not None
+    assert fc_row["counter_signed_by"] == owner.id
 
     # Verify lead pipeline stage advanced to contract_signed and won
     final_lead = await db.execute(text("SELECT pipeline_stage, status FROM leads WHERE id = :id"), {"id": lead_id})

@@ -25,6 +25,14 @@ export const API_ORIGIN = getBackendBaseUrl();
 import { isPublicEndpoint, isOnPublicPage } from '@/shared/api/publicRoutes';
 import { getCsrfToken, setCsrfToken } from '@/shared/api/client';
 import { formatPersonName, formatStreetAddress, formatCityName, formatZipCode } from '@/utils/formatters';
+import type { SignatureAccess } from '@/lib/signatureAccess';
+import type {
+  CompanySignatureHistoryResponse,
+  CompanySignatureResponse,
+  CompanySignatureStatus,
+  CompanySignatureUpdatePayload,
+  CompanySignatureVersionDetail,
+} from '@/types/companySignatureTypes';
 
 export function normalizePersonAndAddressPayload<T extends Record<string, any>>(payload: T): T {
   if (!payload || typeof payload !== 'object') return payload;
@@ -607,7 +615,7 @@ class ApiClient {
   async createRole(data: {
     name: string;
     description?: string;
-    is_authorized_signatory?: boolean;
+    signature_access?: SignatureAccess;
     permissions?: Array<{ permission_id: number; scope: string }>;
     modules?: Record<string, { view: string; manage: boolean }>;
   }) {
@@ -622,7 +630,7 @@ class ApiClient {
     data: {
       name?: string;
       description?: string;
-      is_authorized_signatory?: boolean;
+      signature_access?: SignatureAccess;
       permissions?: Array<{ permission_id: number; scope: string }>;
       modules?: Record<string, { view: string; manage: boolean }>;
     }
@@ -639,29 +647,32 @@ class ApiClient {
     });
   }
 
-  // ── Authorized Signatories ──
-  async getSignatories(): Promise<{ signatories: any[]; total: number; configured_count: number }> {
-    return this.request('/admin/signatories');
+  // ── Company Contractor Signature (single, shared) ──
+  /** Lightweight status (no image) — available to any signed-in user. */
+  async getCompanySignatureStatus(): Promise<CompanySignatureStatus> {
+    return this.request('/admin/company-signature/status');
   }
 
-  async updateSignatorySignature(
-    userId: number | string,
-    data: {
-      signature_name?: string;
-      signature_title?: string;
-      signature_type: 'typed' | 'drawn';
-      signature_data: string;
-    }
-  ) {
-    return this.request(`/admin/signatories/${userId}/signature`, {
+  /** Current signature incl. image — requires `view` signature access. */
+  async getCompanySignature(): Promise<CompanySignatureResponse> {
+    return this.request('/admin/company-signature');
+  }
+
+  /** Append-only change history, newest first (no images) — requires `view`. */
+  async getCompanySignatureHistory(): Promise<CompanySignatureHistoryResponse> {
+    return this.request('/admin/company-signature/history');
+  }
+
+  /** A single historical version incl. its signature image/text — requires `view`. */
+  async getCompanySignatureVersion(version: number): Promise<CompanySignatureVersionDetail> {
+    return this.request(`/admin/company-signature/history/${encodeURIComponent(version)}`);
+  }
+
+  /** Configure (first time) or change the company signature — requires `edit`. */
+  async updateCompanySignature(body: CompanySignatureUpdatePayload): Promise<any> {
+    return this.request('/admin/company-signature', {
       method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteSignatorySignature(userId: number | string) {
-    return this.request(`/admin/signatories/${userId}/signature`, {
-      method: 'DELETE',
+      body: JSON.stringify(body),
     });
   }
 

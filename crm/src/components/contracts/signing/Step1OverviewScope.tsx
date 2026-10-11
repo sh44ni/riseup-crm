@@ -44,7 +44,11 @@ export function Step1OverviewScope({
             Contract Agreement Parties:
           </div>
           <p>
-            This contract (“Contract”) is between <strong>{contract.clientName}</strong> (the “Client”) and <strong>Rise Up Roofing and Construction, Inc.</strong> / <strong>{contract.contractorName}</strong> (the “Contractor”).
+            This contract (“Contract”) is between <strong>{contract.clientName}</strong> (the “Client”) and <strong>Rise Up Roofing and Construction, Inc.</strong>
+            {contract.contractorSignatoryName ? (
+              <> / <strong>{contract.contractorSignatoryName}</strong></>
+            ) : null}{' '}
+            (the “Contractor”).
           </p>
           <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
             <div>

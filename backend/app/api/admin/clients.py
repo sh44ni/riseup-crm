@@ -333,7 +333,7 @@ async def check_contact_conflict(
     db: AsyncSession,
     email: Optional[str] = None,
     phone: Optional[str] = None,
-    exclude_client_id: Optional[int] = None
+    exclude_client_id: Optional[Any] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Checks whether a client already exists with the given email or phone number.
@@ -347,6 +347,15 @@ async def check_contact_conflict(
     clean_email = email.strip().lower() if email and str(email).strip() else None
     norm_phone = normalize_phone(phone) if phone and str(phone).strip() else None
 
+    clean_exc_id: Optional[int] = None
+    if exclude_client_id is not None:
+        try:
+            s = str(exclude_client_id).strip()
+            if s and s.lower() not in ("null", "undefined", "none"):
+                clean_exc_id = int(s)
+        except (ValueError, TypeError):
+            clean_exc_id = None
+
     # 1. Check Email
     if clean_email:
         email_query = """
@@ -355,9 +364,9 @@ async def check_contact_conflict(
             WHERE LOWER(email) = :email
         """
         params: Dict[str, Any] = {"email": clean_email}
-        if exclude_client_id:
+        if clean_exc_id is not None:
             email_query += " AND id != :exc_id"
-            params["exc_id"] = exclude_client_id
+            params["exc_id"] = clean_exc_id
         email_query += " ORDER BY id ASC LIMIT 1"
         row = (await db.execute(text(email_query), params)).first()
         if row:
@@ -385,9 +394,9 @@ async def check_contact_conflict(
             )
         """
         params = {"norm": norm_phone}
-        if exclude_client_id:
+        if clean_exc_id is not None:
             phone_query += " AND id != :exc_id"
-            params["exc_id"] = exclude_client_id
+            params["exc_id"] = clean_exc_id
         phone_query += " ORDER BY id ASC LIMIT 1"
         row = (await db.execute(text(phone_query), params)).first()
         if row:
@@ -411,7 +420,7 @@ async def check_contact_conflict(
 async def check_client_contact(
     email: Optional[str] = Query(None),
     phone: Optional[str] = Query(None),
-    exclude_client_id: Optional[int] = Query(None),
+    exclude_client_id: Optional[Any] = Query(None),
     user: Dict[str, Any] = Depends(require_permission("clients:view")),
     db: AsyncSession = Depends(get_db)
 ):

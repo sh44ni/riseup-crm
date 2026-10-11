@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
+import { hasSignatureAccess, type SignatureAccess } from '@/lib/signatureAccess';
 
 export interface User {
   id: number;
@@ -10,11 +11,8 @@ export interface User {
   avatar_url?: string;
   permissions?: Record<string, string>;
   is_protected_owner?: boolean;
-  is_authorized_signatory?: boolean;
-  has_signature?: boolean;
-  signature_title?: string;
-  signature_type?: string;
-  signature_data?: string;
+  /** Company signature access level resolved from the user's role(s). */
+  signature_access?: SignatureAccess;
 }
 
 export interface AuthContextType {
@@ -32,6 +30,8 @@ export interface AuthContextType {
   can: (permission: string) => boolean;
   getScope: (permission: string) => 'none' | 'own' | 'assigned' | 'all';
   hasRole: (roleName: string) => boolean;
+  /** Company signature access check (hierarchical: edit ⊃ use ⊃ view). Owner always passes. */
+  canSignature: (level: Exclude<SignatureAccess, 'none'>) => boolean;
 }
 
 import { isExternalPublicPage } from '@/shared/api/publicRoutes';
@@ -209,6 +209,17 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
     [user]
   );
 
+  const canSignature = useCallback(
+    (level: Exclude<SignatureAccess, 'none'>): boolean => {
+      if (!user) return false;
+      if (user.role === 'owner' || user.is_protected_owner || user.permissions?.['*'] === 'all') {
+        return true;
+      }
+      return hasSignatureAccess(user.signature_access, level);
+    },
+    [user]
+  );
+
   const contextValue = useMemo(
     () => ({
       user,
@@ -225,6 +236,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       can,
       getScope,
       hasRole,
+      canSignature,
     }),
     [
       user,
@@ -241,6 +253,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
       can,
       getScope,
       hasRole,
+      canSignature,
     ]
   );
 

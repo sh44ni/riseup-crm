@@ -846,6 +846,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/auth/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Otp */
+        post: operations["verify_otp_api_admin_auth_verify_otp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/auth/resend-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resend Otp */
+        post: operations["resend_otp_api_admin_auth_resend_otp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/auth/logout": {
         parameters: {
             query?: never;
@@ -858,6 +892,41 @@ export interface paths {
         /** Logout */
         post: operations["logout_api_admin_auth_logout_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List User Sessions */
+        get: operations["list_user_sessions_api_admin_auth_sessions_get"];
+        put?: never;
+        post?: never;
+        /** Revoke Other Sessions */
+        delete: operations["revoke_other_sessions_api_admin_auth_sessions_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/auth/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Session */
+        delete: operations["revoke_session_api_admin_auth_sessions__session_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1501,6 +1570,57 @@ export interface paths {
         /** Add Client Document */
         post: operations["add_client_document_api_admin_clients__client_id__documents_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/clients/{client_id}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Client Media */
+        post: operations["upload_client_media_api_admin_clients__client_id__upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/clients/{client_id}/media/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Client Media */
+        post: operations["upload_client_media_api_admin_clients__client_id__media_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/clients/{client_id}/media/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Client Document */
+        delete: operations["delete_client_document_api_admin_clients__client_id__media__document_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2763,6 +2883,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/me/customizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Customizations */
+        get: operations["get_my_customizations_api_admin_me_customizations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/me/customizations/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Customization Image */
+        post: operations["upload_customization_image_api_admin_me_customizations_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/me/customizations/{slot_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save My Customization */
+        put: operations["save_my_customization_api_admin_me_customizations__slot_key__put"];
+        post?: never;
+        /** Reset My Customization */
+        delete: operations["reset_my_customization_api_admin_me_customizations__slot_key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Activity */
+        get: operations["list_activity_api_admin_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/activity/filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity Filter Options */
+        get: operations["activity_filter_options_api_admin_activity_filters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/activity/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity Summary */
+        get: operations["activity_summary_api_admin_activity_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/activity/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Activity Csv */
+        get: operations["export_activity_csv_api_admin_activity_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/activity/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Activity Entry */
+        get: operations["get_activity_entry_api_admin_activity__entry_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/calendar/events/weather": {
         parameters: {
             query?: never;
@@ -3055,8 +3312,8 @@ export interface paths {
         };
         /**
          * Preview Contract
-         * @description Return a redirect to the stored PDF file for browser-based preview.
-         *     If no PDF is stored, returns 404.
+         * @description Return a redirect to the stored PDF file for browser-based preview or version-specific download.
+         *     Supports versions: 'draft', 'partially_executed', 'fully_executed'.
          */
         get: operations["preview_contract_api_admin_contracts__contract_id__preview_get"];
         put?: never;
@@ -3097,11 +3354,58 @@ export interface paths {
         /**
          * Get Draft By Lead
          * @description Return the single active unarchived draft contract for a lead, if one exists.
+         *     Also checks contracts associated with the lead's client_id.
          */
         get: operations["get_draft_by_lead_api_admin_contracts_draft_by_lead__lead_id__get"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/contracts/draft-by-client/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Draft By Client
+         * @description Return the single active unarchived draft contract for a client, if one exists.
+         *     Checks contracts with matching client_id OR matching lead that belongs to this client.
+         */
+        get: operations["get_draft_by_client_api_admin_contracts_draft_by_client__client_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/contracts/{contract_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Contract By Id
+         * @description Return a single contract record including parsed contract_data.
+         */
+        get: operations["get_contract_by_id_api_admin_contracts__contract_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Contract
+         * @description Delete a contract draft. Only draft contracts can be hard-deleted.
+         *     Executed/sent contracts must be archived instead.
+         */
+        delete: operations["delete_contract_api_admin_contracts__contract_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3123,27 +3427,6 @@ export interface paths {
         put: operations["autosave_contract_draft_api_admin_contracts__contract_id__draft_put"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/contracts/{contract_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Contract
-         * @description Delete a contract draft. Only draft contracts can be hard-deleted.
-         *     Executed/sent contracts must be archived instead.
-         */
-        delete: operations["delete_contract_api_admin_contracts__contract_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3231,10 +3514,14 @@ export interface paths {
          * @description Contractor counter-signs a contract, transitioning it from 1-Party Signed ('client_signed')
          *     to Fully Executed ('signed').
          *
+         *     The contractor signature is always the single company signature (configured in
+         *     Settings → Company Signature). Any user whose role grants signature access 'use' (or higher)
+         *     may apply it; the applying user is recorded as ``counter_signed_by``.
+         *
          *     Actions executed:
          *     1. Sets contracts.status → 'signed'
          *     2. Sets contracts.counter_signed_at → now() and counter_signed_by → current_user.id
-         *     3. Merges contractor signature into contract_data and compiles the final executed PDF
+         *     3. Merges the company signature into contract_data and compiles the final executed PDF
          *     4. Advances leads.pipeline_stage → 'contract_signed', contract_signed_at → now(), status → 'won'
          *     5. Sends transactional email with the final executed PDF attached to the homeowner
          *     6. Dispatches SMS with direct download link for the executed PDF
@@ -3247,7 +3534,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/signatories": {
+    "/api/admin/company-signature/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -3255,15 +3542,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Authorized Signatories
-         * @description Returns all active users who are assigned to at least one role with
-         *     `is_authorized_signatory = true`.
-         *
-         *     SECURITY: The raw `signature_data` (ink/calligraphy) is returned ONLY to the
-         *     signatory themselves (is_self=True). For all other users (even admins and owners),
-         *     `signature_data` is masked to null to protect signature privacy and prevent copying.
+         * Get Company Signature Status
+         * @description Image-free status. Any signed-in user may check whether the signature is configured.
          */
-        get: operations["list_authorized_signatories_api_admin_signatories_get"];
+        get: operations["get_company_signature_status_api_admin_company_signature_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3272,7 +3554,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/signatories/{user_id}/signature": {
+    "/api/admin/company-signature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Company Signature */
+        get: operations["get_company_signature_api_admin_company_signature_get"];
+        /** Update Company Signature */
+        put: operations["update_company_signature_api_admin_company_signature_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/company-signature/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Company Signature History */
+        get: operations["get_company_signature_history_api_admin_company_signature_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/company-signature/history/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Company Signature History Version */
+        get: operations["get_company_signature_history_version_api_admin_company_signature_history__version__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/clients/{client_id}/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Invoices
+         * @description List all invoices for a client, complete with line items and payment records.
+         */
+        get: operations["list_client_invoices_api_admin_clients__client_id__invoices_get"];
+        put?: never;
+        /**
+         * Create Client Invoice
+         * @description Create a new invoice directly attached to a Client 360 profile.
+         *     Automatically assigns invoice number, calculates amounts, line items, and payment terms.
+         */
+        post: operations["create_client_invoice_api_admin_clients__client_id__invoices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Invoice Detail
+         * @description Get invoice details along with client metadata and full payment transaction history.
+         */
+        get: operations["get_invoice_detail_api_admin_invoices__invoice_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Invoice
+         * @description Delete or void an invoice.
+         */
+        delete: operations["delete_invoice_api_admin_invoices__invoice_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/invoices/{invoice_id}/render-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Render Invoice Pdf Endpoint
+         * @description Renders high-fidelity Letter PDF with official vector logo and saves to static uploads.
+         */
+        get: operations["render_invoice_pdf_endpoint_api_admin_invoices__invoice_id__render_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/invoices/{invoice_id}/send": {
         parameters: {
             query?: never;
             header?: never;
@@ -3280,23 +3683,33 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        put?: never;
         /**
-         * Update Signatory Signature
-         * @description Sets or updates the official signature, calligraphy type, and title for a designated signatory.
-         *
-         *     SECURITY ENFORCEMENT:
-         *     1. Users can ONLY configure their OWN signature (`current_user.id == user_id`).
-         *        No other account (not even the company owner or admins) can set or edit someone else's signature.
-         *     2. The user MUST hold an active role with `is_authorized_signatory = true`.
+         * Send Invoice Email Endpoint
+         * @description Generates PDF and sends the official invoice via email with attachment.
          */
-        put: operations["update_signatory_signature_api_admin_signatories__user_id__signature_put"];
-        post?: never;
+        post: operations["send_invoice_email_endpoint_api_admin_invoices__invoice_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/invoices/{invoice_id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         /**
-         * Delete Signatory Signature
-         * @description Clears the stored signature for a signatory.
-         *     SECURITY: Only the signatory themselves can delete their signature.
+         * Record Invoice Payment
+         * @description Record a payment against an invoice, automatically updating remaining balance and status.
          */
-        delete: operations["delete_signatory_signature_api_admin_signatories__user_id__signature_delete"];
+        post: operations["record_invoice_payment_api_admin_invoices__invoice_id__payments_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3404,10 +3817,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness Check */
+        get: operations["readiness_check_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActivityActor */
+        ActivityActor: {
+            /** User Id */
+            user_id?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Role */
+            role?: string | null;
+            /**
+             * Type
+             * @default system
+             */
+            type: string;
+            /** Ip Address */
+            ip_address?: string | null;
+        };
+        /** ActivityDay */
+        ActivityDay: {
+            /** Date */
+            date: string;
+            /**
+             * Events
+             * @default 0
+             */
+            events: number;
+            /**
+             * Creates
+             * @default 0
+             */
+            creates: number;
+            /**
+             * Updates
+             * @default 0
+             */
+            updates: number;
+            /**
+             * Deletes
+             * @default 0
+             */
+            deletes: number;
+            /**
+             * Security
+             * @default 0
+             */
+            security: number;
+        };
+        /** ActivityDetail */
+        ActivityDetail: {
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Source */
+            source: string;
+            /** Action */
+            action: string;
+            actor: components["schemas"]["ActivityActor"];
+            record: components["schemas"]["ActivityRecord"];
+            /**
+             * Changed Fields
+             * @default []
+             */
+            changed_fields: string[];
+            /**
+             * Categories
+             * @default []
+             */
+            categories: string[];
+            /** Changes */
+            changes?: Record<string, never> | null;
+            /** Old Values */
+            old_values?: Record<string, never> | null;
+            /** New Values */
+            new_values?: Record<string, never> | null;
+        };
+        /** ActivityDetailResponse */
+        ActivityDetailResponse: {
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            data: components["schemas"]["ActivityDetail"];
+        };
+        /** ActivityEmployee */
+        ActivityEmployee: {
+            /** User Id */
+            user_id: number;
+            /** Name */
+            name?: string | null;
+            /** Email */
+            email?: string | null;
+        };
+        /** ActivityEntry */
+        ActivityEntry: {
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Source */
+            source: string;
+            /** Action */
+            action: string;
+            actor: components["schemas"]["ActivityActor"];
+            record: components["schemas"]["ActivityRecord"];
+            /**
+             * Changed Fields
+             * @default []
+             */
+            changed_fields: string[];
+            /**
+             * Categories
+             * @default []
+             */
+            categories: string[];
+            /** Changes */
+            changes?: Record<string, never> | null;
+        };
+        /** ActivityFilterOptions */
+        ActivityFilterOptions: {
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Employees */
+            employees: components["schemas"]["ActivityEmployee"][];
+            /** Record Types */
+            record_types: string[];
+            /** Categories */
+            categories: string[];
+            /** Actions */
+            actions: string[];
+        };
+        /** ActivityPage */
+        ActivityPage: {
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Items */
+            items: components["schemas"]["ActivityEntry"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** ActivityRecord */
+        ActivityRecord: {
+            /** Type */
+            type: string;
+            /** Id */
+            id?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Client Id */
+            client_id?: number | null;
+            /**
+             * Deleted
+             * @default false
+             */
+            deleted: boolean;
+        };
+        /** ActivitySummary */
+        ActivitySummary: {
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Window Days */
+            window_days: number;
+            /** Events */
+            events: number;
+            /** Previous Events */
+            previous_events: number;
+            /** Creates */
+            creates: number;
+            /** Updates */
+            updates: number;
+            /** Deletes */
+            deletes: number;
+            /** Security */
+            security: number;
+            /** Active Employees */
+            active_employees: number;
+            /** Daily */
+            daily: components["schemas"]["ActivityDay"][];
+        };
         /** AddClientActivityPayload */
         AddClientActivityPayload: {
             /** Title */
@@ -3517,12 +4143,34 @@ export interface components {
             /** Clientid */
             clientId?: unknown | null;
         };
+        /** Body_upload_client_media_api_admin_clients__client_id__media_upload_post */
+        Body_upload_client_media_api_admin_clients__client_id__media_upload_post: {
+            /** File */
+            file?: string | null;
+            /** Files */
+            files?: string[] | null;
+        };
+        /** Body_upload_client_media_api_admin_clients__client_id__upload_post */
+        Body_upload_client_media_api_admin_clients__client_id__upload_post: {
+            /** File */
+            file?: string | null;
+            /** Files */
+            files?: string[] | null;
+        };
         /** Body_upload_current_avatar_api_admin_profile_avatar_post */
         Body_upload_current_avatar_api_admin_profile_avatar_post: {
             /** File */
             file?: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
+        };
+        /** Body_upload_customization_image_api_admin_me_customizations_upload_post */
+        Body_upload_customization_image_api_admin_me_customizations_upload_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
         };
         /** Body_upload_estimate_client_photo_api_admin_estimates_upload_photo_post */
         Body_upload_estimate_client_photo_api_admin_estimates_upload_photo_post: {
@@ -3552,6 +4200,8 @@ export interface components {
         BuildContractRequest: {
             /** Lead Id */
             lead_id?: number | null;
+            /** Client Id */
+            client_id?: number | null;
             /** Contract Id */
             contract_id?: number | null;
             /** Estimate Id */
@@ -3839,18 +4489,68 @@ export interface components {
             /** Authorrole */
             authorRole?: string | null;
         };
-        /** CounterSignContractRequest */
-        CounterSignContractRequest: {
-            /** Contractor Name */
-            contractor_name?: string | null;
-            /** Contractor Title */
-            contractor_title?: string | null;
-            /** Signatory Id */
-            signatory_id?: number | null;
-            /** Signature Data */
-            signature_data?: string | null;
-            /** Signature Type */
-            signature_type?: string | null;
+        /**
+         * CounterSignContractRequest
+         * @description Optional, ignored body. The company contractor signature is always applied server-side.
+         */
+        CounterSignContractRequest: Record<string, never>;
+        /** CreateClientInvoicePayload */
+        CreateClientInvoicePayload: {
+            /** Clientid */
+            clientId?: number | null;
+            /** Jobid */
+            jobId?: number | null;
+            /** Estimateid */
+            estimateId?: number | null;
+            /** Invoicenumber */
+            invoiceNumber?: string | null;
+            /**
+             * Milestonename
+             * @default Roofing Scope & Services
+             */
+            milestoneName: string | null;
+            /** Amount */
+            amount?: number | null;
+            /** Duedate */
+            dueDate?: string | null;
+            /**
+             * Paymentterms
+             * @default Due Upon Receipt
+             */
+            paymentTerms: string | null;
+            /** Lineitems */
+            lineItems?: Record<string, never>[] | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string | null;
+            /**
+             * Taxrate
+             * @default 0
+             */
+            taxRate: number | null;
+            /**
+             * Discounttype
+             * @default flat
+             */
+            discountType: string | null;
+            /**
+             * Discountvalue
+             * @default 0
+             */
+            discountValue: number | null;
+            /**
+             * Depositamount
+             * @default 0
+             */
+            depositAmount: number | null;
+            /** Acceptedmethods */
+            acceptedMethods?: unknown[] | null;
+            /** Paymentinstructions */
+            paymentInstructions?: string | null;
         };
         /** CreateClientPayload */
         CreateClientPayload: {
@@ -4244,6 +4944,42 @@ export interface components {
              */
             warrantyType: string;
         };
+        /**
+         * CustomizationPayload
+         * @description Slot-specific body; the strict per-slot model validates it in the service layer.
+         */
+        CustomizationPayload: {
+            [key: string]: unknown;
+        };
+        /** CustomizationSaveResponse */
+        CustomizationSaveResponse: {
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Data */
+            data: {
+                [key: string]: Record<string, never>;
+            };
+            /**
+             * Message
+             * @default Customization saved
+             */
+            message: string;
+        };
+        /** CustomizationsMapResponse */
+        CustomizationsMapResponse: {
+            /**
+             * Success
+             * @default true
+             */
+            success: boolean;
+            /** Data */
+            data: {
+                [key: string]: Record<string, never>;
+            };
+        };
         /** DeveloperLoginRequest */
         DeveloperLoginRequest: {
             /** Seedphrase */
@@ -4485,6 +5221,23 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthCheckResponse */
+        HealthCheckResponse: {
+            /** Status */
+            status: string;
+            /** Service */
+            service: string;
+            /** Env */
+            env: string;
+            /** Database */
+            database: string;
+            /** Redis */
+            redis: string;
+            /** Timestamp */
+            timestamp: number;
+        } & {
+            [key: string]: unknown;
         };
         /** HeroBannerSaveRequest */
         HeroBannerSaveRequest: {
@@ -4884,6 +5637,12 @@ export interface components {
              * @description Account password
              */
             password: string;
+            /**
+             * Remember Me
+             * @description Extend session duration across browser sessions
+             * @default true
+             */
+            remember_me: boolean | null;
         };
         /** ManageFinancingPayload */
         ManageFinancingPayload: {
@@ -4975,11 +5734,10 @@ export interface components {
             priority: "urgent" | "high" | "normal" | "low";
             /**
              * Workcategory
-             * @description Rise Up, Content Creation, Marketing
-             * @default Rise Up
-             * @enum {string}
+             * @description Custom category label
+             * @default
              */
-            workCategory: "Rise Up" | "Content Creation" | "Marketing";
+            workCategory: string;
             /**
              * Duedate
              * @default Today
@@ -5030,11 +5788,10 @@ export interface components {
             priority: "urgent" | "high" | "normal" | "low";
             /**
              * Workcategory
-             * @description Rise Up, Content Creation, Marketing
-             * @default Rise Up
-             * @enum {string}
+             * @description Custom category label
+             * @default
              */
-            workCategory: "Rise Up" | "Content Creation" | "Marketing";
+            workCategory: string;
             /**
              * Duedate
              * @default Today
@@ -5085,7 +5842,7 @@ export interface components {
             /** Priority */
             priority?: ("urgent" | "high" | "normal" | "low") | null;
             /** Workcategory */
-            workCategory?: ("Rise Up" | "Content Creation" | "Marketing") | null;
+            workCategory?: string | null;
             /** Completed */
             completed?: boolean | null;
             /** Duedate */
@@ -5260,12 +6017,53 @@ export interface components {
             /** Alttext */
             altText?: string | null;
         };
+        /** ReadinessCheckResponse */
+        ReadinessCheckResponse: {
+            /** Status */
+            status: string;
+            /** Ready */
+            ready: boolean;
+            /** Database */
+            database: string;
+            /** Redis */
+            redis: string;
+            /** Migrations */
+            migrations: string;
+            /** Timestamp */
+            timestamp: number;
+        } & {
+            [key: string]: unknown;
+        };
         /** ReassignLeadPayload */
         ReassignLeadPayload: {
             /** New User Id */
             new_user_id: number;
             /** Notes */
             notes?: string | null;
+        };
+        /** RecordPaymentPayload */
+        RecordPaymentPayload: {
+            /** Amount */
+            amount: number;
+            /**
+             * Paymentmethod
+             * @default check
+             */
+            paymentMethod: string;
+            /** Transactionid */
+            transactionId?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Paymentdate */
+            paymentDate?: string | null;
+        };
+        /** ResendOtpRequest */
+        ResendOtpRequest: {
+            /**
+             * Email
+             * @description Staff or applicant email address
+             */
+            email: string;
         };
         /** SavePhotoPayload */
         SavePhotoPayload: {
@@ -5330,6 +6128,15 @@ export interface components {
             /** Customerphone */
             customerPhone?: string | null;
         };
+        /** SendInvoicePayload */
+        SendInvoicePayload: {
+            /** Customeremail */
+            customerEmail?: string | null;
+            /** Customername */
+            customerName?: string | null;
+            /** Custommessage */
+            customMessage?: string | null;
+        };
         /** SendTwoOptionsEstimatePayload */
         SendTwoOptionsEstimatePayload: {
             /** Customeremail */
@@ -5338,6 +6145,52 @@ export interface components {
             customerName?: string | null;
             /** Leadid */
             leadId?: number | null;
+        };
+        /** SessionActionResponse */
+        SessionActionResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Message */
+            message?: string | null;
+            /** Revoked Count */
+            revoked_count?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** SessionItem */
+        SessionItem: {
+            /** Id */
+            id: number;
+            /** Ip Address */
+            ip_address?: string | null;
+            /** User Agent */
+            user_agent?: string | null;
+            /** Last Seen At */
+            last_seen_at?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Is Current
+             * @default false
+             */
+            is_current: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /** SessionListResponse */
+        SessionListResponse: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Sessions */
+            sessions: components["schemas"]["SessionItem"][];
+        } & {
+            [key: string]: unknown;
         };
         /** SignContractRequest */
         SignContractRequest: {
@@ -5461,6 +6314,24 @@ export interface components {
             /** Client Since */
             client_since?: string | null;
         };
+        /** UpdateCompanySignatureRequest */
+        UpdateCompanySignatureRequest: {
+            /** Signer Name */
+            signer_name: string;
+            /** Signer Title */
+            signer_title: string;
+            /**
+             * Signature Type
+             * @enum {string}
+             */
+            signature_type: "typed" | "drawn";
+            /** Signature Data */
+            signature_data: string;
+            /** Reason */
+            reason?: string | null;
+            /** Expected Version */
+            expected_version?: number | null;
+        };
         /** UpdateCrewPayload */
         UpdateCrewPayload: {
             /** Id */
@@ -5517,23 +6388,6 @@ export interface components {
             key: string;
             /** Value */
             value: unknown;
-        };
-        /** UpdateSignatorySignatureRequest */
-        UpdateSignatorySignatureRequest: {
-            /** Signature Name */
-            signature_name?: string | null;
-            /**
-             * Signature Title
-             * @default Project Manager
-             */
-            signature_title: string | null;
-            /**
-             * Signature Type
-             * @default typed
-             */
-            signature_type: string;
-            /** Signature Data */
-            signature_data: string;
         };
         /** UpdateTaskPayload */
         UpdateTaskPayload: {
@@ -5619,6 +6473,19 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VerifyOtpRequest */
+        VerifyOtpRequest: {
+            /**
+             * Email
+             * @description Staff or applicant email address
+             */
+            email: string;
+            /**
+             * Otp
+             * @description 6-digit verification code
+             */
+            otp: string;
         };
     };
     responses: never;
@@ -6958,7 +7825,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SessionActionResponse"];
                 };
             };
         };
@@ -6973,6 +7840,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_otp_api_admin_auth_verify_otp_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyOtpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_otp_api_admin_auth_resend_otp_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendOtpRequest"];
             };
         };
         responses: {
@@ -7011,7 +7944,78 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SessionActionResponse"];
+                };
+            };
+        };
+    };
+    list_user_sessions_api_admin_auth_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListResponse"];
+                };
+            };
+        };
+    };
+    revoke_other_sessions_api_admin_auth_sessions_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionActionResponse"];
+                };
+            };
+        };
+    };
+    revoke_session_api_admin_auth_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -8520,6 +9524,108 @@ export interface operations {
                 "application/json": components["schemas"]["AddClientDocumentPayload"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_client_media_api_admin_clients__client_id__upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_client_media_api_admin_clients__client_id__upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_client_media_api_admin_clients__client_id__media_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_client_media_api_admin_clients__client_id__media_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_client_document_api_admin_clients__client_id__media__document_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -11716,6 +12822,289 @@ export interface operations {
             };
         };
     };
+    get_my_customizations_api_admin_me_customizations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomizationsMapResponse"];
+                };
+            };
+        };
+    };
+    upload_customization_image_api_admin_me_customizations_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_customization_image_api_admin_me_customizations_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_my_customization_api_admin_me_customizations__slot_key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomizationPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomizationSaveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_my_customization_api_admin_me_customizations__slot_key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slot_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomizationSaveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_activity_api_admin_activity_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+                employee_id?: number | null;
+                client_id?: number | null;
+                client?: string | null;
+                action?: string | null;
+                category?: string | null;
+                record_type?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                q?: string | null;
+                ip?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activity_filter_options_api_admin_activity_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityFilterOptions"];
+                };
+            };
+        };
+    };
+    activity_summary_api_admin_activity_summary_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivitySummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_activity_csv_api_admin_activity_export_csv_get: {
+        parameters: {
+            query?: {
+                employee_id?: number | null;
+                client_id?: number | null;
+                client?: string | null;
+                action?: string | null;
+                category?: string | null;
+                record_type?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                q?: string | null;
+                ip?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_activity_entry_api_admin_activity__entry_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_calendar_weather_api_admin_calendar_events_weather_get: {
         parameters: {
             query?: never;
@@ -12247,7 +13636,10 @@ export interface operations {
     };
     preview_contract_api_admin_contracts__contract_id__preview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional version to download: draft, partially_executed, fully_executed */
+                version?: string | null;
+            };
             header?: never;
             path: {
                 contract_id: number;
@@ -12338,7 +13730,38 @@ export interface operations {
             };
         };
     };
-    autosave_contract_draft_api_admin_contracts__contract_id__draft_put: {
+    get_draft_by_client_api_admin_contracts_draft_by_client__client_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_contract_by_id_api_admin_contracts__contract_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -12347,11 +13770,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AutoSaveDraftRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -12383,6 +13802,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    autosave_contract_draft_api_admin_contracts__contract_id__draft_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contract_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoSaveDraftRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12510,9 +13964,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["CounterSignContractRequest"];
+                "application/json": components["schemas"]["CounterSignContractRequest"] | null;
             };
         };
         responses: {
@@ -12536,7 +13990,7 @@ export interface operations {
             };
         };
     };
-    list_authorized_signatories_api_admin_signatories_get: {
+    get_company_signature_status_api_admin_company_signature_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -12556,18 +14010,36 @@ export interface operations {
             };
         };
     };
-    update_signatory_signature_api_admin_signatories__user_id__signature_put: {
+    get_company_signature_api_admin_company_signature_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                user_id: number;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
             };
+        };
+    };
+    update_company_signature_api_admin_company_signature_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateSignatorySignatureRequest"];
+                "application/json": components["schemas"]["UpdateCompanySignatureRequest"];
             };
         };
         responses: {
@@ -12591,16 +14063,265 @@ export interface operations {
             };
         };
     };
-    delete_signatory_signature_api_admin_signatories__user_id__signature_delete: {
+    get_company_signature_history_api_admin_company_signature_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_company_signature_history_version_api_admin_company_signature_history__version__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                user_id: number;
+                version: number;
             };
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_client_invoices_api_admin_clients__client_id__invoices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_client_invoice_api_admin_clients__client_id__invoices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClientInvoicePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_invoice_detail_api_admin_invoices__invoice_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_invoice_api_admin_invoices__invoice_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    render_invoice_pdf_endpoint_api_admin_invoices__invoice_id__render_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_invoice_email_endpoint_api_admin_invoices__invoice_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SendInvoicePayload"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_invoice_payment_api_admin_invoices__invoice_id__payments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordPaymentPayload"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12717,7 +14438,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HealthCheckResponse"];
                 };
             };
         };
@@ -12737,7 +14458,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HealthCheckResponse"];
+                };
+            };
+        };
+    };
+    readiness_check_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessCheckResponse"];
                 };
             };
         };

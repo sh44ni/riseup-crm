@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Clock,
   MapPin,
+  Pencil,
   Camera,
   Calendar,
   UserCheck,
@@ -14,9 +15,11 @@ import {
   PipelineDealItem,
   StageDefinition,
   PipelineStageId,
+  DealCard as PipelineDealCard,
 } from '@/components/pipeline/pipelineTypes';
 import { DealValueBadge } from '@/components/shared/DealValueBadge';
 import { LeadSourceBadge } from '@/components/shared/LeadSourceBadge';
+import { LeadAddressEditor } from '@/components/pipeline/LeadAddressEditor';
 import { KanbanColumn } from './types';
 
 export interface DealCardComponentProps {
@@ -28,6 +31,18 @@ export interface DealCardComponentProps {
   canClaimLead?: boolean;
   canReassignLead?: boolean;
   isDark?: boolean;
+  isEditingAddress?: boolean;
+  addressFormStreet?: string;
+  addressFormCity?: string;
+  addressFormZip?: string;
+  isSavingAddress?: boolean;
+  addressSaveError?: string | null;
+  onStreetChange?: (val: string) => void;
+  onCityChange?: (val: string) => void;
+  onZipChange?: (val: string) => void;
+  onStartEditAddress?: (deal: PipelineDealItem, e: React.SyntheticEvent) => void;
+  onCancelEditAddress?: (e?: React.SyntheticEvent) => void;
+  onSaveAddress?: (deal: PipelineDealItem, e: React.SyntheticEvent) => void;
   onSelectDeal: (deal: PipelineDealItem) => void;
   onAdvanceDeal?: (dealId: string, nextStageId: PipelineStageId) => void;
   onDragStart?: (dealId: string, stageId: PipelineStageId) => void;
@@ -77,6 +92,18 @@ function DealCardComponent({
   canClaimLead = false,
   canReassignLead = false,
   isDark = false,
+  isEditingAddress = false,
+  addressFormStreet = '',
+  addressFormCity = '',
+  addressFormZip = '',
+  isSavingAddress = false,
+  addressSaveError = null,
+  onStreetChange,
+  onCityChange,
+  onZipChange,
+  onStartEditAddress,
+  onCancelEditAddress,
+  onSaveAddress,
   onSelectDeal,
   onAdvanceDeal,
   onDragStart,
@@ -207,13 +234,44 @@ function DealCardComponent({
         </div>
       </div>
 
-      {/* Row 2: Location */}
-      <div className="flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate">
-        <MapPin size={8.5} className="text-slate-400 shrink-0" />
-        <span className="truncate">
-          {deal.address ? `${deal.address}, ${deal.city}` : deal.city || 'No address set'}
-        </span>
-      </div>
+      {/* Row 2: Location & Inline Address Editor */}
+      {isEditingAddress && onSaveAddress && onCancelEditAddress && onStreetChange && onCityChange && onZipChange ? (
+        <div onClick={(e) => e.stopPropagation()} className="pt-0.5">
+          <LeadAddressEditor
+            card={deal as unknown as PipelineDealCard}
+            street={addressFormStreet}
+            city={addressFormCity}
+            zip={addressFormZip}
+            isSaving={isSavingAddress}
+            errorMessage={addressSaveError}
+            onStreetChange={onStreetChange}
+            onCityChange={onCityChange}
+            onZipChange={onZipChange}
+            onSave={(_c, e) => onSaveAddress(deal, e)}
+            onCancel={onCancelEditAddress}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 font-medium group/addr min-w-0">
+          <div className="flex items-center gap-1 truncate min-w-0 flex-1">
+            <MapPin size={8.5} className="text-slate-400 shrink-0" />
+            <span className="truncate">
+              {deal.address ? `${deal.address}, ${deal.city}` : deal.city || 'No address set'}
+            </span>
+          </div>
+          {onStartEditAddress && (
+            <button
+              type="button"
+              aria-label="Edit address"
+              title="Edit address"
+              onClick={(e) => onStartEditAddress(deal, e)}
+              className="opacity-0 group-hover:opacity-100 group-hover/addr:opacity-100 transition-opacity p-0.5 hover:text-sky-600 dark:hover:text-sky-400 text-slate-400 cursor-pointer shrink-0 ml-1"
+            >
+              <Pencil size={8.5} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Row 3: Service Badge, Roof Sq Ft & Lead Source Micro-Badges */}
       <div className="flex items-center gap-1 flex-wrap min-w-0">
@@ -381,6 +439,14 @@ function areDealCardPropsEqual(
   if (prev.stage.id !== next.stage.id) return false;
   if (prev.stage.accentColor !== next.stage.accentColor) return false;
   if (prev.nextStageDef?.id !== next.nextStageDef?.id) return false;
+  if (prev.isEditingAddress !== next.isEditingAddress) return false;
+  if (next.isEditingAddress) {
+    if (prev.addressFormStreet !== next.addressFormStreet) return false;
+    if (prev.addressFormCity !== next.addressFormCity) return false;
+    if (prev.addressFormZip !== next.addressFormZip) return false;
+    if (prev.isSavingAddress !== next.isSavingAddress) return false;
+    if (prev.addressSaveError !== next.addressSaveError) return false;
+  }
   return true;
 }
 

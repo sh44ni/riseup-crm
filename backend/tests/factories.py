@@ -409,3 +409,61 @@ async def make_api_key(
     await db.flush()
     await db.refresh(api_key_obj)
     return {"raw_key": raw_key, "api_key": api_key_obj}
+
+
+# A tiny valid 1x1 PNG used as a drawn signature in tests.
+TEST_SIGNATURE_PNG = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+
+
+async def clear_company_signature(db: AsyncSession) -> None:
+    """
+    Remove every company signature version inside the current (rolled-back) test transaction.
+    The table is append-only via triggers, so they are disabled only for this transaction.
+    """
+    await db.execute(text("ALTER TABLE company_signature_versions DISABLE TRIGGER USER"))
+    await db.execute(text("DELETE FROM company_signature_versions"))
+    await db.execute(text("ALTER TABLE company_signature_versions ENABLE TRIGGER USER"))
+    await db.flush()
+
+
+async def make_company_signature(
+    db: AsyncSession,
+    signer_name: str = "Edith Guerrero",
+    signer_title: str = "President",
+    signature_type: str = "drawn",
+    signature_data: str = TEST_SIGNATURE_PNG,
+    changed_by: Optional[User] = None,
+    reason: Optional[str] = None,
+) -> int:
+    """Append a company signature version (configured on first insert) and return its version number."""
+    next_version = (await db.execute(
+        text("SELECT COALESCE(MAX(version), 0) + 1 FROM company_signature_versions")
+    )).scalar_one()
+    action = "configured" if next_version == 1 else "updated"
+    if action == "updated" and not reason:
+        reason = "Test signature update"
+    await db.execute(
+        text("""
+            INSERT INTO company_signature_versions
+                (version, action, signer_name, signer_title, signature_type, signature_data,
+                 reason, changed_fields, changed_by_user_id, changed_by_name, changed_by_email, created_at)
+            VALUES (:ver, :action, :name, :title, :stype, :sdata, :reason, :fields, :uid, :uname, :uemail, NOW())
+        """),
+        {
+            "ver": next_version,
+            "action": action,
+            "name": signer_name,
+            "title": signer_title,
+            "stype": signature_type,
+            "sdata": signature_data,
+            "reason": reason if action == "updated" else None,
+            "fields": ["signer_name", "signer_title", "signature_type", "signature_data"],
+            "uid": changed_by.id if changed_by else None,
+            "uname": changed_by.name if changed_by else "Test Harness",
+            "uemail": changed_by.email if changed_by else None,
+        },
+    )
+    await db.flush()
+    return next_version

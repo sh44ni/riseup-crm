@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { MapPin, X, Loader2, Check } from 'lucide-react';
+import { MapPin, X, Loader2, Check, AlertCircle } from 'lucide-react';
 import { DealCard } from '@/components/pipeline/pipelineTypes';
 
 export interface LeadAddressEditorProps {
@@ -8,6 +8,7 @@ export interface LeadAddressEditorProps {
   city: string;
   zip: string;
   isSaving: boolean;
+  errorMessage?: string | null;
   onStreetChange: (val: string) => void;
   onCityChange: (val: string) => void;
   onZipChange: (val: string) => void;
@@ -21,6 +22,7 @@ export function LeadAddressEditor({
   city,
   zip,
   isSaving,
+  errorMessage,
   onStreetChange,
   onCityChange,
   onZipChange,
@@ -54,6 +56,13 @@ export function LeadAddressEditor({
           <X size={11} />
         </button>
       </div>
+
+      {errorMessage && (
+        <div className="flex items-start gap-1.5 p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/50 text-[9px] font-semibold text-rose-700 dark:text-rose-300">
+          <AlertCircle size={11} className="shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+          <span className="leading-tight">{errorMessage}</span>
+        </div>
+      )}
 
       <input
         ref={streetInputRef}

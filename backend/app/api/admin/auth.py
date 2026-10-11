@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.core.security import verify_password, hash_scrypt_password, generate_session_token
 from app.core.audit import record_audit_log
 from app.core.redis import invalidate_session_cache, cache_get, cache_set, cache_delete
-from app.core.permissions import get_user_effective_permissions
+from app.core.permissions import get_user_effective_permissions, resolve_signature_access
 from app.core.invite_verification import invite_verified_key, INVITE_VERIFIED_TTL
 from app.middlewares.auth import (
     get_optional_current_user, require_auth, invalidate_session
@@ -224,14 +224,10 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
         is_protected = True
         perms["*"] = "all"
 
-    # Check authorized signatory status
-    sig_check = (await db.execute(text("""
-        SELECT 1 FROM user_roles ur
-        JOIN roles r ON ur.role_id = r.id
-        WHERE ur.user_id = :uid AND r.is_authorized_signatory = true
-        LIMIT 1
-    """), {"uid": authenticated_user["id"]})).scalar()
-    is_auth_sig = bool(sig_check or (authenticated_user["role"] == "owner") or is_protected)
+    # Resolve company signature access (highest level across assigned roles)
+    signature_access = await resolve_signature_access(
+        db, authenticated_user["id"], authenticated_user["role"], is_protected
+    )
 
     # Prime Redis session cache for instantaneous subsequent checks
     try:
@@ -248,7 +244,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             "avatar_url": authenticated_user.get("avatar_url"),
             "permissions": perms,
             "is_protected_owner": is_protected,
-            "is_authorized_signatory": is_auth_sig,
+            "signature_access": signature_access,
             "kind": "user",
             "user_id": authenticated_user["id"],
         }
@@ -269,7 +265,7 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
             "avatar_url": authenticated_user.get("avatar_url"),
             "permissions": perms,
             "is_protected_owner": is_protected,
-            "is_authorized_signatory": is_auth_sig,
+            "signature_access": signature_access,
             "kind": "user",
             "user_id": authenticated_user["id"],
         }
@@ -478,14 +474,9 @@ async def revoke_other_sessions(
 async def get_current_profile(db: AsyncSession = Depends(get_db), user = Depends(require_auth)):
     sql = text("""
         SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.avatar_url,
-               u.last_login_at, u.created_at, u.permissions,
-               u.signature_data, u.signature_type, u.signature_title,
-               COALESCE(bool_or(r.is_authorized_signatory), false) as is_authorized_signatory
+               u.last_login_at, u.created_at, u.permissions
         FROM users u
-        LEFT JOIN user_roles ur ON u.id = ur.user_id
-        LEFT JOIN roles r ON ur.role_id = r.id AND r.is_authorized_signatory = true
         WHERE u.id = :id
-        GROUP BY u.id
     """)
     row = (await db.execute(sql, {"id": user.id})).mappings().first()
     if not row:
@@ -499,8 +490,7 @@ async def get_current_profile(db: AsyncSession = Depends(get_db), user = Depends
     user_dict = dict(row)
     user_dict["permissions"] = perms
     user_dict["is_protected_owner"] = is_protected
-    user_dict["has_signature"] = bool(row.get("signature_data") and str(row.get("signature_data")).strip())
-    user_dict["is_authorized_signatory"] = bool(row.get("is_authorized_signatory") or row["role"] == "owner" or is_protected)
+    user_dict["signature_access"] = await resolve_signature_access(db, user.id, row["role"], is_protected)
     if user_dict.get("created_at"):
         user_dict["created_at"] = user_dict["created_at"].isoformat()
     if user_dict.get("last_login_at"):

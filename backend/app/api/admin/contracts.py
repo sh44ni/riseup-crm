@@ -13,9 +13,9 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Query
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
@@ -23,8 +23,14 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.audit import record_audit_log
 from app.core.permissions import has_permission, check_resource_access
-from app.middlewares.auth import require_auth, require_permission
+from app.middlewares.auth import require_auth, require_permission, require_signature_access
 from app.services.contract_pdf_generator import generate_contract_pdf, save_contract_pdf, _clean_address_string
+from app.services.company_signature import (
+    SIGNATURE_NOT_CONFIGURED_DETAIL,
+    get_current_signature,
+    get_signature_status,
+    stamp_signatory_on_contract_data,
+)
 from app.services.email_service import send_contract_email
 from app.utils.formatting import format_person_name
 logger = get_logger(__name__)
@@ -86,11 +92,8 @@ class AutoSaveDraftRequest(BaseModel):
 
 
 class CounterSignContractRequest(BaseModel):
-    contractor_name: Optional[str] = None
-    contractor_title: Optional[str] = None
-    signatory_id: Optional[int] = None
-    signature_data: Optional[str] = None
-    signature_type: Optional[str] = None
+    """Optional, ignored body. The company contractor signature is always applied server-side."""
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -279,6 +282,7 @@ async def build_contract(
         signing_token = existing_contract.get("signing_token") or secrets.token_urlsafe(24)
         
         contract_data = format_contract_data(dict(payload.contract_data))
+        await stamp_signatory_on_contract_data(db, contract_data)
         contract_data["contract_number"] = contract_number
         contract_data["is_signed"] = bool(existing_contract.get("status") == "signed")
         contract_data["client_initials"] = existing_contract.get("client_initials") or ""
@@ -321,6 +325,7 @@ async def build_contract(
         # 5. Prepare contract data for empty unsigned template
         signing_token = secrets.token_urlsafe(24)
         contract_data = format_contract_data(dict(payload.contract_data))
+        await stamp_signatory_on_contract_data(db, contract_data)
         contract_data["contract_number"] = contract_number
         contract_data["is_signed"] = False
         contract_data["client_initials"] = ""
@@ -437,6 +442,11 @@ async def send_contract(
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
 
+    # Contracts cannot go out until the company contractor signature is configured.
+    signature_status = await get_signature_status(db)
+    if not signature_status.get("configured"):
+        raise HTTPException(status_code=409, detail=SIGNATURE_NOT_CONFIGURED_DETAIL)
+
     # 2. Ensure signing_token exists
     signing_token = contract.get("signing_token")
     if not signing_token:
@@ -522,6 +532,19 @@ async def send_contract(
             contract_data.setdefault("project_address", "")
         contract_data.setdefault("client_name", customer_name)
         contract_data.setdefault("salesperson_name", lead_row.get("salesperson_name") or "Marc Sarellano")
+
+    # Point every contractor reference at the configured company signatory and persist the snapshot.
+    await stamp_signatory_on_contract_data(db, contract_data, signature_status)
+    await db.execute(
+        text("UPDATE contracts SET contract_data = COALESCE(contract_data, '{}'::jsonb) || CAST(:patch AS jsonb) WHERE id = :id"),
+        {
+            "patch": json.dumps({
+                "contractor_signatory_name": contract_data.get("contractor_signatory_name") or "",
+                "contractor_signatory_title": contract_data.get("contractor_signatory_title") or "",
+            }),
+            "id": contract_id,
+        },
+    )
 
     try:
         pdf_bytes = await generate_contract_pdf(contract_data)
@@ -632,6 +655,18 @@ async def send_contract_sms(
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
 
+    signature_status = await get_signature_status(db)
+    if not signature_status.get("configured"):
+        raise HTTPException(status_code=409, detail=SIGNATURE_NOT_CONFIGURED_DETAIL)
+
+    stored_data = contract.get("contract_data")
+    sms_contract_data = (json.loads(stored_data) if isinstance(stored_data, str) else dict(stored_data or {}))
+    await stamp_signatory_on_contract_data(db, sms_contract_data, signature_status)
+    await db.execute(
+        text("UPDATE contracts SET contract_data = CAST(:cd AS jsonb), updated_at = NOW() WHERE id = :id"),
+        {"cd": json.dumps(sms_contract_data), "id": contract_id},
+    )
+
     signing_token = contract.get("signing_token")
     if not signing_token:
         signing_token = secrets.token_urlsafe(24)
@@ -639,7 +674,7 @@ async def send_contract_sms(
             text("UPDATE contracts SET signing_token = :st WHERE id = :id"),
             {"st": signing_token, "id": contract_id},
         )
-        await db.commit()
+    await db.commit()
 
     base_url = _get_base_url(request)
     signing_url = f"{base_url}/contract/sign/{signing_token}"
@@ -755,6 +790,11 @@ async def preview_contract(
 
     if not base_c_data.get("contract_number"):
         base_c_data["contract_number"] = contract["contract_number"]
+
+    if not contract.get("counter_signed_at") and (
+        contract.get("status") == "draft" or not base_c_data.get("contractor_signatory_name")
+    ):
+        await stamp_signatory_on_contract_data(db, base_c_data)
 
     # 1. SPECIFIC VERSION: DRAFT
     if version == "draft":
@@ -1117,6 +1157,7 @@ async def autosave_contract_draft(
         )
 
     saved_data = format_contract_data(dict(payload.contract_data))
+    await stamp_signatory_on_contract_data(db, saved_data)
     if contract.get("client_initials") and not saved_data.get("client_initials"):
         saved_data["client_initials"] = contract.get("client_initials")
     if contract.get("signature_name") and not saved_data.get("client_signature_name"):
@@ -1391,19 +1432,23 @@ async def sign_contract(
 @router.post("/{contract_id}/counter-sign", dependencies=[Depends(require_permission("contracts.view"))])
 async def counter_sign_contract(
     contract_id: int,
-    payload: CounterSignContractRequest,
     request: Request,
-    current_user=Depends(require_auth),
+    payload: Optional[CounterSignContractRequest] = Body(default=None),
+    current_user=Depends(require_signature_access("use")),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Contractor counter-signs a contract, transitioning it from 1-Party Signed ('client_signed')
     to Fully Executed ('signed').
 
+    The contractor signature is always the single company signature (configured in
+    Settings → Company Signature). Any user whose role grants signature access 'use' (or higher)
+    may apply it; the applying user is recorded as ``counter_signed_by``.
+
     Actions executed:
     1. Sets contracts.status → 'signed'
     2. Sets contracts.counter_signed_at → now() and counter_signed_by → current_user.id
-    3. Merges contractor signature into contract_data and compiles the final executed PDF
+    3. Merges the company signature into contract_data and compiles the final executed PDF
     4. Advances leads.pipeline_stage → 'contract_signed', contract_signed_at → now(), status → 'won'
     5. Sends transactional email with the final executed PDF attached to the homeowner
     6. Dispatches SMS with direct download link for the executed PDF
@@ -1418,33 +1463,6 @@ async def counter_sign_contract(
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
 
-    # 1. Verify that the CURRENT logged-in user is an authorized signatory FIRST
-    sig_check = await db.execute(
-        text("""
-            SELECT u.id, u.name, u.signature_data, u.signature_type, u.signature_title
-            FROM users u
-            INNER JOIN user_roles ur ON u.id = ur.user_id
-            INNER JOIN roles r ON ur.role_id = r.id AND (r.is_authorized_signatory = true OR r.is_protected = true OR u.role = 'owner')
-            WHERE u.id = :uid AND u.status = 'active'
-            LIMIT 1
-        """),
-        {"uid": current_user.id}
-    )
-    signatory_row = sig_check.mappings().first()
-    if not signatory_row:
-        raise HTTPException(
-            status_code=403,
-            detail="Access Denied: Only staff holding an Authorized Signatory role can legally counter-sign contracts."
-        )
-
-    # Verify that the current user has configured their personal signature
-    contractor_signature_data = (signatory_row.get("signature_data") or "").strip()
-    if not contractor_signature_data:
-        raise HTTPException(
-            status_code=400,
-            detail="Your official signature has not been configured yet. Please go to Settings > Authorized Signatories and configure your personal electronic signature before counter-signing."
-        )
-
     # If already fully executed with counter-signature, return existing document
     if contract["status"] == "signed" and contract.get("counter_signed_at"):
         return {
@@ -1454,6 +1472,11 @@ async def counter_sign_contract(
             "status": "signed",
             "pdf_url": contract.get("signed_pdf_url"),
         }
+
+    # The company contractor signature must be configured before anyone can counter-sign.
+    company_signature = await get_current_signature(db)
+    if not company_signature or not (company_signature.get("signature_data") or "").strip():
+        raise HTTPException(status_code=409, detail=SIGNATURE_NOT_CONFIGURED_DETAIL)
 
     # 2. Load stored contract data
     stored_data = contract.get("contract_data")
@@ -1465,23 +1488,28 @@ async def counter_sign_contract(
     now_ts = datetime.now(timezone.utc)
     formatted_date = now_ts.strftime("%B %d, %Y")
 
-    # Strictly bind to the authenticated user's credentials (no third-party impersonation)
-    contractor_name = (signatory_row.get("name") or current_user.name or "Authorized Officer").strip()
-    contractor_title = (signatory_row.get("signature_title") or "Project Manager").strip()
-    contractor_signature_type = signatory_row.get("signature_type") or "typed"
+    signatory_name = (company_signature.get("signer_name") or "").strip()
+    signatory_title = (company_signature.get("signer_title") or "").strip()
+    signature_version = company_signature.get("version")
+    applied_by_name = (getattr(current_user, "name", None) or current_user.email or "").strip()
     signatory_user_id = current_user.id
 
     cnum = contract.get("contract_number") or f"RU-{contract_id}"
 
-    # Merge contractor signature into contract_data
+    # Merge the company signature into contract_data.
+    # NOTE: ``contractor_name`` is the company name — it is intentionally left untouched.
+    await stamp_signatory_on_contract_data(db, contract_data, company_signature)
+    contract_data["contractor_signatory_name"] = signatory_name
+    contract_data["contractor_signatory_title"] = signatory_title
     contract_data["contract_number"] = cnum
     contract_data["is_signed"] = True
     contract_data["is_counter_signed"] = True
-    contract_data["contractor_name"] = contractor_name
-    contract_data["contractor_title"] = contractor_title
-    contract_data["contractor_signature_data"] = contractor_signature_data
-    contract_data["contractor_signature_type"] = contractor_signature_type
-    contract_data["contractor_signature_name"] = contractor_name
+    contract_data["contractor_title"] = signatory_title
+    contract_data["contractor_signature_data"] = company_signature.get("signature_data")
+    contract_data["contractor_signature_type"] = company_signature.get("signature_type") or "typed"
+    contract_data["contractor_signature_name"] = signatory_name
+    contract_data["contractor_signature_version"] = signature_version
+    contract_data["counter_signed_by_name"] = applied_by_name
     contract_data["counter_signed_at"] = formatted_date
     if not contract_data.get("signed_at"):
         contract_data["signed_at"] = formatted_date
@@ -1608,8 +1636,8 @@ async def counter_sign_contract(
             {
                 "lid": target_lead_id,
                 "cid": contract.get("client_id"),
-                "desc": f"Contract {cnum} counter-signed by {contractor_name} ({contractor_title}, Lic #1096492). Final PDF emailed to {customer_email or 'client'} and SMS sent to {customer_phone or 'client'}.",
-                "user_name": getattr(current_user, "full_name", None) or getattr(current_user, "email", "Company Admin"),
+                "desc": f"Contract {cnum} counter-signed with {signatory_name}'s signature ({signatory_title}, Lic #1096492), applied by {applied_by_name}. Final PDF emailed to {customer_email or 'client'} and SMS sent to {customer_phone or 'client'}.",
+                "user_name": applied_by_name or "Company Admin",
             },
         )
 
@@ -1624,7 +1652,10 @@ async def counter_sign_contract(
         user_role=current_user.role,
         changes={
             "counter_signed_by": current_user.id,
-            "contractor_name": contractor_name,
+            "applied_by": applied_by_name,
+            "contractor_signatory_name": signatory_name,
+            "contractor_signatory_title": signatory_title,
+            "company_signature_version": signature_version,
             "counter_signed_at": now_ts.isoformat(),
             "pdf_url": final_pdf_url,
             "email_sent": email_sent,
@@ -1662,4 +1693,7 @@ async def counter_sign_contract(
         "customer_phone": customer_phone,
         "download_url": download_url,
         "status": "signed",
+        "signed_with_version": signature_version,
+        "contractor_signatory_name": signatory_name,
+        "contractor_signatory_title": signatory_title,
     }

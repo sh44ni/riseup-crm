@@ -7,7 +7,7 @@ export interface MockUser {
   role: string;
   permissions?: Record<string, string>;
   is_protected_owner?: boolean;
-  is_authorized_signatory?: boolean;
+  signature_access?: 'none' | 'view' | 'use' | 'edit';
 }
 
 const DEFAULT_MOCK_USER: MockUser = {
@@ -17,7 +17,7 @@ const DEFAULT_MOCK_USER: MockUser = {
   role: 'owner',
   permissions: { '*': 'all' },
   is_protected_owner: true,
-  is_authorized_signatory: true,
+  signature_access: 'edit',
 };
 
 let activeMockUser: MockUser | null = DEFAULT_MOCK_USER;
@@ -65,7 +65,7 @@ export const authHandlers = [
       role: 'owner',
       permissions: { '*': 'all' },
       is_protected_owner: true,
-      is_authorized_signatory: true,
+      signature_access: 'edit',
     };
     activeMockUser = loggedInUser;
     return HttpResponse.json({

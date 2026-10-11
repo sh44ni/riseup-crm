@@ -105,9 +105,9 @@ export interface ContractStudioData {
   signingUrl?: string;
   signedPdfUrl?: string;
   isSeniorCitizen?: boolean;
-  isRepresentativeSignatory?: boolean;
-  representativeName?: string;
-  representativeTitle?: string;
+  /** Company contractor signatory (from the single company signature), pre-printed on the contract. */
+  contractorSignatoryName?: string;
+  contractorSignatoryTitle?: string;
   wizardStep?: number;
 }
 
@@ -127,6 +127,9 @@ export interface PublicContractData {
   projectAddress: string;
   contractDate: string;
   contractorName: string;
+  /** Person who signs for the contractor (company signature signer), e.g. Edith Guerrero. */
+  contractorSignatoryName?: string;
+  contractorSignatoryTitle?: string;
   contractorLicense: string;
   salespersonName: string;
   approxStartDate: string;

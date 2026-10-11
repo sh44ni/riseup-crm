@@ -67,6 +67,17 @@ export function ContractReviewSendStep({ data, onDataChange }: StepProps) {
         }
       }
 
+      if (dispatchedChannels.length === 0) {
+        // Every channel failed (e.g. 409 — company signature not set up). The per-channel toasts
+        // above already show the server's reason; keep the draft id but don't mark it sent.
+        onDataChange({
+          id: String(cId),
+          contractNumber: buildRes.contract_number,
+          signingToken: buildRes.signing_token,
+        });
+        return;
+      }
+
       setSendSuccess(true);
       const channelsText = dispatchedChannels.join(' and ') || 'client communication channels';
       const feedbackMsg = `The contract and secure interactive signing link have been sent directly to ${data.clientName || 'the client'} via ${channelsText}. The deal has moved to "Contract Sent".`;

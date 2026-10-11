@@ -190,15 +190,14 @@ export async function signContract(
   });
 }
 
+/**
+ * Counter-sign a client-signed contract with the single company signature.
+ * The server ignores any body, always applies the currently configured company
+ * signature, and records the calling user as `counter_signed_by`.
+ * Returns 409 when no company signature is configured.
+ */
 export async function counterSignContract(
-  contractId: number,
-  options?: {
-    contractorName?: string;
-    contractorTitle?: string;
-    signatoryId?: number;
-    signatureData?: string;
-    signatureType?: string;
-  }
+  contractId: number
 ): Promise<{
   success: boolean;
   message: string;
@@ -212,13 +211,7 @@ export async function counterSignContract(
 }> {
   return api.request(`/admin/contracts/${contractId}/counter-sign`, {
     method: 'POST',
-    body: JSON.stringify({
-      contractor_name: options?.contractorName,
-      contractor_title: options?.contractorTitle,
-      signatory_id: options?.signatoryId,
-      signature_data: options?.signatureData,
-      signature_type: options?.signatureType,
-    }),
+    body: JSON.stringify({}),
   });
 }
 

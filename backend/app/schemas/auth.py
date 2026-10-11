@@ -47,9 +47,7 @@ class UserProfileResponse(BaseModel):
     status: Optional[str] = "active"
     last_login_at: Optional[Union[datetime, str]] = None
     created_at: Optional[Union[datetime, str]] = None
-    signature_data: Optional[str] = None
-    signature_type: Optional[str] = None
-    signature_title: Optional[str] = None
+    signature_access: Optional[str] = "none"
 
     model_config = ConfigDict(from_attributes=True, extra="allow")
 

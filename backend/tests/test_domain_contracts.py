@@ -5,7 +5,10 @@ Tests build, draft update, send, public view, public sign, and counter-sign.
 import pytest
 from datetime import datetime, timezone
 from sqlalchemy import text
-from tests.factories import make_lead, make_client, make_contract, make_user, login_as
+from tests.factories import (
+    make_lead, make_client, make_contract, make_user, login_as,
+    make_company_signature, clear_company_signature,
+)
 
 
 @pytest.mark.asyncio
@@ -84,6 +87,7 @@ async def test_contracts_draft_update(client, auth_owner, db):
 @pytest.mark.asyncio
 async def test_contracts_send_happy_path(client, auth_owner, db):
     """POST /api/admin/contracts/{id}/send marks contract sent and emails client."""
+    await make_company_signature(db)
     lead = await make_lead(db, full_name="Send Homeowner", email="sendtest@example.com")
     contract = await make_contract(
         db,
@@ -169,29 +173,17 @@ async def test_contracts_public_sign(client, db):
 @pytest.mark.asyncio
 async def test_contracts_counter_sign_happy_path(client, db):
     """
-    POST /api/admin/contracts/{id}/counter-sign allows an authorized signatory
-    to execute the contract, moving it to 'signed' (fully executed).
+    POST /api/admin/contracts/{id}/counter-sign lets a user with signature access 'use'
+    apply the company signature, moving the contract to 'signed' (fully executed).
     """
-    # 1. Create an authorized signatory user
+    # 1. The company signature (Edith Guerrero) is configured; the applying user only needs 'use'.
+    await clear_company_signature(db)
+    await make_company_signature(db, signer_name="Edith Guerrero", signer_title="President")
     signatory_user = await make_user(
         db,
         role="owner",
         name="Marc Signatory",
         email="signatory@test.local",
-    )
-    # Configure personal signature on the user record and ensure role is authorized signatory
-    await db.execute(
-        text("""
-            UPDATE users
-            SET signature_data = 'data:image/png;base64,mock_contractor_sig',
-                signature_type = 'drawn',
-                signature_title = 'Chief Executive Officer'
-            WHERE id = :uid
-        """),
-        {"uid": signatory_user.id}
-    )
-    await db.execute(
-        text("UPDATE roles SET is_authorized_signatory = true WHERE name = 'Owner'")
     )
     await db.commit()
 
@@ -204,6 +196,7 @@ async def test_contracts_counter_sign_happy_path(client, db):
         contract_data={
             "client_name": "Executed Homeowner",
             "project_address": "777 Sunburst Way",
+            "contractor_name": "Rise Up Roofing and Construction, Inc.",
             "is_signed": True,
             "client_initials": "EH",
             "client_signed_at": datetime.now(timezone.utc).isoformat(),
@@ -216,21 +209,22 @@ async def test_contracts_counter_sign_happy_path(client, db):
     )
     await db.commit()
 
-    payload = {
-        "contractor_name": "Marc Signatory",
-        "contractor_title": "Chief Executive Officer",
-        "signature_data": "data:image/png;base64,mock_contractor_sig",
-        "signature_type": "drawn",
-    }
-
-    res = await client.post(f"/api/admin/contracts/{contract.id}/counter-sign", json=payload, headers=auth_signatory)
+    res = await client.post(f"/api/admin/contracts/{contract.id}/counter-sign", json={}, headers=auth_signatory)
     assert res.status_code == 200
     data = res.json()
     assert data["success"] is True
     assert data["status"] == "signed"
+    assert data["contractor_signatory_name"] == "Edith Guerrero"
 
     # Verify status in database
-    db_res = await db.execute(text("SELECT status, counter_signed_at FROM contracts WHERE id = :id"), {"id": contract.id})
+    db_res = await db.execute(text("SELECT status, counter_signed_at, counter_signed_by, contract_data FROM contracts WHERE id = :id"), {"id": contract.id})
     row = db_res.mappings().first()
     assert row["status"] == "signed"
     assert row["counter_signed_at"] is not None
+    assert row["counter_signed_by"] == signatory_user.id
+    cdata = row["contract_data"]
+    assert cdata["contractor_signature_name"] == "Edith Guerrero"
+    assert cdata["contractor_signatory_title"] == "President"
+    assert cdata["counter_signed_by_name"] == "Marc Signatory"
+    # contractor_name is the company, never the person
+    assert cdata["contractor_name"] == "Rise Up Roofing and Construction, Inc."

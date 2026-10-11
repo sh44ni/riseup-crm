@@ -9,7 +9,8 @@ import { PricingFormulasTab } from '@/components/settings/PricingFormulasTab';
 import { PipelineSettingsTab } from '@/components/settings/PipelineSettingsTab';
 import { NotificationSettingsTab } from '@/components/settings/NotificationSettingsTab';
 import { UserProfileTab } from '@/components/settings/UserProfileTab';
-import { AuthorizedSignatoriesTab } from '@/components/settings/AuthorizedSignatoriesTab';
+import { CompanySignatureTab } from '@/components/settings/CompanySignatureTab';
+import { useAuth } from '@/context/AuthContext';
 import { useCompany } from '@/context/CompanyContext';
 import { useToast } from '@/context/ToastContext';
 import { getSettings, updateSettings } from '@/api/systemApi';
@@ -43,12 +44,15 @@ import {
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryTab = searchParams.get('tab') as SettingsTab | null;
+  const rawQueryTab = searchParams.get('tab');
+  // Legacy deep links (`?tab=signatories`) map to the new Company Signature tab.
+  const queryTab = (rawQueryTab === 'signatories' ? 'signature' : rawQueryTab) as SettingsTab | null;
+  const { canSignature, isHydrating } = useAuth();
 
   const validTabs: SettingsTab[] = [
     'profile',
     'users',
-    'signatories',
+    'signature',
     'company',
     'pricing',
     'pipeline',
@@ -61,6 +65,9 @@ export function SettingsPage() {
   // Master State
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  // Users without signature view access never see the Company Signature tab.
+  const visibleTab: SettingsTab =
+    activeTab === 'signature' && !isHydrating && !canSignature('view') ? 'profile' : activeTab;
   const [search, setSearch] = useState<string>('');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -460,47 +467,47 @@ export function SettingsPage() {
 
       {/* 2. Sleek Tab Navigation with Disabled Under-Development Badges */}
       <SettingsNavigation
-        activeTab={activeTab}
+        activeTab={visibleTab}
         onTabChange={handleTabChange}
         userCount={members.length}
       />
 
       {/* 3. Active Tab Deep-Dive Viewport */}
       <div className="animate-in fade-in duration-200">
-        {activeTab === 'profile' && (
+        {visibleTab === 'profile' && (
           <UserProfileTab />
         )}
 
-        {activeTab === 'users' && (
+        {visibleTab === 'users' && (
           <TeamRolesPermissionMatrix />
         )}
 
-        {activeTab === 'signatories' && (
-          <AuthorizedSignatoriesTab onNavigateToRoles={() => handleTabChange('users')} />
+        {visibleTab === 'signature' && (
+          <CompanySignatureTab />
         )}
 
-        {activeTab === 'company' && (
+        {visibleTab === 'company' && (
           <CompanyProfileTab
             company={company}
             onChange={handleCompanyChange}
           />
         )}
 
-        {activeTab === 'pricing' && (
+        {visibleTab === 'pricing' && (
           <PricingFormulasTab
             pricing={pricing}
             onChange={handlePricingChange}
           />
         )}
 
-        {activeTab === 'pipeline' && (
+        {visibleTab === 'pipeline' && (
           <PipelineSettingsTab
             pipeline={pipeline}
             onChange={(updated) => { setPipeline(updated); setHasUnsavedChanges(true); }}
           />
         )}
 
-        {activeTab === 'notifications' && (
+        {visibleTab === 'notifications' && (
           <NotificationSettingsTab
             notifications={notifications}
             onChange={(updated) => { setNotifications(updated); setHasUnsavedChanges(true); }}
