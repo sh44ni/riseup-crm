@@ -13,9 +13,9 @@ import json
 import os
 import requests
 
-HOSTNAME = "179.236.227.163"
-CRON_SECRET = "ec696bcd74f17face3f6afeca90223d0e0b39b5126eaf5c5d697c84ab50d670b"
-BACKEND_URL = "https://backend.riseuprac.com"
+CRON_SECRET = os.environ.get("CRON_SECRET", "ec696bcd74f17face3f6afeca90223d0e0b39b5126eaf5c5d697c84ab50d670b")
+DEFAULT_URL = "http://127.0.0.1:8010" if os.path.exists("/opt/riseup-prod") else "https://backend.riseuprac.com"
+BACKEND_URL = os.environ.get("BACKEND_URL", DEFAULT_URL)
 
 def main():
     parser = argparse.ArgumentParser(description="Import an authentic review to Rise Up Roofing DB")

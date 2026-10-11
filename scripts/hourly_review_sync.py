@@ -11,13 +11,16 @@ Usage:
   python scripts/hourly_review_sync.py
 """
 
+import os
 import sys
 import json
 from datetime import datetime, timezone
 import requests
 
-BACKEND_URL = "https://backend.riseuprac.com"
-CRON_SECRET = "ec696bcd74f17face3f6afeca90223d0e0b39b5126eaf5c5d697c84ab50d670b"
+# Use direct local port if running on production VPS, otherwise use public domain
+DEFAULT_URL = "http://127.0.0.1:8010" if os.path.exists("/opt/riseup-prod") else "https://backend.riseuprac.com"
+BACKEND_URL = os.environ.get("BACKEND_URL", DEFAULT_URL)
+CRON_SECRET = os.environ.get("CRON_SECRET", "ec696bcd74f17face3f6afeca90223d0e0b39b5126eaf5c5d697c84ab50d670b")
 
 def run_hourly_sync():
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
