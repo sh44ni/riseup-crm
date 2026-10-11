@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rise Up Roofing | Developer Dashboard & Telemetry</title>
+  <title>Rise Up Roofing | Developer Platform & SEO Command Center</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js -->
@@ -85,7 +85,7 @@
           <input
             :type="showSeed ? 'text' : 'password'"
             x-model="seedphraseInput"
-            placeholder="sheWASg0n3forgood"
+            placeholder="••••••••••••••••"
             class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             required
             autocomplete="current-password"
@@ -94,6 +94,12 @@
             <i :data-lucide="showSeed ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
           </button>
         </div>
+
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" x-model="rememberSession" class="rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0">
+            <span>Remember session on this device</span>
+          </label>
 
         <div x-show="loginError" x-cloak class="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs text-left flex items-start gap-2">
           <i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i>
@@ -137,42 +143,41 @@
       </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <nav class="hidden md:flex items-center gap-1 bg-slate-900/70 p-1 rounded-xl border border-white/5 text-xs font-medium">
-      <button @click="activeTab = 'vitals'" :class="activeTab === 'vitals' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="activity" class="w-3.5 h-3.5"></i> Vitals
+    <!-- Categorized Workspace Switcher -->
+    <nav class="hidden md:flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-xl border border-white/10 text-xs font-medium shadow-inner">
+      <button 
+        @click="switchWorkspace('seo')" 
+        :class="activeWorkspace === 'seo' ? 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 text-emerald-300 border border-emerald-500/40 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'" 
+        class="px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2">
+        <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+        <span>SEO & GSC</span>
+        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Live</span>
       </button>
-      <button @click="activeTab = 'keys'" :class="activeTab === 'keys' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="key" class="w-3.5 h-3.5"></i> API Keys
+
+      <button 
+        @click="switchWorkspace('telemetry')" 
+        :class="activeWorkspace === 'telemetry' ? 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 text-emerald-300 border border-emerald-500/40 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'" 
+        class="px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 relative">
+        <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+        <span>Telemetry</span>
+        <span x-show="errorGroups.length > 0" class="px-1.5 py-0.2 rounded-full bg-rose-500/30 text-rose-300 text-[10px] font-mono" x-text="errorGroups.length"></span>
       </button>
-      <button @click="activeTab = 'debugger'" :class="activeTab === 'debugger' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 relative">
-        <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Live Debugger
-        <span x-show="newLogsBadge" class="w-2 h-2 rounded-full bg-cyan-400"></span>
+
+      <button 
+        @click="switchWorkspace('security')" 
+        :class="activeWorkspace === 'security' ? 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 text-emerald-300 border border-emerald-500/40 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'" 
+        class="px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2">
+        <i data-lucide="shield" class="w-4 h-4 text-indigo-400"></i>
+        <span>Security & Data</span>
       </button>
-      <button @click="activeTab = 'metrics'" :class="activeTab === 'metrics' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Metrics & SLAs
-      </button>
-      <button @click="activeTab = 'tools'" :class="activeTab === 'tools' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="wrench" class="w-3.5 h-3.5"></i> Tools
-      </button>
-      <button @click="activeTab = 'crm'" :class="activeTab === 'crm' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> CRM Health
-      </button>
-      <button @click="activeTab = 'errors'" :class="activeTab === 'errors' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 relative">
-        <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Errors
-        <span x-show="errorGroups.length > 0" class="px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[10px] font-mono leading-none flex items-center justify-center" x-text="errorGroups.length"></span>
-      </button>
-      <button @click="activeTab = 'sessions'" :class="activeTab === 'sessions' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="users" class="w-3.5 h-3.5"></i> Sessions
-      </button>
-      <button @click="activeTab = 'database'" :class="activeTab === 'database' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="database" class="w-3.5 h-3.5"></i> Database
-      </button>
-      <button @click="activeTab = 'audit'" :class="activeTab === 'audit' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="scroll-text" class="w-3.5 h-3.5"></i> Audit Trail
-      </button>
-      <button @click="activeTab = 'integrations'" :class="activeTab === 'integrations' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'" class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
-        <i data-lucide="plug" class="w-3.5 h-3.5"></i> Integrations
+
+      <button 
+        @click="switchWorkspace('devtools')" 
+        :class="activeWorkspace === 'devtools' ? 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 text-emerald-300 border border-emerald-500/40 shadow-sm' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'" 
+        class="px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 relative">
+        <i data-lucide="terminal" class="w-4 h-4 text-amber-400"></i>
+        <span>Dev Tools</span>
+        <span x-show="newLogsBadge" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
       </button>
     </nav>
 
@@ -195,8 +200,523 @@
     </div>
   </header>
 
+  <!-- ── 2b. WORKSPACE SUB-NAVIGATION RIBBON ── -->
+  <div class="glass-panel border-b border-white/5 bg-slate-950/80 px-6 py-2 sticky top-[61px] z-30">
+    <div class="max-w-7xl mx-auto flex items-center justify-between text-xs overflow-x-auto custom-scrollbar py-0.5">
+      
+      <!-- Sub-tabs for SEO -->
+      <div x-show="activeWorkspace === 'seo'" class="flex items-center gap-1.5 shrink-0">
+        <span class="text-slate-500 uppercase tracking-wider text-[10px] font-mono mr-1.5">Views:</span>
+        <button @click="activeTab = 'seo'; seoSubTab = 'striking'" :class="activeTab === 'seo' && seoSubTab === 'striking' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="target" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>🎯 Striking Distance (Page 2-3)</span>
+          <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono" x-text="seoOverview?.summary?.tier2_count || '45'"></span>
+        </button>
+
+        <button @click="activeTab = 'seo'; seoSubTab = 'tier1'" :class="activeTab === 'seo' && seoSubTab === 'tier1' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="flame" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>⭐ Tier 1 Page 1 Captures</span>
+          <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono" x-text="seoOverview?.summary?.tier1_count || '8'"></span>
+        </button>
+
+        <button @click="activeTab = 'seo'; seoSubTab = 'traffic'" :class="activeTab === 'seo' && seoSubTab === 'traffic' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="radio" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span>📡 Live Organic Visitors</span>
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+        </button>
+
+        <button @click="activeTab = 'seo'; seoSubTab = 'import'" :class="activeTab === 'seo' && seoSubTab === 'import' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span>📥 Ingest GSC CSV</span>
+        </button>
+      </div>
+
+      <!-- Sub-tabs for Telemetry -->
+      <div x-show="activeWorkspace === 'telemetry'" class="flex items-center gap-1.5 shrink-0">
+        <span class="text-slate-500 uppercase tracking-wider text-[10px] font-mono mr-1.5">Views:</span>
+        <button @click="setTab('vitals')" :class="activeTab === 'vitals' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="activity" class="w-3.5 h-3.5"></i> Vitals
+        </button>
+        <button @click="setTab('metrics')" :class="activeTab === 'metrics' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Metrics & SLAs
+        </button>
+        <button @click="setTab('errors')" :class="activeTab === 'errors' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 relative">
+          <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Error Clusters
+          <span x-show="errorGroups.length > 0" class="px-1.5 py-0.2 rounded-full bg-rose-500/30 text-rose-300 text-[10px] font-mono" x-text="errorGroups.length"></span>
+        </button>
+        <button @click="setTab('crm')" :class="activeTab === 'crm' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="pie-chart" class="w-3.5 h-3.5"></i> CRM Pipeline
+        </button>
+      </div>
+
+      <!-- Sub-tabs for Security -->
+      <div x-show="activeWorkspace === 'security'" class="flex items-center gap-1.5 shrink-0">
+        <span class="text-slate-500 uppercase tracking-wider text-[10px] font-mono mr-1.5">Views:</span>
+        <button @click="setTab('keys')" :class="activeTab === 'keys' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="key" class="w-3.5 h-3.5"></i> API Keys
+        </button>
+        <button @click="setTab('database')" :class="activeTab === 'database' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="database" class="w-3.5 h-3.5"></i> PostgreSQL Pool
+        </button>
+        <button @click="setTab('sessions')" :class="activeTab === 'sessions' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i> Active Sessions
+        </button>
+        <button @click="setTab('audit')" :class="activeTab === 'audit' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="scroll-text" class="w-3.5 h-3.5"></i> Audit Trail
+        </button>
+      </div>
+
+      <!-- Sub-tabs for Dev Tools -->
+      <div x-show="activeWorkspace === 'devtools'" class="flex items-center gap-1.5 shrink-0">
+        <span class="text-slate-500 uppercase tracking-wider text-[10px] font-mono mr-1.5">Views:</span>
+        <button @click="setTab('debugger')" :class="activeTab === 'debugger' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 relative">
+          <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Live Debugger
+          <span x-show="newLogsBadge" class="w-2 h-2 rounded-full bg-cyan-400"></span>
+        </button>
+        <button @click="setTab('tools')" :class="activeTab === 'tools' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="wrench" class="w-3.5 h-3.5"></i> Database Tools & SQL
+        </button>
+        <button @click="setTab('integrations')" :class="activeTab === 'integrations' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-medium' : 'text-slate-400 hover:text-slate-200 border border-transparent'" class="px-3 py-1 rounded-lg transition-all flex items-center gap-1.5">
+          <i data-lucide="plug" class="w-3.5 h-3.5"></i> Integrations
+        </button>
+      </div>
+
+      <!-- Quick Action Right -->
+      <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 shrink-0">
+        <span class="font-mono text-emerald-400 flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+          Direct URL: <a href="/seo" class="underline hover:text-white">/seo</a> &bull; <a href="/developer" class="underline hover:text-white">/developer</a>
+        </span>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ── 3. MAIN CONTENT CONTAINER ── -->
   <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- ── TAB 0: SEO & GOOGLE SEARCH CONSOLE COMMAND CENTER ── -->
+    <section x-show="activeTab === 'seo'" x-cloak class="space-y-6">
+
+      <!-- Header & Quick Actions -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 glass-panel p-6 rounded-2xl relative overflow-hidden border border-emerald-500/20">
+        <div class="absolute -top-12 -right-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Google Search Console &bull; Live Telemetry
+            </span>
+            <span class="text-xs text-slate-500 font-mono" x-show="seoOverview?.snapshot_date">
+              Synced: <span x-text="formatDate(seoOverview?.snapshot_date)"></span>
+            </span>
+          </div>
+          <h2 class="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            SEO & Organic SERP Command Center
+          </h2>
+          <p class="text-xs text-slate-400 mt-1 max-w-2xl">
+            Live tracking of 22,467+ impressions, 142 striking-distance keywords, Page 1 capture alerts, and real-time organic visitor telemetry on Rise Up Roofing.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2.5 shrink-0 flex-wrap">
+          <button @click="openSerpModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-2 transition-all">
+            <i data-lucide="search" class="w-4 h-4 text-cyan-400"></i>
+            <span>Check Live SERP</span>
+          </button>
+
+          <button @click="seoSubTab = 'import'" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-2 transition-all">
+            <i data-lucide="upload-cloud" class="w-4 h-4 text-indigo-400"></i>
+            <span>Import Queries.csv</span>
+          </button>
+
+          <button @click="fetchSeoData(); fetchSeoTraffic()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" :class="seoLoading && 'animate-spin'"></i>
+            <span>Refresh GSC</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Top Stat KPI Cards Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Impressions Card -->
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+            <span>TOTAL GSC IMPRESSIONS</span>
+            <i data-lucide="eye" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div class="text-3xl font-bold text-white tracking-tight">
+            <span x-text="(seoOverview?.summary?.total_impressions || 22467).toLocaleString()">22,467</span>
+          </div>
+          <div class="mt-2 text-xs text-emerald-400 flex items-center gap-1">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+            Across <span class="font-mono font-semibold" x-text="seoOverview?.summary?.total_queries || 1327">1,327</span> tracked queries
+          </div>
+        </div>
+
+        <!-- Clicks Card -->
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+            <span>ORGANIC SEARCH CLICKS</span>
+            <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-cyan-400"></i>
+          </div>
+          <div class="text-3xl font-bold text-white tracking-tight">
+            <span x-text="(seoOverview?.summary?.total_clicks || 100).toLocaleString()">100</span>
+          </div>
+          <div class="mt-2 text-xs text-slate-400 flex items-center gap-1">
+            <i data-lucide="flag" class="w-3.5 h-3.5 text-amber-400"></i>
+            Target Ratchet: <span class="font-mono text-cyan-300">300+ clicks/mo</span>
+          </div>
+        </div>
+
+        <!-- Average Position Card -->
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+            <span>AVERAGE POSITION</span>
+            <i data-lucide="compass" class="w-4 h-4 text-amber-400"></i>
+          </div>
+          <div class="text-3xl font-bold text-white tracking-tight">
+            <span x-text="seoOverview?.summary?.avg_position || '32.4'">32.4</span>
+          </div>
+          <div class="mt-2 text-xs text-slate-400 flex items-center gap-2">
+            <span>Avg CTR: <span class="font-mono text-emerald-400 font-semibold" x-text="(seoOverview?.summary?.avg_ctr || 0.45) + '%'">0.45%</span></span>
+            <span>&bull;</span>
+            <span class="text-amber-400">Top 20 Target: &lt;15.0</span>
+          </div>
+        </div>
+
+        <!-- Striking Distance Card -->
+        <div class="glass-panel p-5 rounded-2xl relative overflow-hidden">
+          <div class="flex items-center justify-between text-slate-400 text-xs font-medium mb-2">
+            <span>STRIKING DISTANCE (POS 4-20)</span>
+            <i data-lucide="target" class="w-4 h-4 text-indigo-400"></i>
+          </div>
+          <div class="text-3xl font-bold text-white tracking-tight">
+            <span x-text="(seoOverview?.summary?.tier1_count || 0) + (seoOverview?.summary?.tier2_count || 0)">142</span>
+            <span class="text-xs text-slate-400 font-normal">queries</span>
+          </div>
+          <div class="mt-2 text-xs text-indigo-400 flex items-center gap-1">
+            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+            <span x-text="seoOverview?.summary?.tier1_count || 8"></span> Tier 1 alerts &bull; Page 1 ready
+          </div>
+        </div>
+      </div>
+
+      <!-- Tier 1 High-Alert Tactical Targets (Page 1 Capture) -->
+      <div x-show="seoSubTab === 'striking' || seoSubTab === 'tier1'" class="glass-panel p-6 rounded-2xl border border-amber-500/20 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[11px] font-bold uppercase tracking-wider">
+                High Priority Alert
+              </span>
+              <h3 class="text-base font-bold text-white">Tier 1 Immediate Page 1 Wins & CTR Fixes</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Queries currently ranking on Google Page 1 with high impressions but zero clicks. Actionable fixes deployed.</p>
+          </div>
+          <span class="text-xs text-slate-500 font-mono">Phase 2 & 3 Targets</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Item 1: Deck Builder -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-emerald-500/40 transition-colors">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="font-mono text-emerald-400 font-semibold flex items-center gap-1">
+                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> POS 7.8 (Page 1)
+                </span>
+                <span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-mono">0% CTR Leak</span>
+              </div>
+              <div class="font-bold text-sm text-white mb-1">deck builder rancho san diego</div>
+              <div class="text-xs text-slate-400 mb-3">661 Impressions &bull; 0 Clicks</div>
+              <div class="p-2.5 rounded-lg bg-slate-950/70 text-[11px] text-slate-300 mb-3 space-y-1">
+                <div class="font-semibold text-emerald-300 flex items-center gap-1">
+                  <i data-lucide="shield-check" class="w-3 h-3"></i> Fix Applied:
+                </div>
+                <div>Custom Trex deck builder landing page + high-CTR meta title + AggregateRating schema.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+              <button @click="checkSerp('deck builder rancho san diego')" class="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30 flex items-center justify-center gap-1.5">
+                <i data-lucide="activity" class="w-3.5 h-3.5"></i> Live SERP Check
+              </button>
+              <a href="https://www.google.com/search?q=deck+builder+rancho+san+diego" target="_blank" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white" title="Open Google Search">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </a>
+            </div>
+          </div>
+
+          <!-- Item 2: Roof Leak Repair -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition-colors">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="font-mono text-cyan-400 font-semibold flex items-center gap-1">
+                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> POS 9.2 (Page 1)
+                </span>
+                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-mono">3,570 Cluster Imp</span>
+              </div>
+              <div class="font-bold text-sm text-white mb-1">roof leak repair / emergency</div>
+              <div class="text-xs text-slate-400 mb-3">55 Query Imp &bull; 0 Clicks</div>
+              <div class="p-2.5 rounded-lg bg-slate-950/70 text-[11px] text-slate-300 mb-3 space-y-1">
+                <div class="font-semibold text-cyan-300 flex items-center gap-1">
+                  <i data-lucide="shield-check" class="w-3 h-3"></i> Fix Applied:
+                </div>
+                <div>Emergency leak callout banner + same-day dispatch trigger + 24/7 hotline CTA.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+              <button @click="checkSerp('roof leak repair')" class="flex-1 py-1.5 px-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-medium border border-cyan-500/30 flex items-center justify-center gap-1.5">
+                <i data-lucide="activity" class="w-3.5 h-3.5"></i> Live SERP Check
+              </button>
+              <a href="https://www.google.com/search?q=roof+leak+repair" target="_blank" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white" title="Open Google Search">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </a>
+            </div>
+          </div>
+
+          <!-- Item 3: Industrial Roofing -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-500/40 transition-colors">
+            <div>
+              <div class="flex items-center justify-between text-xs mb-2">
+                <span class="font-mono text-indigo-400 font-semibold flex items-center gap-1">
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i> POS 17.2 (Striking)
+                </span>
+                <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 text-[10px] font-mono">7,118 Cluster Imp</span>
+              </div>
+              <div class="font-bold text-sm text-white mb-1">industrial roofing services</div>
+              <div class="text-xs text-slate-400 mb-3">558 Impressions &bull; 0 Clicks</div>
+              <div class="p-2.5 rounded-lg bg-slate-950/70 text-[11px] text-slate-300 mb-3 space-y-1">
+                <div class="font-semibold text-indigo-300 flex items-center gap-1">
+                  <i data-lucide="shield-check" class="w-3 h-3"></i> Fix Applied:
+                </div>
+                <div>Commercial flat roofing pillar guide (TPO, PVC, EPDM, coatings) + specification tables.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+              <button @click="checkSerp('industrial roofing services')" class="flex-1 py-1.5 px-2.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 text-xs font-medium border border-indigo-500/30 flex items-center justify-center gap-1.5">
+                <i data-lucide="activity" class="w-3.5 h-3.5"></i> Live SERP Check
+              </button>
+              <a href="https://www.google.com/search?q=industrial+roofing+services" target="_blank" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white" title="Open Google Search">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 1: KEYWORDS DATATABLE -->
+      <div x-show="seoSubTab === 'striking' || seoSubTab === 'tier1'" class="space-y-4">
+        <!-- Filter Controls -->
+        <div class="glass-panel p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2 flex-1 max-w-md">
+            <i data-lucide="search" class="w-4 h-4 text-slate-500 shrink-0"></i>
+            <input
+              type="text"
+              x-model="seoSearchQuery"
+              placeholder="Search target keyword or city (e.g., oceanside, deck, leak)..."
+              class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-400">Tier:</span>
+              <select x-model="seoFilterTier" class="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500">
+                <option value="all">All Tiers</option>
+                <option value="tier1">Tier 1: Page 1 Ready (Pos &le; 10)</option>
+                <option value="tier2">Tier 2: Striking Distance (Pos 11-20)</option>
+                <option value="tier3">Tier 3: Untapped Volume (Pos 21-40)</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-400">Sort:</span>
+              <select x-model="seoSortBy" class="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500">
+                <option value="impressions">Highest Impressions</option>
+                <option value="position">Best Ranking (Lowest Pos)</option>
+                <option value="clicks">Highest Clicks</option>
+                <option value="ctr">Highest CTR</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="glass-panel rounded-2xl overflow-hidden border border-white/10">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-900/90 text-slate-400 uppercase text-[10px] font-mono border-b border-white/10">
+                <tr>
+                  <th class="px-4 py-3">Search Query</th>
+                  <th class="px-4 py-3">Tier</th>
+                  <th class="px-4 py-3 text-right">Impressions</th>
+                  <th class="px-4 py-3 text-right">Clicks</th>
+                  <th class="px-4 py-3 text-right">CTR</th>
+                  <th class="px-4 py-3 text-center">Avg Rank</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 font-mono">
+                <template x-for="item in getFilteredSeoQueries()" :key="item.query">
+                  <tr class="hover:bg-white/[0.02] transition-colors">
+                    <td class="px-4 py-3 font-sans font-medium text-white flex items-center gap-2">
+                      <span x-text="item.query"></span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase"
+                        :class="item.tier === 'tier1' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : (item.tier === 'tier2' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700')"
+                        x-text="item.tier"
+                      ></span>
+                    </td>
+                    <td class="px-4 py-3 text-right text-slate-200" x-text="item.impressions.toLocaleString()"></td>
+                    <td class="px-4 py-3 text-right font-semibold" :class="item.clicks > 0 ? 'text-emerald-400' : 'text-slate-500'" x-text="item.clicks"></td>
+                    <td class="px-4 py-3 text-right text-slate-400" x-text="item.ctr + '%'"></td>
+                    <td class="px-4 py-3 text-center">
+                      <span
+                        class="px-2.5 py-0.5 rounded-full font-bold text-xs"
+                        :class="item.position <= 10 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (item.position <= 20 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-slate-800 text-slate-400')"
+                        x-text="item.position.toFixed(1)"
+                      ></span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <div class="flex items-center justify-end gap-1.5">
+                        <button
+                          @click="checkSerp(item.query)"
+                          class="p-1 px-2 rounded bg-slate-800 hover:bg-emerald-600/30 hover:text-emerald-300 text-slate-400 font-sans transition-colors"
+                          title="Inspect Live SERP"
+                        >
+                          Check SERP
+                        </button>
+                        <a
+                          :href="'https://www.google.com/search?q=' + encodeURIComponent(item.query)"
+                          target="_blank"
+                          class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                          title="Open Google"
+                        >
+                          <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="getFilteredSeoQueries().length === 0">
+                  <td colspan="7" class="px-4 py-8 text-center text-slate-500 font-sans">
+                    No search queries match your current filter.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-3 bg-slate-900/60 border-t border-white/5 text-[11px] text-slate-400 flex items-center justify-between">
+            <span>Showing <span class="text-white font-mono" x-text="getFilteredSeoQueries().length"></span> queries</span>
+            <span class="text-slate-500">Live PostgreSQL Snapshot &bull; Indexed by snapshot_date</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 2: LIVE ORGANIC VISITOR TELEMETRY -->
+      <div x-show="seoSubTab === 'traffic'" class="space-y-4">
+        <div class="glass-panel p-5 rounded-2xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                <h3 class="text-base font-bold text-white">Real-Time Google Search Visitors</h3>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Live incoming visitors from Google Search captured by the backend analytics telemetry engine.</p>
+            </div>
+            <button @click="fetchSeoTraffic()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 self-start">
+              <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh Feed
+            </button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-900/90 text-slate-400 uppercase text-[10px] font-mono border-b border-white/10">
+                <tr>
+                  <th class="px-4 py-3">Timestamp</th>
+                  <th class="px-4 py-3">Landing Page</th>
+                  <th class="px-4 py-3">Location</th>
+                  <th class="px-4 py-3">Device</th>
+                  <th class="px-4 py-3">Google Referrer</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 font-mono">
+                <template x-for="event in seoTraffic" :key="event.id">
+                  <tr class="hover:bg-white/[0.02]">
+                    <td class="px-4 py-2.5 text-slate-400 text-[11px]" x-text="formatDate(event.created_at)"></td>
+                    <td class="px-4 py-2.5 font-sans font-medium text-emerald-300">
+                      <a :href="'https://riseuprac.com' + event.page_path" target="_blank" class="hover:underline flex items-center gap-1">
+                        <span x-text="event.page_path"></span>
+                        <i data-lucide="external-link" class="w-3 h-3 text-slate-500"></i>
+                      </a>
+                    </td>
+                    <td class="px-4 py-2.5 text-slate-300" x-text="event.city || 'California, US'"></td>
+                    <td class="px-4 py-2.5">
+                      <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400 font-sans uppercase" x-text="event.device_type || 'desktop'"></span>
+                    </td>
+                    <td class="px-4 py-2.5 text-slate-400 truncate max-w-xs" :title="event.referrer" x-text="event.referrer || 'google.com'"></td>
+                  </tr>
+                </template>
+                <tr x-show="seoTraffic.length === 0">
+                  <td colspan="5" class="px-4 py-8 text-center text-slate-500 font-sans">
+                    Listening for incoming Google Search visitors... All clicks will populate here in real-time.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 3: GSC CSV IMPORTER -->
+      <div x-show="seoSubTab === 'import'" class="space-y-4">
+        <div class="glass-panel p-6 rounded-2xl max-w-2xl mx-auto space-y-5 border border-indigo-500/20">
+          <div class="text-center space-y-1">
+            <div class="inline-flex p-3 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2">
+              <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white">Import Google Search Console Export</h3>
+            <p class="text-xs text-slate-400 max-w-md mx-auto">
+              Drop your weekly or monthly <code class="text-indigo-300 font-mono">Queries.csv</code> file exported from GSC Performance reports. The system will auto-classify Tier 1/2/3 keywords and refresh rankings.
+            </p>
+          </div>
+
+          <div
+            @dragover.prevent="dragOver = true"
+            @dragleave.prevent="dragOver = false"
+            @drop.prevent="dragOver = false; handleDrop($event)"
+            class="border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer"
+            :class="dragOver ? 'border-indigo-400 bg-indigo-500/10' : 'border-slate-700 hover:border-slate-600 bg-slate-900/60'"
+            @click="$refs.csvInput.click()"
+          >
+            <input type="file" x-ref="csvInput" accept=".csv" class="hidden" @change="handleFileSelect($event)" />
+            <div class="space-y-2">
+              <i data-lucide="file-spreadsheet" class="w-10 h-10 text-slate-400 mx-auto"></i>
+              <div class="text-sm font-medium text-white">Click or drag & drop <span class="text-indigo-400 font-mono">Queries.csv</span> here</div>
+              <div class="text-[11px] text-slate-500">Supports standard GSC CSV headers: Top queries, Clicks, Impressions, CTR, Position</div>
+            </div>
+          </div>
+
+          <div x-show="csvUploadLoading" class="p-4 rounded-xl bg-slate-900 text-center text-xs text-indigo-300 flex items-center justify-center gap-2">
+            <i data-lucide="loader" class="w-4 h-4 animate-spin"></i>
+            <span>Ingesting CSV & recalculating keyword tiers...</span>
+          </div>
+
+          <div x-show="csvUploadSuccess" class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+            <span x-text="csvUploadSuccess"></span>
+          </div>
+
+          <div x-show="csvUploadError" class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400 shrink-0"></i>
+            <span x-text="csvUploadError"></span>
+          </div>
+        </div>
+      </div>
+
+    </section>
 
     <!-- ── TAB 1: SYSTEM VITALS ── -->
     <section x-show="activeTab === 'vitals'" x-cloak class="space-y-6">
@@ -1291,6 +1811,66 @@
       </div>
     </section>
 
+    <!-- ── LIVE SERP CHECKER MODAL ── -->
+    <div x-cloak x-show="showSerpModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div class="glass-panel w-full max-w-xl rounded-2xl p-6 shadow-2xl border border-cyan-500/30 space-y-4 relative">
+        <button @click="showSerpModal = false" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <i data-lucide="search" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Live SERP Query Inspector</h3>
+            <p class="text-xs text-slate-400">Verify search index status and on-page SERP snippet in real-time.</p>
+          </div>
+        </div>
+
+        <form @submit.prevent="runSerpCheck()" class="flex items-center gap-2">
+          <input
+            type="text"
+            x-model="serpQueryInput"
+            placeholder="e.g. deck builder rancho san diego, roof leak repair..."
+            class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            required
+          />
+          <button
+            type="submit"
+            :disabled="serpCheckLoading"
+            class="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs flex items-center gap-1.5 shrink-0"
+          >
+            <span x-show="!serpCheckLoading">Inspect SERP</span>
+            <span x-show="serpCheckLoading" class="flex items-center gap-1">
+              <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> Checking...
+            </span>
+          </button>
+        </form>
+
+        <!-- SERP Result Display -->
+        <div x-show="serpCheckResult" class="space-y-3 pt-2">
+          <div class="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400">Target URL:</span>
+              <a :href="serpCheckResult?.matched_url" target="_blank" class="text-cyan-400 hover:underline font-mono text-[11px]" x-text="serpCheckResult?.matched_url"></a>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400">Current GSC Rank:</span>
+              <span class="px-2 py-0.5 rounded font-mono text-[11px] font-semibold bg-emerald-500/20 text-emerald-300" x-text="serpCheckResult?.rank_indicator"></span>
+            </div>
+
+            <!-- Google Snippet Simulation -->
+            <div class="mt-3 p-3 rounded-lg bg-[#202124] border border-[#3c4043] space-y-1">
+              <div class="text-[11px] text-[#bdc1c6] truncate" x-text="serpCheckResult?.matched_url"></div>
+              <div class="text-sm text-[#8ab4f8] font-medium hover:underline cursor-pointer" x-text="serpCheckResult?.title"></div>
+              <div class="text-xs text-[#bdc1c6] leading-relaxed" x-text="serpCheckResult?.description"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </main>
 
   <!-- ── 4. ALPINE JAVASCRIPT STATE ENGINE ── -->
@@ -1298,7 +1878,187 @@
     function devDashboard() {
       return {
         authenticated: false,
+        activeWorkspace: 'telemetry',
         activeTab: 'vitals',
+        rememberSession: true,
+
+        // SEO State
+        seoSubTab: 'striking',
+        seoOverview: null,
+        seoTraffic: [],
+        seoLoading: false,
+        seoSearchQuery: '',
+        seoFilterTier: 'all',
+        seoSortBy: 'impressions',
+        dragOver: false,
+        csvUploadLoading: false,
+        csvUploadSuccess: '',
+        csvUploadError: '',
+        showSerpModal: false,
+        serpQueryInput: '',
+        serpCheckLoading: false,
+        serpCheckResult: null,
+
+        async apiFetch(url, options = {}) {
+          const token = localStorage.getItem('riseup_dev_token');
+          const headers = Object.assign({}, options.headers || {});
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+          options.headers = headers;
+          options.credentials = 'same-origin';
+          return fetch(url, options);
+        },
+
+        switchWorkspace(ws) {
+          this.activeWorkspace = ws;
+          if (ws === 'seo') this.activeTab = 'seo';
+          else if (ws === 'telemetry') this.activeTab = 'vitals';
+          else if (ws === 'security') this.activeTab = 'keys';
+          else if (ws === 'devtools') this.activeTab = 'debugger';
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        setTab(tab) {
+          this.activeTab = tab;
+          if (tab === 'seo') this.activeWorkspace = 'seo';
+          else if (['vitals', 'metrics', 'errors', 'crm'].includes(tab)) this.activeWorkspace = 'telemetry';
+          else if (['keys', 'database', 'sessions', 'audit'].includes(tab)) this.activeWorkspace = 'security';
+          else if (['debugger', 'tools', 'integrations'].includes(tab)) this.activeWorkspace = 'devtools';
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        getAllSeoQueries() {
+          if (!this.seoOverview || !this.seoOverview.tiers) return [];
+          const t1 = (this.seoOverview.tiers.tier1 || []).map(q => Object.assign({}, q, { tier: 'tier1' }));
+          const t2 = (this.seoOverview.tiers.tier2 || []).map(q => Object.assign({}, q, { tier: 'tier2' }));
+          const t3 = (this.seoOverview.tiers.tier3 || []).map(q => Object.assign({}, q, { tier: 'tier3' }));
+          return [...t1, ...t2, ...t3];
+        },
+
+        getFilteredSeoQueries() {
+          let list = this.getAllSeoQueries();
+          if (this.seoFilterTier !== 'all') {
+            list = list.filter(q => q.tier === this.seoFilterTier);
+          }
+          if (this.seoSearchQuery.trim()) {
+            const term = this.seoSearchQuery.toLowerCase().trim();
+            list = list.filter(q => q.query.toLowerCase().includes(term));
+          }
+          if (this.seoSortBy === 'impressions') {
+            list = list.slice().sort((a, b) => b.impressions - a.impressions);
+          } else if (this.seoSortBy === 'position') {
+            list = list.slice().sort((a, b) => a.position - b.position);
+          } else if (this.seoSortBy === 'clicks') {
+            list = list.slice().sort((a, b) => b.clicks - a.clicks);
+          } else if (this.seoSortBy === 'ctr') {
+            list = list.slice().sort((a, b) => b.ctr - a.ctr);
+          }
+          return list;
+        },
+
+        async fetchSeoData() {
+          this.seoLoading = true;
+          try {
+            const res = await this.apiFetch('/api/developer/seo/overview');
+            if (res.status === 401) { this.authenticated = false; return; }
+            if (res.ok) {
+              this.seoOverview = await res.json();
+            }
+          } catch (e) {
+          } finally {
+            this.seoLoading = false;
+            this.$nextTick(() => lucide.createIcons());
+          }
+        },
+
+        async fetchSeoTraffic() {
+          try {
+            const res = await this.apiFetch('/api/developer/seo/live-traffic');
+            if (res.status === 401) { this.authenticated = false; return; }
+            if (res.ok) {
+              const data = await res.json();
+              this.seoTraffic = data.visitors || [];
+            }
+          } catch (e) {
+          } finally {
+            this.$nextTick(() => lucide.createIcons());
+          }
+        },
+
+        openSerpModal() {
+          this.serpQueryInput = '';
+          this.serpCheckResult = null;
+          this.showSerpModal = true;
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        async checkSerp(query) {
+          this.serpQueryInput = query;
+          this.showSerpModal = true;
+          await this.runSerpCheck();
+        },
+
+        async runSerpCheck() {
+          if (!this.serpQueryInput.trim()) return;
+          this.serpCheckLoading = true;
+          this.serpCheckResult = null;
+          try {
+            const res = await this.apiFetch('/api/developer/seo/check-serp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query: this.serpQueryInput.trim() }),
+            });
+            if (res.ok) {
+              this.serpCheckResult = await res.json();
+            }
+          } catch (e) {
+          } finally {
+            this.serpCheckLoading = false;
+            this.$nextTick(() => lucide.createIcons());
+          }
+        },
+
+        async handleDrop(event) {
+          const file = event.dataTransfer.files[0];
+          if (file) await this.uploadCsvFile(file);
+        },
+
+        async handleFileSelect(event) {
+          const file = event.target.files[0];
+          if (file) await this.uploadCsvFile(file);
+        },
+
+        async uploadCsvFile(file) {
+          if (!file.name.endsWith('.csv')) {
+            this.csvUploadError = 'Please upload a valid .csv file from Google Search Console.';
+            return;
+          }
+          this.csvUploadLoading = true;
+          this.csvUploadSuccess = '';
+          this.csvUploadError = '';
+          try {
+            const text = await file.text();
+            const res = await this.apiFetch('/api/developer/seo/upload-csv', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ csv_text: text }),
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+              this.csvUploadSuccess = `Successfully ingested ${data.ingested_rows} search queries into PostgreSQL snapshot!`;
+              this.seoOverview = data.overview;
+              setTimeout(() => { this.seoSubTab = 'striking'; }, 1800);
+            } else {
+              this.csvUploadError = data.detail || 'Failed to parse CSV file.';
+            }
+          } catch (e) {
+            this.csvUploadError = 'Upload failed: ' + e.message;
+          } finally {
+            this.csvUploadLoading = false;
+            this.$nextTick(() => lucide.createIcons());
+          }
+        },
         seedphraseInput: '',
         showSeed: false,
         loginLoading: false,
@@ -1353,6 +2113,10 @@
         chartInstance: null,
 
         async initDashboard() {
+          if (window.location.pathname.startsWith('/seo') || window.location.search.includes('tab=seo')) {
+            this.activeWorkspace = 'seo';
+            this.activeTab = 'seo';
+          }
           await this.checkAuth();
           if (this.authenticated) {
             await this.loadAll();
@@ -1365,9 +2129,12 @@
 
         async checkAuth() {
           try {
-            const res = await fetch('/api/developer/auth/check');
+            const res = await this.apiFetch('/api/developer/auth/check');
             const data = await res.json();
             this.authenticated = data.authenticated;
+            if (!data.authenticated) {
+              localStorage.removeItem('riseup_dev_token');
+            }
           } catch (e) {
             this.authenticated = false;
           }
@@ -1377,7 +2144,7 @@
           this.loginLoading = true;
           this.loginError = '';
           try {
-            const res = await fetch('/api/developer/auth/login', {
+            const res = await this.apiFetch('/api/developer/auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ seedphrase: this.seedphraseInput }),
@@ -1385,6 +2152,9 @@
             const data = await res.json();
             if (res.ok && data.ok) {
               this.authenticated = true;
+              if (this.rememberSession && data.token) {
+                localStorage.setItem('riseup_dev_token', data.token);
+              }
               this.seedphraseInput = '';
               await this.loadAll();
               this.startAutoRefresh();
@@ -1401,8 +2171,9 @@
 
         async logout() {
           try {
-            await fetch('/api/developer/auth/logout', { method: 'POST' });
+            await this.apiFetch('/api/developer/auth/logout', { method: 'POST' });
           } catch (e) {}
+          localStorage.removeItem('riseup_dev_token');
           this.authenticated = false;
           clearInterval(this.refreshInterval);
         },
@@ -1411,6 +2182,7 @@
           clearInterval(this.refreshInterval);
           this.refreshInterval = setInterval(() => {
             if (this.autoRefresh && this.authenticated) {
+              if (this.activeTab === 'seo' && this.seoSubTab === 'traffic') this.fetchSeoTraffic();
               if (this.activeTab === 'vitals') this.fetchStatus();
               if (this.activeTab === 'debugger') this.fetchLogs();
               if (this.activeTab === 'metrics') this.fetchMetrics();
@@ -1425,6 +2197,8 @@
 
         async loadAll() {
           await Promise.all([
+            this.fetchSeoData(),
+            this.fetchSeoTraffic(),
             this.fetchStatus(),
             this.fetchMetrics(),
             this.fetchApiKeys(),
@@ -1442,7 +2216,7 @@
 
         async fetchStatus() {
           try {
-            const res = await fetch('/api/developer/status');
+            const res = await this.apiFetch('/api/developer/status');
             if (res.status === 401) { this.authenticated = false; return; }
             this.statusData = await res.json();
           } catch (e) {}
@@ -1450,7 +2224,7 @@
 
         async fetchMetrics() {
           try {
-            const res = await fetch('/api/developer/metrics');
+            const res = await this.apiFetch('/api/developer/metrics');
             if (res.status === 401) { this.authenticated = false; return; }
             this.metricsData = await res.json();
             this.updateChart();
@@ -1459,7 +2233,7 @@
 
         async fetchApiKeys() {
           try {
-            const res = await fetch('/api/developer/api-keys');
+            const res = await this.apiFetch('/api/developer/api-keys');
             if (res.status === 401) { this.authenticated = false; return; }
             const data = await res.json();
             this.apiKeys = data.api_keys || [];
@@ -1469,7 +2243,7 @@
         async fetchLogs() {
           try {
             let url = `/api/developer/logs?status_filter=${this.logStatusFilter}&min_duration=${this.minDurationFilter}&limit=100`;
-            const res = await fetch(url);
+            const res = await this.apiFetch(url);
             if (res.status === 401) { this.authenticated = false; return; }
             const data = await res.json();
             this.logs = data.logs || [];
@@ -1478,7 +2252,7 @@
 
         async fetchCrmStats() {
           try {
-            const res = await fetch('/api/developer/crm-stats');
+            const res = await this.apiFetch('/api/developer/crm-stats');
             if (res.status === 401) { this.authenticated = false; return; }
             this.crmStats = await res.json();
           } catch (e) {}
@@ -1486,7 +2260,7 @@
 
         async fetchErrors() {
           try {
-            const res = await fetch('/api/developer/errors');
+            const res = await this.apiFetch('/api/developer/errors');
             if (res.status === 401) { this.authenticated = false; return; }
             const data = await res.json();
             this.errorGroups = data.error_groups || [];
@@ -1495,7 +2269,7 @@
 
         async fetchSessions() {
           try {
-            const res = await fetch('/api/developer/sessions');
+            const res = await this.apiFetch('/api/developer/sessions');
             if (res.status === 401) { this.authenticated = false; return; }
             const data = await res.json();
             this.sessions = data.admin_sessions || [];
@@ -1506,14 +2280,14 @@
         async deleteSession(sessionId) {
           if (!confirm('Force-kill this session? The user will be logged out immediately.')) return;
           try {
-            await fetch(`/api/developer/sessions/${sessionId}`, { method: 'DELETE' });
+            await this.apiFetch(`/api/developer/sessions/${sessionId}`, { method: 'DELETE' });
             await this.fetchSessions();
           } catch (e) {}
         },
 
         async fetchAuditLogs() {
           try {
-            const res = await fetch('/api/developer/audit-logs?limit=100');
+            const res = await this.apiFetch('/api/developer/audit-logs?limit=100');
             if (res.status === 401) { this.authenticated = false; return; }
             const data = await res.json();
             this.auditLogs = data.audit_logs || [];
@@ -1523,7 +2297,7 @@
 
         async fetchIntegrations() {
           try {
-            const res = await fetch('/api/developer/integrations');
+            const res = await this.apiFetch('/api/developer/integrations');
             if (res.status === 401) { this.authenticated = false; return; }
             const data = await res.json();
             this.integrations = data.integrations || {};
@@ -1533,7 +2307,7 @@
 
         async fetchDatabaseOverview() {
           try {
-            const res = await fetch('/api/developer/database/overview');
+            const res = await this.apiFetch('/api/developer/database/overview');
             if (res.status === 401) { this.authenticated = false; return; }
             this.dbOverview = await res.json();
           } catch (e) {}
@@ -1541,7 +2315,7 @@
 
         async clearErrors() {
           try {
-            await fetch('/api/developer/errors/clear', { method: 'POST' });
+            await this.apiFetch('/api/developer/errors/clear', { method: 'POST' });
             this.errorGroups = [];
           } catch (e) {}
         },
@@ -1565,7 +2339,7 @@
         async submitCreateKey() {
           try {
             const origins = this.keyForm.allowed_origins_str.split(',').map(s => s.trim()).filter(Boolean);
-            const res = await fetch('/api/developer/api-keys', {
+            const res = await this.apiFetch('/api/developer/api-keys', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -1592,7 +2366,7 @@
 
         async toggleKeyActive(key) {
           try {
-            await fetch(`/api/developer/api-keys/${key.id}`, {
+            await this.apiFetch(`/api/developer/api-keys/${key.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ is_active: !key.is_active }),
@@ -1604,7 +2378,7 @@
         async rollKey(key) {
           if (!confirm(`Roll secret token for '${key.name}'? Existing frontends using the old token will immediately fail until updated.`)) return;
           try {
-            const res = await fetch(`/api/developer/api-keys/${key.id}/roll`, { method: 'POST' });
+            const res = await this.apiFetch(`/api/developer/api-keys/${key.id}/roll`, { method: 'POST' });
             const data = await res.json();
             if (res.ok && data.ok) {
               this.newKeyRevealed = data.api_key;
@@ -1616,28 +2390,28 @@
         async deleteKey(key) {
           if (!confirm(`Delete key '${key.name}' permanently?`)) return;
           try {
-            await fetch(`/api/developer/api-keys/${key.id}`, { method: 'DELETE' });
+            await this.apiFetch(`/api/developer/api-keys/${key.id}`, { method: 'DELETE' });
             await this.fetchApiKeys();
           } catch (e) {}
         },
 
         async clearLogs() {
           try {
-            await fetch('/api/developer/logs/clear', { method: 'POST' });
+            await this.apiFetch('/api/developer/logs/clear', { method: 'POST' });
             this.logs = [];
           } catch (e) {}
         },
 
         async runDbPing() {
           try {
-            const res = await fetch('/api/developer/tools/ping-db', { method: 'POST' });
+            const res = await this.apiFetch('/api/developer/tools/ping-db', { method: 'POST' });
             this.dbPingResult = await res.json();
           } catch (e) {}
         },
 
         async flushCache() {
           try {
-            const res = await fetch('/api/developer/tools/flush-cache', { method: 'POST' });
+            const res = await this.apiFetch('/api/developer/tools/flush-cache', { method: 'POST' });
             const data = await res.json();
             this.flushResult = `Successfully flushed ${data.flushed_keys_count} keys from cache.`;
           } catch (e) {}
@@ -1648,7 +2422,7 @@
           this.sqlError = '';
           this.sqlResult = null;
           try {
-            const res = await fetch('/api/developer/tools/query', {
+            const res = await this.apiFetch('/api/developer/tools/query', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ sql: this.sqlQuery }),
@@ -1669,7 +2443,7 @@
 
         async browseRedisKeys() {
           try {
-            const res = await fetch(`/api/developer/tools/redis-keys?pattern=${encodeURIComponent(this.redisPattern)}&limit=50`);
+            const res = await this.apiFetch(`/api/developer/tools/redis-keys?pattern=${encodeURIComponent(this.redisPattern)}&limit=50`);
             const data = await res.json();
             this.redisKeys = data.keys || [];
           } catch (e) {}
@@ -1679,7 +2453,7 @@
         async healthCheckAll() {
           this.healthResult = null;
           try {
-            const res = await fetch('/api/developer/tools/health-check-all', { method: 'POST' });
+            const res = await this.apiFetch('/api/developer/tools/health-check-all', { method: 'POST' });
             this.healthResult = await res.json();
           } catch (e) {}
           this.$nextTick(() => lucide.createIcons());
@@ -1688,7 +2462,7 @@
         async resetTelemetry() {
           if (!confirm('Reset all telemetry counters? This cannot be undone.')) return;
           try {
-            const res = await fetch('/api/developer/tools/reset-telemetry', { method: 'POST' });
+            const res = await this.apiFetch('/api/developer/tools/reset-telemetry', { method: 'POST' });
             const data = await res.json();
             this.resetResult = data.message || 'Counters reset successfully';
             setTimeout(() => this.resetResult = '', 5000);

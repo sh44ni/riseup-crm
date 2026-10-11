@@ -1216,3 +1216,54 @@ async def flush_application_cache(token: str = Depends(require_developer_session
     if keys:
         await redis.delete(*keys)
     return {"ok": True, "flushed_keys_count": len(keys)}
+
+# ── 7. SEO & Search Console Endpoints ──
+from app.services.seo import (
+    get_seo_overview,
+    parse_and_ingest_csv,
+    get_live_organic_visitors,
+    check_live_serp_query,
+)
+
+class SerpCheckRequest(BaseModel):
+    query: str
+
+class CsvUploadRequest(BaseModel):
+    csv_text: str
+
+@router.get("/seo/overview")
+async def api_get_seo_overview(
+    token: str = Depends(require_developer_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieve SEO overview, striking tiers (Tier 1/2/3), and GSC performance."""
+    return await get_seo_overview(db)
+
+@router.get("/seo/live-traffic")
+async def api_get_seo_live_traffic(
+    token: str = Depends(require_developer_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieve real-time organic search arrivals from Google."""
+    events = await get_live_organic_visitors(db)
+    return {"ok": True, "visitors": events}
+
+@router.post("/seo/upload-csv")
+async def api_upload_gsc_csv(
+    payload: CsvUploadRequest,
+    token: str = Depends(require_developer_session),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload and ingest a Google Search Console Queries.csv export."""
+    count = await parse_and_ingest_csv(payload.csv_text, db)
+    overview = await get_seo_overview(db)
+    return {"ok": True, "ingested_rows": count, "overview": overview}
+
+@router.post("/seo/check-serp")
+async def api_check_live_serp(
+    payload: SerpCheckRequest,
+    token: str = Depends(require_developer_session)
+):
+    """Perform on-demand live SERP verification for a target query."""
+    return await check_live_serp_query(payload.query)
+

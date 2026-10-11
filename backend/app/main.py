@@ -279,11 +279,13 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # ── Mount Master API Router ──
 app.include_router(api_router)
 
-# ── Standalone Developer Dashboard UI ──
+# ── Standalone Developer & SEO Command Center UI ──
 @app.get("/developer", response_class=HTMLResponse, tags=["Developer Dashboard"])
 @app.get("/developer/{rest_of_path:path}", response_class=HTMLResponse, tags=["Developer Dashboard"])
 @app.get("/developers", response_class=HTMLResponse, tags=["Developer Dashboard"])
 @app.get("/developers/{rest_of_path:path}", response_class=HTMLResponse, tags=["Developer Dashboard"])
+@app.get("/seo", response_class=HTMLResponse, tags=["SEO Command Center"])
+@app.get("/seo/{rest_of_path:path}", response_class=HTMLResponse, tags=["SEO Command Center"])
 async def developer_dashboard():
     index_file = os.path.join(STATIC_DEV_DIR, "index.html")
     if os.path.exists(index_file):
