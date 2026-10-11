@@ -152,7 +152,7 @@ async def import_manual_review(
         ) VALUES (
             :name, :city, :rating, :fb, :stype,
             :source, 'published', :grid, :orig_time, :reply,
-            true, CAST(:orig_time AS timestamptz), NOW()
+            true, NOW(), NOW()
         )
         ON CONFLICT (google_review_id) DO UPDATE SET
             customer_name = EXCLUDED.customer_name,
@@ -265,7 +265,7 @@ async def sync_google_reviews(db: AsyncSession) -> Dict[str, Any]:
                                 ) VALUES (
                                     :name, 'San Diego County', :rating, :fb, 'Roofing & Construction',
                                     'google', 'published', :grid, :orig_time,
-                                    true, CAST(:orig_time AS timestamptz), NOW()
+                                    true, NOW(), NOW()
                                 )
                                 ON CONFLICT (google_review_id) DO NOTHING;
                             """)
