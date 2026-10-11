@@ -1,4 +1,4 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/shared/Icon';
@@ -20,6 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: `${job.title} — Careers | Rise Up Roofing`,
     description: job.description,
     path: `/careers/${job.slug}`,
+    noIndex: true,
   });
 }
 

@@ -6,10 +6,11 @@ interface MetadataOptions {
   description: string;
   path: string;
   ogImage?: string;
+  noIndex?: boolean;
 }
 
 
-export function buildMetadata({ title, description, path, ogImage }: MetadataOptions): Metadata {
+export function buildMetadata({ title, description, path, ogImage, noIndex }: MetadataOptions): Metadata {
   const trimmed = title.trim();
   let fullTitle: string;
 
@@ -36,6 +37,14 @@ export function buildMetadata({ title, description, path, ogImage }: MetadataOpt
     },
     description,
     alternates: { canonical: url },
+    ...(noIndex
+      ? {
+          robots: {
+            index: false,
+            follow: true,
+          },
+        }
+      : {}),
     openGraph: {
       title: fullTitle,
       description,

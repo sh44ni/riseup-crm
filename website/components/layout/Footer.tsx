@@ -15,6 +15,7 @@ import {
 } from '@/lib/utils';
 import { Container } from '@/components/shared/Container';
 import { TOP_CITIES } from '@/lib/data/navigation';
+import { REGIONAL_SERVICE_AREAS, getServiceAreaBySlug } from '@/lib/data/serviceAreas';
 import { Tooltip } from '@/components/shared/Tooltip';
 import type { ReviewStats } from '@/lib/reviews-server';
 
@@ -327,25 +328,40 @@ export function Footer({ stats }: { stats?: ReviewStats } = {}) {
                   className="w-full flex items-center justify-between p-3.5 text-xs font-bold uppercase tracking-wider text-white hover:text-brand-blue transition-colors cursor-pointer"
                   aria-expanded={areasOpen}
                 >
-                  <span>Service Areas</span>
+                  <span>Service Areas (All 32 Cities)</span>
                   <Icon name="chevron-down" className={cn('w-4 h-4 text-white/60 transition-transform duration-200', areasOpen && 'rotate-180 text-brand-blue')} />
                 </button>
                 {areasOpen && (
-                  <ul className="px-3.5 pb-3.5 pt-1 space-y-2.5 border-t border-white/5">
-                    {TOP_CITIES.slice(0, 8).map((city) => (
-                      <li key={city.slug}>
-                        <Link href={`/service-area/${city.slug}`} className="text-xs text-white/70 hover:text-white transition-colors block py-1">
-                          {city.name}, CA
-                        </Link>
-                      </li>
+                  <div className="px-3.5 pb-3.5 pt-1 space-y-4 border-t border-white/5">
+                    {REGIONAL_SERVICE_AREAS.map((region) => (
+                      <div key={region.id} className="pt-2 first:pt-0">
+                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-brand-blue mb-1.5">
+                          {region.name}
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {region.slugs.map((slug) => {
+                            const sa = getServiceAreaBySlug(slug);
+                            if (!sa) return null;
+                            return (
+                              <Link
+                                key={slug}
+                                href={`/service-area/${slug}`}
+                                className="text-xs text-white/70 hover:text-white transition-colors block py-0.5 truncate"
+                              >
+                                {sa.name}, CA
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ))}
-                    <li className="pt-1">
+                    <div className="pt-2 border-t border-white/10">
                       <Link href="/service-area" className="text-xs font-bold text-brand-blue hover:text-white transition-colors inline-flex items-center gap-1">
-                        <span>All 30+ San Diego Cities</span>
+                        <span>View Interactive Service Area Hub</span>
                         <Icon name="arrow-up-right" className="w-3 h-3" />
                       </Link>
-                    </li>
-                  </ul>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -372,6 +388,54 @@ export function Footer({ stats }: { stats?: ReviewStats } = {}) {
                   </ul>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* San Diego County Service Areas Directory — Crawlable Regional Links (All 32 Cities) */}
+          <div className="pt-10 pb-8 mt-10 border-t border-white/10 hidden md:block">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                  <Icon name="map-pin" className="w-3.5 h-3.5 text-brand-blue" />
+                  <span>San Diego County Service Areas &amp; Communities Served</span>
+                </h4>
+                <p className="text-[11px] text-white/50 mt-0.5">
+                  Fully licensed C-39 Roofing and B General Building contractors serving all 32 municipalities and unincorporated communities.
+                </p>
+              </div>
+              <Link
+                href="/service-area"
+                className="text-xs font-bold text-brand-blue hover:text-white transition-colors inline-flex items-center gap-1 flex-shrink-0"
+              >
+                <span>Interactive Coverage Map</span>
+                <Icon name="arrow-up-right" className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
+              {REGIONAL_SERVICE_AREAS.map((region) => (
+                <div key={region.id} className="space-y-2">
+                  <h5 className="text-[11px] font-bold uppercase tracking-wider text-brand-blue border-b border-white/10 pb-1.5">
+                    {region.name}
+                  </h5>
+                  <ul className="space-y-1">
+                    {region.slugs.map((slug) => {
+                      const sa = getServiceAreaBySlug(slug);
+                      if (!sa) return null;
+                      return (
+                        <li key={slug}>
+                          <Link
+                            href={`/service-area/${slug}`}
+                            className="text-[11px] text-white/60 hover:text-white transition-colors block py-0.5 truncate"
+                          >
+                            {sa.name}, CA
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
             </div>
           </div>
 

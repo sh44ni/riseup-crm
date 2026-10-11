@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Icon } from '@/components/shared/Icon';
-import { getProjectBySlug, getAllProjectSlugs } from '@/lib/data/projects';
+import { getProjectBySlug, getAllProjectSlugs, projects } from '@/lib/data/projects';
 import { buildMetadata, buildProjectJsonLd } from '@/lib/seo/metadata';
 import { Section } from '@/components/shared/Container';
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs';
@@ -28,6 +28,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const { slug } = await params;
   const project = getProjectBySlug(slug);
   if (!project) notFound();
+
+  const relatedProjects = projects
+    .filter((p) => p.slug !== slug)
+    .sort((a, b) => {
+      if (a.category === project.category && b.category !== project.category) return -1;
+      if (b.category === project.category && a.category !== project.category) return 1;
+      return 0;
+    })
+    .slice(0, 3);
 
   const projectJsonLd = buildProjectJsonLd(project);
 
@@ -203,6 +212,71 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
       </Section>
+
+      {/* Related Projects Cross-Linking (SEO Mesh & Architectural Proof) */}
+      {relatedProjects.length > 0 && (
+        <Section alternate={true} className="border-t border-slate-200/80">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-blue">Portfolio Exploration</span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary)]">
+                Related Case Studies &amp; Projects
+              </h2>
+            </div>
+            <Link
+              href="/projects"
+              className="text-xs font-bold text-brand-blue hover:text-[#1C88DD] transition-colors inline-flex items-center gap-1"
+            >
+              <span>View All 11 Projects</span>
+              <Icon name="arrow-right" className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {relatedProjects.map((rel) => (
+              <Link key={rel.slug} href={`/projects/${rel.slug}`} className="group flex">
+                <div className="glass-card-interactive rounded-2xl overflow-hidden flex flex-col w-full border border-slate-200/80 shadow-xs hover:border-brand-blue/30 transition-all duration-300">
+                  <div className="relative h-48 overflow-hidden">
+                    <Image
+                      src={rel.afterImage}
+                      alt={rel.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0B1B2B] via-transparent to-transparent" />
+                    <div className="absolute top-3 left-3">
+                      <span className="glass-chip px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider text-white backdrop-blur-md border-white/20">
+                        {rel.category}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-3 left-3 flex items-center gap-1 text-xs text-white">
+                      <span className="glass-chip px-2 py-0.5 rounded-lg flex items-center gap-1 backdrop-blur-md text-[11px] font-semibold">
+                        <Icon name="map-pin" className="w-3 h-3 text-brand-blue" />
+                        {rel.city}, CA
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-[var(--text-primary)] mb-1 group-hover:text-brand-blue transition-colors">
+                        {rel.title}
+                      </h3>
+                      <p className="text-xs text-[var(--text-secondary)] line-clamp-2 mb-4 leading-relaxed">
+                        {rel.scopeOfWork}
+                      </p>
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-blue group-hover:text-[#1C88DD] transition-colors">
+                      <span>Read Case Study</span>
+                      <Icon name="arrow-right" className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

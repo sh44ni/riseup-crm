@@ -890,3 +890,63 @@ export function getServiceAreaBySlug(slug: string): ServiceArea | undefined {
 export function getAllServiceAreaSlugs(): string[] {
   return serviceAreas.map((sa) => sa.slug);
 }
+
+export interface RegionCategory {
+  id: string;
+  name: string;
+  description: string;
+  slugs: string[];
+}
+
+export const REGIONAL_SERVICE_AREAS: RegionCategory[] = [
+  {
+    id: 'north-coastal',
+    name: 'North County Coastal',
+    description: 'Marine layer protection & coastal tile specialists',
+    slugs: ['oceanside', 'carlsbad', 'encinitas', 'solana-beach', 'del-mar', 'camp-pendleton'],
+  },
+  {
+    id: 'north-inland',
+    name: 'North County Inland',
+    description: 'Tile relays, UV protection & custom estate roofing',
+    slugs: ['vista', 'san-marcos', 'escondido', 'poway', 'fallbrook', 'bonsall', 'valley-center', 'ramona', 'rancho-bernardo', 'rancho-santa-fe'],
+  },
+  {
+    id: 'metro-coastal',
+    name: 'San Diego Metro & Coast',
+    description: 'Historic Spanish tile, cool shingles & flat roofs',
+    slugs: ['san-diego', 'la-jolla', 'coronado', 'imperial-beach', 'national-city', 'chula-vista'],
+  },
+  {
+    id: 'east-county',
+    name: 'East County Foothills',
+    description: 'High heat, Title 24 cool roofs & wildfire defense',
+    slugs: ['el-cajon', 'la-mesa', 'santee', 'lakeside', 'alpine', 'spring-valley', 'rancho-san-diego', 'lemon-grove'],
+  },
+  {
+    id: 'south-riverside',
+    name: 'South Riverside Adjacent',
+    description: 'Residential tile lift-and-reset & solar roofing',
+    slugs: ['temecula', 'murrieta'],
+  },
+];
+
+export function getNearbyServiceAreas(currentSlug: string, count = 4): ServiceArea[] {
+  const region = REGIONAL_SERVICE_AREAS.find((r) => r.slugs.includes(currentSlug));
+  const siblingSlugs = region
+    ? region.slugs.filter((s) => s !== currentSlug)
+    : serviceAreas.map((sa) => sa.slug).filter((s) => s !== currentSlug);
+
+  const matched = siblingSlugs
+    .map((s) => getServiceAreaBySlug(s))
+    .filter((sa): sa is ServiceArea => Boolean(sa));
+
+  if (matched.length < count) {
+    const others = serviceAreas
+      .filter((sa) => sa.slug !== currentSlug && !siblingSlugs.includes(sa.slug))
+      .slice(0, count - matched.length);
+    matched.push(...others);
+  }
+
+  return matched.slice(0, count);
+}

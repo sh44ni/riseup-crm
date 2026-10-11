@@ -125,11 +125,30 @@ export function FeaturedProjects() {
         ))}
       </div>
 
+      {/* Complete Projects Quick-Access Index (Ensures all 11 case studies receive homepage PageRank) */}
+      <div className="mt-10 pt-8 border-t border-slate-200/60 max-w-5xl mx-auto">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center mb-3">
+          All San Diego Case Studies &amp; Completed Installations
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {projects.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/projects/${p.slug}`}
+              className="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200/70 hover:border-brand-blue/40 text-slate-700 hover:text-brand-blue text-xs font-medium transition-all shadow-2xs flex items-center gap-1.5"
+            >
+              <Icon name="map-pin" className="w-3 h-3 text-brand-blue" />
+              <span>{p.title} ({p.city})</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* View All Projects Bottom Banner */}
-      <div className="text-center mt-10 sm:mt-12">
+      <div className="text-center mt-8">
         <Link href="/projects">
           <span className="inline-flex items-center gap-2 bg-white hover:bg-brand-blue hover:text-white border border-slate-200/80 hover:border-brand-blue text-[#0B1E33] font-bold text-xs uppercase tracking-wider px-6 py-3.5 rounded-2xl transition-all shadow-xs hover:shadow-md cursor-pointer">
-            <span>Explore All Completed Projects</span>
+            <span>Explore Complete Projects Portfolio</span>
             <Icon name="arrow-right" className="w-4 h-4" />
           </span>
         </Link>

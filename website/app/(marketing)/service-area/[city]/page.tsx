@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Icon } from '@/components/shared/Icon';
-import { getServiceAreaBySlug, getAllServiceAreaSlugs } from '@/lib/data/serviceAreas';
+import { getServiceAreaBySlug, getAllServiceAreaSlugs, getNearbyServiceAreas } from '@/lib/data/serviceAreas';
 import { services } from '@/lib/data/services';
 import { buildMetadata, buildFAQJsonLd } from '@/lib/seo/metadata';
 import { Section } from '@/components/shared/Container';
@@ -44,6 +44,7 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
   const displayReviews = localReviews.length > 0 ? localReviews : allReviews.slice(0, 2);
 
   const faqs = area.faqs || [];
+  const nearbyAreas = getNearbyServiceAreas(area.slug, 4);
   const faqJsonLd = faqs.length > 0 ? buildFAQJsonLd(faqs) : null;
   const cityJsonLd = {
     '@context': 'https://schema.org',
@@ -280,6 +281,56 @@ export default async function CityPage({ params }: { params: Promise<{ city: str
                 Frequently Asked Questions About Roofing in {area.name}
               </h2>
               <FAQAccordion items={faqs} />
+            </div>
+          )}
+
+          {/* Nearby Communities Served (SEO Mesh & Local Relevance) */}
+          {nearbyAreas.length > 0 && (
+            <div className="mb-12">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-brand-blue">Regional Coverage</span>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary)]">
+                    Nearby Communities Served Near {area.name}
+                  </h2>
+                </div>
+                <Link
+                  href="/service-area"
+                  className="text-xs font-bold text-brand-blue hover:text-[#1C88DD] transition-colors inline-flex items-center gap-1"
+                >
+                  <span>All 30+ Service Areas</span>
+                  <Icon name="arrow-right" className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {nearbyAreas.map((nearby) => (
+                  <Link
+                    key={nearby.slug}
+                    href={`/service-area/${nearby.slug}`}
+                    className="group glass-card-interactive rounded-2xl p-5 border border-slate-200/80 hover:border-brand-blue/40 shadow-2xs hover:shadow-sm transition-all duration-200 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 text-brand-blue mb-2">
+                        <Icon name="map-pin" className="w-4 h-4 text-brand-blue" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {nearby.county} County
+                        </span>
+                      </div>
+                      <h3 className="text-base font-bold text-[var(--text-primary)] group-hover:text-brand-blue transition-colors mb-1.5">
+                        {nearby.name}
+                      </h3>
+                      <p className="text-xs text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
+                        {nearby.seoDescription || `Expert roofing, tile relay, and leak repair services in ${nearby.name}, CA.`}
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-blue group-hover:text-[#1C88DD]">
+                      <span>View {nearby.name} Services</span>
+                      <Icon name="arrow-right" className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
 
