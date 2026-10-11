@@ -1,15 +1,28 @@
-from typing import Dict, Any, List
-from fastapi import APIRouter, Depends
+from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, Depends, Header, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import orjson
 from datetime import datetime
 from app.core.database import get_db
+from app.core.config import settings
 
 router = APIRouter(tags=["Public Reviews"])
 
 GOOGLE_REVIEWS_URL = "https://search.google.com/local/writereview?placeid=ChIJ-f_1oGhw3IAR_vK8N8E2i6I"
 YELP_REVIEWS_URL = "https://www.yelp.com/biz/rise-up-roofing-and-construction-oceanside-2"
+
+class ManualReviewPayload(BaseModel):
+    customer_name: str
+    rating: int = Field(5, ge=1, le=5)
+    feedback: str
+    customer_city: Optional[str] = "Oceanside"
+    service_type: Optional[str] = "Roofing & Construction"
+    source: Optional[str] = "google"
+    owner_reply: Optional[str] = None
+    original_time: Optional[str] = None
+    google_review_id: Optional[str] = None
 
 @router.get("/api/reviews/public")
 async def get_public_reviews_and_stats(db: AsyncSession = Depends(get_db)):
@@ -115,3 +128,44 @@ async def get_public_reviews_and_stats(db: AsyncSession = Depends(get_db)):
             "googleUrl": GOOGLE_REVIEWS_URL,
         }
     }
+
+
+@router.post("/api/reviews/manual-import")
+async def manual_import_review_endpoint(
+    payload: ManualReviewPayload,
+    authorization: Optional[str] = Header(None),
+    secret: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Import or update a review manually.
+    Protected by CRON_SECRET or MIGRATION_KEY.
+    """
+    cron_secret = settings.CRON_SECRET
+    migration_key = settings.MIGRATION_KEY
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ")[1].strip()
+
+    is_authorized = (
+        (cron_secret and (auth_token == cron_secret or secret == cron_secret)) or
+        (migration_key and (auth_token == migration_key or secret == migration_key))
+    )
+    if not is_authorized:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid secret or token")
+
+    from app.services.reviews import import_manual_review
+    result = await import_manual_review(
+        db,
+        customer_name=payload.customer_name,
+        rating=payload.rating,
+        feedback=payload.feedback,
+        customer_city=payload.customer_city or "Oceanside",
+        service_type=payload.service_type or "Roofing & Construction",
+        source=payload.source or "google",
+        owner_reply=payload.owner_reply,
+        original_time=payload.original_time,
+        google_review_id=payload.google_review_id,
+    )
+    return result
+

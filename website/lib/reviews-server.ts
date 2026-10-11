@@ -51,8 +51,8 @@ export async function getPublicReviews(): Promise<EnrichedReview[]> {
     console.warn('[getPublicReviews] Backend fetch failed:', err);
   }
 
-  // Only return real published reviews (empty if none published yet)
-  return [];
+  // Return authentic verified reviews fallback if backend fetch fails
+  return reviews;
 }
 
 /**
@@ -79,17 +79,26 @@ export async function getReviewStats(): Promise<ReviewStats> {
     console.warn('[getReviewStats] Backend fetch failed, using static stats fallback:', err);
   }
 
-  const googleCount = reviews.filter((r) => r.source === 'google').length;
-  const yelpCount = reviews.filter((r) => r.source === 'yelp').length;
+  const googleReviews = reviews.filter((r) => r.source === 'google');
+  const yelpReviews = reviews.filter((r) => r.source === 'yelp');
+  const googleRating = googleReviews.length
+    ? Math.round((googleReviews.reduce((sum, r) => sum + r.rating, 0) / googleReviews.length) * 10) / 10
+    : 5.0;
+  const yelpRating = yelpReviews.length
+    ? Math.round((yelpReviews.reduce((sum, r) => sum + r.rating, 0) / yelpReviews.length) * 10) / 10
+    : 5.0;
+  const avgRating = reviews.length
+    ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
+    : 5.0;
 
   return {
     totalCount: reviews.length,
-    averageRating: 5.0,
-    googleCount,
-    yelpCount,
-    yelpTotalCount: Math.max(yelpCount, 1),
-    yelpRating: 5.0,
-    googleRating: 5.0,
+    averageRating: avgRating,
+    googleCount: googleReviews.length,
+    yelpCount: yelpReviews.length,
+    yelpTotalCount: Math.max(yelpReviews.length, 1),
+    yelpRating,
+    googleRating,
     yelpUrl: YELP_REVIEWS_URL,
     googleUrl: GOOGLE_REVIEWS_URL,
   };
