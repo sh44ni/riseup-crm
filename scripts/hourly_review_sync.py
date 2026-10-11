@@ -56,8 +56,8 @@ def run_hourly_sync():
             print(f"[{now_str}] Live Website Status:")
             print(f"  - Total Published Reviews: {stats.get('totalCount')}")
             print(f"  - Dynamic Average Rating:  {stats.get('averageRating')} / 5.0")
-            print(f"  - Google Rating / Count:   {stats.get('googleRating')} ★ ({stats.get('googleCount')} reviews)")
-            print(f"  - Yelp Rating / Count:     {stats.get('yelpRating')} ★ ({stats.get('yelpCount')} reviews)")
+            print(f"  - Google Rating / Count:   {stats.get('googleRating')} stars ({stats.get('googleCount')} reviews)")
+            print(f"  - Yelp Rating / Count:     {stats.get('yelpRating')} stars ({stats.get('yelpCount')} reviews)")
         else:
             print(f"[{now_str}] Error reading public endpoint: {stats_resp.status_code}")
     except Exception as e:
