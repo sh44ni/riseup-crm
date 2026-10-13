@@ -32,7 +32,8 @@ export function ContactForm() {
         // Anti-Spam Defenses
         business_fax: fd.get('business_fax') || '',
         company_website: fd.get('company_website') || '',
-        formStartedAt,
+        contact_secondary_email: fd.get('contact_secondary_email') || '',
+        formStartedAt: formStartedAt || Date.now(),
         turnstileToken,
       };
       await fetch('/api/contact', {
@@ -177,6 +178,7 @@ export function ContactForm() {
           <div className="opacity-0 absolute -left-[9999px] h-0 w-0 pointer-events-none overflow-hidden" aria-hidden="true" tabIndex={-1}>
             <input type="text" name="business_fax" tabIndex={-1} autoComplete="off" defaultValue="" />
             <input type="text" name="company_website" tabIndex={-1} autoComplete="off" defaultValue="" />
+            <input type="email" name="contact_secondary_email" tabIndex={-1} autoComplete="off" defaultValue="" />
           </div>
 
           {/* Cloudflare Turnstile (Managed/Invisible) */}

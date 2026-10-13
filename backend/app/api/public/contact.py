@@ -14,7 +14,13 @@ from app.core.audit import get_client_ip
 from app.services.turnstile import verify_turnstile_token
 from app.utils.phone import validate_and_clean_us_phone, format_us_phone
 from app.utils.formatting import format_person_name
-from app.utils.spam import check_honeypots, check_speed_trap, check_spam_content, SpamAttemptRecord
+from app.utils.spam import (
+    check_honeypots,
+    check_speed_trap,
+    check_spam_content,
+    check_spam_email,
+    SpamAttemptRecord,
+)
 from app.utils.spam_logger import log_spam_attempt
 from app.core.config import settings
 
@@ -117,8 +123,24 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
     subject = (body.get("subject") or "").strip() or None
     message = (body.get("message") or "").strip()
 
-    # 5. Content spam & solicitation pattern filter (Silent drop)
-    combined_content = f"{subject or ''} {message or ''} {full_name or ''}"
+    # 5. Suspicious email domain / cold outreach agency check (Silent drop)
+    if email:
+        is_spam_email, email_reason = check_spam_email(email)
+        if is_spam_email:
+            logger.info(f"[SPAM BLOCKED] Spam email domain detected ({email_reason}) from IP {client_ip}")
+            await log_spam_attempt(db, SpamAttemptRecord(
+                block_reason="spam_content",
+                block_detail=email_reason,
+                form_type="contact",
+                ip_address=client_ip,
+                user_agent=user_agent,
+                page_referer=referer,
+                payload_snapshot=body
+            ))
+            return {"ok": True}
+
+    # 6. Content spam & solicitation pattern filter (Silent drop)
+    combined_content = f"{subject or ''} {message or ''} {full_name or ''} {email or ''}"
     is_spam_content, spam_reason = check_spam_content(combined_content)
     if is_spam_content:
         logger.info(f"[SPAM BLOCKED] Solicitation pattern detected ({spam_reason}) from IP {client_ip}")

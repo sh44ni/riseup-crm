@@ -17,19 +17,42 @@ class SpamAttemptRecord:
     payload_snapshot: Optional[Dict[str, Any]] = None
 
 
-# Common B2B spam & cold outreach phrase patterns
+# Common B2B spam, cold outreach, and bot solicitation phrase patterns
 SPAM_PATTERNS = [
-    re.compile(r"reply\s+(?:yes|stop)\b", re.IGNORECASE),
-    re.compile(r"opt\s*out\b", re.IGNORECASE),
+    # Virtual Assistant / Offshore Staffing outreach
+    re.compile(r"\b(?:virtual\s+)?assistants?\b", re.IGNORECASE),
+    re.compile(r"\b(?:trained\s+|dedicated\s+|offshore\s+|part-time\s+|full-time\s+)?va['’s]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:delegate\s+tasks?|replaces?\s+(?:the\s+)?workload)\b", re.IGNORECASE),
+    re.compile(r"\b(?:hire\s+(?:a\s+)?va|offshore\s+team|remote\s+staff(?:ing)?)\b", re.IGNORECASE),
+    re.compile(r"\b10-person\s+team\b", re.IGNORECASE),
+
+    # Marketing, Lead Gen, and Sales Pipeline agency solicitations
+    re.compile(r"\b(?:lead\s*gen(?:eration)?|sales\s*pipeline|appointment\s*setting)\b", re.IGNORECASE),
+    re.compile(r"\b(?:crm\s*management|cold\s*outreach|scale\s*your\s*business)\b", re.IGNORECASE),
+    re.compile(r"\bopen\s+to\s+discussion\??\b", re.IGNORECASE),
+    re.compile(r"\breply\s+(?:yes|stop|interested)\b", re.IGNORECASE),
+    re.compile(r"\bopt\s*out\b", re.IGNORECASE),
     re.compile(r"\bzoom\s+call\b", re.IGNORECASE),
-    re.compile(r"\bvirtual\s+(?:assistant|va)\b", re.IGNORECASE),
-    re.compile(r"\b(?:seo|backlink|guest\s*post|domain\s*authority)\b", re.IGNORECASE),
+
+    # SEO, Backlinks, Guest Posts & Digital Marketing solicitations
+    re.compile(r"\b(?:seo|backlinks?|guest\s*posts?|domain\s*authority|search\s*traffic)\b", re.IGNORECASE),
+    re.compile(r"\b(?:audit\s+your\s+site|free\s+seo\s+review|page\s+1\s+on\s+google)\b", re.IGNORECASE),
+
+    # Custom AI & Bot pitches
+    re.compile(r"\b(?:custom-built\s+ai|ai\s+system|mavis)\b", re.IGNORECASE),
+
+    # Financial / Crypto / Links
     re.compile(r"\b(?:crypto|bitcoin|forex|telegram\s*group)\b", re.IGNORECASE),
-    re.compile(r"\bb2b\s+(?:leads|sales\s*pipeline)\b", re.IGNORECASE),
-    re.compile(r"https?://|www\.[a-z0-9]", re.IGNORECASE), # Homeowner roof inquiries do not contain web links
+    re.compile(r"https?://|www\.[a-z0-9]", re.IGNORECASE), # Legitimate homeowner inquiries do not contain web links
 ]
 
-MIN_FORM_FILL_TIME_MS = 2500  # 2.5 seconds minimum to read and fill form
+# Suspicious email domains & keyword fragments used in automated B2B solicitation
+SPAM_EMAIL_DOMAIN_PATTERNS = [
+    re.compile(r"@[a-z0-9._-]*(?:vettedvas|vasdirect|hirevas|teamva|remoteteam|growthagency|leadgen|coldemail|b2bleads|seoagency)[a-z0-9._-]*\.[a-z]{2,}", re.IGNORECASE),
+    re.compile(r"@[a-z0-9._-]*(?:-vas|\.vas|vasdirect|virtualassist)[a-z0-9._-]*\.[a-z]{2,}", re.IGNORECASE),
+]
+
+MIN_FORM_FILL_TIME_MS = 3000  # 3.0 seconds minimum to read and fill form
 
 def check_honeypots(body: Dict[str, Any]) -> Tuple[bool, str]:
     """
@@ -51,16 +74,23 @@ def check_honeypots(body: Dict[str, Any]) -> Tuple[bool, str]:
     if website and str(website).strip():
         return True, "company_website_honeypot_filled"
 
+    # 4. Decoy: contact_secondary_email
+    sec_email = body.get("contact_secondary_email") or body.get("secondary_email")
+    if sec_email and str(sec_email).strip():
+        return True, "secondary_email_honeypot_filled"
+
     return False, ""
 
 def check_speed_trap(body: Dict[str, Any]) -> Tuple[bool, str]:
     """
     Evaluates form fill duration.
+    Requires a valid formStartedAt timestamp from legitimate frontend forms.
     Returns (is_bot, reason).
     """
     started_at = body.get("formStartedAt") or body.get("form_started_at")
     if not started_at:
-        return False, ""
+        # Reject direct headless script POSTs that bypass the frontend form
+        return True, "speed_trap_missing_timestamp"
 
     try:
         start_ts = float(started_at)
@@ -71,10 +101,14 @@ def check_speed_trap(body: Dict[str, Any]) -> Tuple[bool, str]:
         now_ms = time.time() * 1000
         duration_ms = now_ms - start_ts
 
+        # Detect future timestamps (clock skew manipulation)
+        if duration_ms < 0:
+            return True, "speed_trap_future_timestamp"
+
         if duration_ms < MIN_FORM_FILL_TIME_MS:
             return True, f"speed_trap_triggered_{duration_ms:.0f}ms"
     except (ValueError, TypeError):
-        pass
+        return True, "speed_trap_invalid_timestamp"
 
     return False, ""
 
@@ -91,5 +125,21 @@ def check_spam_content(text_content: Optional[str]) -> Tuple[bool, str]:
         match = pattern.search(text)
         if match:
             return True, f"spam_phrase_matched_{match.group(0)}"
+
+    return False, ""
+
+def check_spam_email(email_address: Optional[str]) -> Tuple[bool, str]:
+    """
+    Scans email address domain for cold solicitation agencies or spam rings.
+    Returns (is_spam, reason).
+    """
+    if not email_address or not str(email_address).strip():
+        return False, ""
+
+    email = str(email_address).strip().lower()
+    for pattern in SPAM_EMAIL_DOMAIN_PATTERNS:
+        match = pattern.search(email)
+        if match:
+            return True, f"spam_email_domain_{match.group(0)}"
 
     return False, ""

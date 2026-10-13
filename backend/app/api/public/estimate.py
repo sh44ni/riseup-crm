@@ -17,7 +17,13 @@ from app.core.audit import get_client_ip
 from app.services.turnstile import verify_turnstile_token
 from app.utils.phone import validate_and_clean_us_phone, format_us_phone
 from app.utils.formatting import format_person_name
-from app.utils.spam import check_honeypots, check_speed_trap, check_spam_content, SpamAttemptRecord
+from app.utils.spam import (
+    check_honeypots,
+    check_speed_trap,
+    check_spam_content,
+    check_spam_email,
+    SpamAttemptRecord,
+)
 from app.utils.spam_logger import log_spam_attempt
 from app.core.config import settings
 logger = get_logger(__name__)
@@ -112,9 +118,28 @@ async def submit_estimate_form(request: Request, db: AsyncSession = Depends(get_
         return {"ok": True}
     phone = format_us_phone(cleaned_phone)
 
-    # 5. Content spam & solicitation pattern filter (Silent drop)
+    raw_email = (body.get("email") or "").strip().lower()
+    email = raw_email if raw_email else None
+
+    # 5. Suspicious email domain / cold outreach agency check (Silent drop)
+    if email:
+        is_spam_email, email_reason = check_spam_email(email)
+        if is_spam_email:
+            logger.info(f"[SPAM BLOCKED] Estimate spam email domain detected ({email_reason}) from IP {client_ip}")
+            await log_spam_attempt(db, SpamAttemptRecord(
+                block_reason="spam_content",
+                block_detail=email_reason,
+                form_type=form_type,
+                ip_address=client_ip,
+                user_agent=user_agent,
+                page_referer=referer,
+                payload_snapshot=body
+            ))
+            return {"ok": True}
+
+    # 6. Content spam & solicitation pattern filter (Silent drop)
     notes_check = body.get("notes") or ""
-    combined_content = f"{full_name} {notes_check}"
+    combined_content = f"{full_name} {notes_check} {email or ''}"
     is_spam_content, spam_reason = check_spam_content(combined_content)
     if is_spam_content:
         logger.info(f"[SPAM BLOCKED] Estimate solicitation pattern detected ({spam_reason}) from IP {client_ip}")
