@@ -65,34 +65,25 @@ async def submit_contact_form(request: Request, db: AsyncSession = Depends(get_d
         ))
         return {"ok": True}
 
-    # 3. Cloudflare Turnstile verification (Silent drop)
+    # 3. Cloudflare Turnstile verification (Silent drop on invalid token; fail-open on missing token if client widget was blocked/slow)
     if settings.CLOUDFLARE_TURNSTILE_SECRET_KEY:
         turnstile_token = body.get("turnstileToken") or body.get("turnstile_token") or body.get("cf-turnstile-response")
-        if not turnstile_token:
-            logger.info(f"[SPAM BLOCKED] Missing Turnstile token from IP {client_ip}")
-            await log_spam_attempt(db, SpamAttemptRecord(
-                block_reason="turnstile",
-                block_detail="missing_turnstile_token",
-                form_type="contact",
-                ip_address=client_ip,
-                user_agent=user_agent,
-                page_referer=referer,
-                payload_snapshot=body
-            ))
-            return {"ok": True}
-        is_valid_turnstile = await verify_turnstile_token(turnstile_token, client_ip)
-        if not is_valid_turnstile:
-            logger.info(f"[SPAM BLOCKED] Invalid Turnstile token from IP {client_ip}")
-            await log_spam_attempt(db, SpamAttemptRecord(
-                block_reason="turnstile",
-                block_detail="invalid_turnstile_token",
-                form_type="contact",
-                ip_address=client_ip,
-                user_agent=user_agent,
-                page_referer=referer,
-                payload_snapshot=body
-            ))
-            return {"ok": True}
+        if turnstile_token:
+            is_valid_turnstile = await verify_turnstile_token(turnstile_token, client_ip)
+            if not is_valid_turnstile:
+                logger.info(f"[SPAM BLOCKED] Invalid Turnstile token from IP {client_ip}")
+                await log_spam_attempt(db, SpamAttemptRecord(
+                    block_reason="turnstile",
+                    block_detail="invalid_turnstile_token",
+                    form_type="contact",
+                    ip_address=client_ip,
+                    user_agent=user_agent,
+                    page_referer=referer,
+                    payload_snapshot=body
+                ))
+                return {"ok": True}
+        else:
+            logger.warning(f"[TURNSTILE] Contact submission from IP {client_ip} arrived without turnstileToken; relying on speed-trap, honeypot, phone, email, and content filters.")
 
     full_name = format_person_name(body.get("fullName", ""))
     if not full_name:

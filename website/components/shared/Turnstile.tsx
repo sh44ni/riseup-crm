@@ -44,8 +44,26 @@ export function Turnstile({
   const widgetIdRef = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  // Keep latest callbacks in refs so parent form re-renders (e.g. typing in inputs
+  // or storing turnstileToken in state) NEVER destroy and re-render the widget!
+  const onVerifyRef = useRef(onVerify);
+  const onErrorRef = useRef(onError);
+  const onExpireRef = useRef(onExpire);
+
   useEffect(() => {
-    // 1. Check if Turnstile script is already present
+    onVerifyRef.current = onVerify;
+    onErrorRef.current = onError;
+    onExpireRef.current = onExpire;
+  }, [onVerify, onError, onExpire]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (window.turnstile) {
+      setLoaded(true);
+      return;
+    }
+
     const SCRIPT_ID = 'cf-turnstile-script';
     let script = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
 
@@ -61,45 +79,54 @@ export function Turnstile({
     const checkReady = () => {
       if (window.turnstile) {
         setLoaded(true);
+        return true;
       }
+      return false;
     };
 
-    if (window.turnstile) {
-      setLoaded(true);
-    } else {
-      script.addEventListener('load', checkReady);
-    }
+    script.addEventListener('load', checkReady);
+
+    // Fallback poll in case the script load event already fired before listener attached
+    const interval = window.setInterval(() => {
+      if (checkReady()) {
+        window.clearInterval(interval);
+      }
+    }, 100);
 
     return () => {
       if (script) {
         script.removeEventListener('load', checkReady);
       }
+      window.clearInterval(interval);
     };
   }, []);
 
   useEffect(() => {
     if (!loaded || !containerRef.current || !window.turnstile) return;
 
-    // Avoid duplicate render
-    if (widgetIdRef.current) {
-      try {
-        window.turnstile.remove(widgetIdRef.current);
-      } catch {
-        // Ignore
-      }
+    // Avoid duplicate render if already mounted
+    if (widgetIdRef.current !== null) {
+      return;
     }
 
     try {
       const id = window.turnstile.render(containerRef.current, {
         sitekey: DEFAULT_SITE_KEY,
         callback: (token: string) => {
-          onVerify(token);
+          onVerifyRef.current(token);
         },
         'error-callback': (code?: string) => {
-          if (onError) onError(code);
+          if (onErrorRef.current) onErrorRef.current(code);
         },
         'expired-callback': () => {
-          if (onExpire) onExpire();
+          if (onExpireRef.current) onExpireRef.current();
+          if (widgetIdRef.current !== null && window.turnstile) {
+            try {
+              window.turnstile.reset(widgetIdRef.current);
+            } catch {
+              // Ignore
+            }
+          }
         },
         theme,
         size: 'flexible',
@@ -110,7 +137,7 @@ export function Turnstile({
     }
 
     return () => {
-      if (widgetIdRef.current && window.turnstile) {
+      if (widgetIdRef.current !== null && window.turnstile) {
         try {
           window.turnstile.remove(widgetIdRef.current);
         } catch {
@@ -119,7 +146,7 @@ export function Turnstile({
         widgetIdRef.current = null;
       }
     };
-  }, [loaded, theme, onVerify, onError, onExpire]);
+  }, [loaded, theme]);
 
   return (
     <div

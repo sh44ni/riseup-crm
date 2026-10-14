@@ -31,7 +31,8 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://challenges.cloudflare.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://www.googletagmanager.com https://www.google-analytics.com https://challenges.cloudflare.com",
+              "worker-src 'self' blob:",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https://images.unsplash.com https://media.base44.com https://lh3.googleusercontent.com https://s3-media0.fl.yelpcdn.com https://s3-media1.fl.yelpcdn.com https://s3-media2.fl.yelpcdn.com https://cdn.weatherapi.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://*.tile.openstreetmap.fr https://server.arcgisonline.com https://services.arcgisonline.com https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://unpkg.com",
