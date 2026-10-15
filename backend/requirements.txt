@@ -2,7 +2,7 @@
 #    uv export --no-dev --frozen --no-hashes --no-emit-project -o requirements.txt
 aioboto3==15.5.0
     # via riseup-backend
-aiobotocore==2.25.1
+aiobotocore==3.9.1
     # via aioboto3
 aiofiles==25.1.0
     # via aioboto3
